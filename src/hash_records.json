@@ -1,0 +1,32 @@
+{
+    "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\LISA.txt": {
+        "hash": "0d7e47b4a6a1de3c6a708eea4e6469b1970429fdc555bce07bcc5591503568a2",
+        "last_checked": "2025-10-08 04:24:22 PM",
+        "last_changed": "2025-10-08 04:23:52 PM",
+        "missing": false
+    },
+    "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\payel.jpg": {
+        "hash": "47943729979cdd14163f442f35f6493871759a02aa69a47c09998e74ad2051dc",
+        "last_checked": "2025-10-08 04:24:22 PM",
+        "last_changed": null,
+        "missing": false
+    },
+    "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\Screenrecording_20251005_141917_com.dts.freefiremax.mp4": {
+        "hash": "5962510519ee212dc8f4fcd149ff71925588e1aa9e736462d6e7592e38f0a9f2",
+        "last_checked": "2025-10-08 04:24:22 PM",
+        "last_changed": null,
+        "missing": true
+    },
+    "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\Screenshot_20250928_151415_com.dts.freefiremax.jpg": {
+        "hash": "33fa47920986c019f106fea9ad8da9ee604b2e616a406ce69589379a6ae36b31",
+        "last_checked": "2025-10-08 04:24:22 PM",
+        "last_changed": null,
+        "missing": false
+    },
+    "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\Screenshot_20250928_151423_com.dts.freefiremax.jpg": {
+        "hash": "b0ae9ad73cf639006e812696777deabb60acdc3881a154e1115dfefdd3e6fa32",
+        "last_checked": "2025-10-08 04:24:22 PM",
+        "last_changed": null,
+        "missing": true
+    }
+}
