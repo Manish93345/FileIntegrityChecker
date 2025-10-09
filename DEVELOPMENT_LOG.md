@@ -21,3 +21,7 @@
 
 
 ### 8 Oct 2025
+    -For real time monitoring
+    -Install watchdog -> pip install watchdog
+    -realtime_monitor.py
+    
