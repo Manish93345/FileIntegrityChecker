@@ -43,7 +43,7 @@
         - Optional webhook alert call if WEBHOOK_URL set in config
         - CLI: run monitor (default) or --verify then exit
 
-    Phase 2: Security + Verification Enhancements
+    Phase 2: Security + Verification Enhancements  (phase__secure_monitor.py)
         -goal: make our system trustworthy & tamper-proof — not just a passive monitor.
 
         -1. Integrity of “hash_records.json” itself (HMAC signature)
@@ -61,6 +61,10 @@
             --periodic 30  # run verify every 30 mins
             --check-integrity  # verify hash_records.json authenticity
 
+
+
+### 9 Oct 2025
+    
 
 
 

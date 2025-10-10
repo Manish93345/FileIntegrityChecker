@@ -21,3 +21,48 @@
 2025-10-09 18:48:18 - 🚀 Real-time integrity monitor started
 2025-10-09 18:48:26 - DELETED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\IMG_20221211_103805.jpg
 2025-10-09 18:48:48 - 🛑 Monitor stopped by user.
+2025-10-09 23:07:34 - 🚀 Starting secure real-time integrity monitor...
+2025-10-09 23:07:34 - ⚠️ No previous HMAC signature found. Creating new one.
+2025-10-09 23:07:34 - 🔍 Performing initial folder scan...
+2025-10-09 23:07:34 - ✅ Initial scan complete!
+2025-10-09 23:07:56 - ⚠️ Skipped D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\payel.jpg.~tmp ([Errno 13] Permission denied: 'D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\payel.jpg.~tmp')
+2025-10-09 23:07:56 - ⚠️ Skipped D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\payel.jpg.~tmp ([Errno 13] Permission denied: 'D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\payel.jpg.~tmp')
+2025-10-09 23:07:56 - ⚠️ Skipped D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\payel.jpg.~tmp ([Errno 13] Permission denied: 'D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\payel.jpg.~tmp')
+2025-10-09 23:07:56 - CREATED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\payel.jpg~RF129afd3.TMP
+2025-10-09 23:07:56 - ⚠️ Webhook send failed: Invalid URL 'None': No scheme supplied. Perhaps you meant https://None?
+2025-10-09 23:07:56 - DELETED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\payel.jpg~RF129afd3.TMP
+2025-10-09 23:07:56 - ⚠️ Webhook send failed: Invalid URL 'None': No scheme supplied. Perhaps you meant https://None?
+2025-10-09 23:07:56 - MODIFIED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\payel.jpg
+2025-10-09 23:07:56 - ⚠️ Webhook send failed: Invalid URL 'None': No scheme supplied. Perhaps you meant https://None?
+2025-10-09 23:07:56 - ⚠️ Skipped D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\~ayel.tmp ([Errno 13] Permission denied: 'D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\~ayel.tmp')
+2025-10-09 23:07:56 - ⚠️ Skipped D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\~ayel.tmp ([Errno 13] Permission denied: 'D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\~ayel.tmp')
+2025-10-09 23:07:56 - ⚠️ Skipped D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\~ayel.tmp ([Errno 13] Permission denied: 'D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\~ayel.tmp')
+2025-10-09 23:07:56 - ⚠️ Skipped D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\~ayel.tmp ([Errno 2] No such file or directory: 'D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\~ayel.tmp')
+2025-10-09 23:07:56 - ⚠️ Skipped D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\payel.jpg~RF129b002.TMP ([Errno 2] No such file or directory: 'D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\payel.jpg~RF129b002.TMP')
+2025-10-09 23:07:56 - MODIFIED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\payel.jpg
+2025-10-09 23:07:56 - ⚠️ Webhook send failed: Invalid URL 'None': No scheme supplied. Perhaps you meant https://None?
+2025-10-09 23:08:19 - 🛑 Monitor stopped by user.
+2025-10-09 23:10:38 - 🚀 Starting secure real-time integrity monitor...
+2025-10-09 23:10:38 - 🔍 Performing initial folder scan...
+2025-10-09 23:10:38 - ✅ Initial scan complete!
+2025-10-09 23:10:54 - MODIFIED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\LISA.txt
+2025-10-09 23:10:58 - 🛑 Monitor stopped by user.
+2025-10-09 23:16:53 - 🚀 Starting secure real-time integrity monitor...
+2025-10-09 23:16:53 - 🔍 Performing initial folder scan...
+2025-10-09 23:16:53 - ✅ Initial scan complete!
+2025-10-09 23:17:24 - ⚠️ Skipped D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\yamuna.jpg.~tmp ([Errno 13] Permission denied: 'D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\yamuna.jpg.~tmp')
+2025-10-09 23:17:25 - ⚠️ Skipped D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\yamuna.jpg.~tmp ([Errno 13] Permission denied: 'D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\yamuna.jpg.~tmp')
+2025-10-09 23:17:25 - ⚠️ Skipped D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\yamuna.jpg.~tmp ([Errno 13] Permission denied: 'D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\yamuna.jpg.~tmp')
+2025-10-09 23:17:25 - ⚠️ Skipped D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\yamuna.jpg~RF1325e2d.TMP ([Errno 13] Permission denied: 'D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\yamuna.jpg~RF1325e2d.TMP')
+2025-10-09 23:17:25 - ⚠️ Skipped D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\~amuna.tmp ([Errno 13] Permission denied: 'D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\~amuna.tmp')
+2025-10-09 23:17:25 - ⚠️ Skipped D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\~amuna.tmp ([Errno 13] Permission denied: 'D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\~amuna.tmp')
+2025-10-09 23:17:25 - ⚠️ Skipped D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\~amuna.tmp ([Errno 13] Permission denied: 'D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\~amuna.tmp')
+2025-10-09 23:17:25 - ⚠️ Skipped D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\~amuna.tmp ([Errno 2] No such file or directory: 'D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\~amuna.tmp')
+2025-10-09 23:17:25 - ⚠️ Skipped D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\yamuna.jpg~RF1325e5b.TMP ([Errno 2] No such file or directory: 'D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\yamuna.jpg~RF1325e5b.TMP')
+2025-10-09 23:17:25 - MODIFIED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\yamuna.jpg
+2025-10-09 23:17:27 - DELETED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\payel.jpg~RF129afd3.TMP
+2025-10-09 23:17:53 - 🧭 Running periodic verification...
+2025-10-09 23:17:53 - ✅ Periodic verification complete.
+2025-10-09 23:18:53 - 🧭 Running periodic verification...
+2025-10-09 23:18:53 - ✅ Periodic verification complete.
+2025-10-09 23:19:50 - 🛑 Monitor stopped by user.

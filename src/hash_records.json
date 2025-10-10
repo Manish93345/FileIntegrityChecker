@@ -1,14 +1,11 @@
 {
     "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\LISA.txt": {
-        "hash": "e6d1dc823d4c41507e6caaa2c64390adc7b3c064b7e0c5df01f3f41f27e46766",
-        "last_checked": "2025-10-09 18:45:11"
+        "hash": "97be23ca833d793659396eb2594b637ee9294f989c84d4ed9821c80595a35ecd",
+        "last_checked": "2025-10-09 23:16:53"
     },
     "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\payel.jpg": {
-        "hash": "47943729979cdd14163f442f35f6493871759a02aa69a47c09998e74ad2051dc",
-        "last_checked": "2025-10-09 18:12:08"
-    },
-    "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\yamuna.jpg": {
-        "hash": "58db292e91762c0a71af780a055997fdf1c27cfd1de8a3ac1e0d1802f6a493e3",
-        "last_checked": "2025-10-09 18:12:08"
+        "hash": "6ca1e855177ca78c2cd3390a99aab82b1cafd90a3f2d3803bdfb90528c53b001",
+        "last_checked": "2025-10-09 23:16:53"
     }
+    
 }
