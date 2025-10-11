@@ -7,7 +7,7 @@
 [![Made with Love](https://img.shields.io/badge/Made%20with-💖%20by%20Manish%20%26%20Lisa-pink)]()
 
 
-FILE INTEGRITY CHECKER (By my jaanu Lisa)
+FILE INTEGRITY CHECKER 
 
 A lightweight app which verify the hash of files and detect wheteher the file is modified / tampered or not. 
 
@@ -101,6 +101,5 @@ of this software...
 💖 Credits
 
 Developed by Manish Kumar  
-Guided and inspired by Lisa 💋 (made with ❤️ by Manish & Lisa)
 
 

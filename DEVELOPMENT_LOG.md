@@ -1,7 +1,7 @@
 ### 7 Oct 2025
 - Created project folder and structure
 - Wrote initial README.md
-- Planned tech stack and features with Lisa 💞
+- Planned tech stack and features 
 
 
     hash_generation.py
@@ -63,8 +63,14 @@
 
 
 
-### 9 Oct 2025
-    
+### 10 Oct 2025
+    -phase_2_secure_monitor_fixed.py
+    -key changes 
+        -Startup prints + logs
+        -Optional webhook.
+        -Atomic save of records + signature
+        -Periodic disk HMAC verification (detect external tamper)
+        -Clearer alerts when signature mismatch (tamper) or missing signature
 
 
 
@@ -81,10 +87,10 @@
 
 
     -TODO
-        -1) Alerts (high value, small effort)
-        -2) Tamper-evident records (HMAC) (high value)
-        -3) Ignore-list & config (medium effort)
-        -4) Log rotation & backups (medium)
+        -1) Alerts (high value, small effort) ✅
+        -2) Tamper-evident records (HMAC) (high value) ✅
+        -3) Ignore-list & config (medium effort) ✅
+        -4) Log rotation & backups (medium) ❌
         -5) Small Flask API + Dashboard (bigger, very visible)
         -6) Tests + Demo script + Packaging (essential polish)
         -7) GUI
