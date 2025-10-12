@@ -1,21 +1,12 @@
-2025-10-12 00:49:23 - 🚀 Starting Phase-2 secure monitor (fixed)...
-2025-10-12 00:49:23 - WARNING: hash_records.json corrupted (Expecting value: line 1 column 1 (char 0)) - recreating
-2025-10-12 00:49:23 - Backed up corrupted file to hash_records.json.backup.1760210363
-2025-10-12 00:49:23 - Loaded records (in-memory): 0
-2025-10-12 00:49:23 - No signature file found on disk; creating one now.
-2025-10-12 00:49:23 - HMAC signature OK on startup.
-2025-10-12 00:49:23 - 🔍 Performing initial folder scan...
-2025-10-12 00:49:23 - INITIALIZED: LISA.txt
-2025-10-12 00:49:23 - INITIALIZED: payel.jpg
-2025-10-12 00:49:23 - INITIALIZED: Screenshot_20250721_120257_com.dts.freefiremax.jpg
-2025-10-12 00:49:23 - INITIALIZED: yamuna.jpg
-2025-10-12 00:49:23 - Initial scan complete: 4 files scanned, 0 ignored, 4 files tracked
-2025-10-12 00:50:23 - 🧭 Periodic verification starting...
-2025-10-12 00:50:23 - ✅ Periodic verification complete: 4 files verified, no issues found
-2025-10-12 00:50:36 - 🛑 Monitor stopped by user.
-2025-10-12 01:03:41 - 🚀 Starting Phase-2 secure monitor (fixed)...
-2025-10-12 01:03:41 - 📊 Log rotation: 10.0MB max size, 5 backups
-2025-10-12 01:03:41 - Loaded records (in-memory): 4
-2025-10-12 01:03:41 - HMAC signature OK on startup.
-2025-10-12 01:03:41 - 🔍 Performing initial folder scan...
-2025-10-12 01:03:41 - Initial scan complete: 4 files scanned, 0 ignored, no new files added
+2025-10-12 17:58:34 - WARNING: hash_records.json corrupted or invalid JSON — resetting to {}
+2025-10-12 17:58:34 - WARNING: hash_records.json corrupted or invalid JSON — resetting to {}
+2025-10-12 17:58:34 - INFO: No hash signature found; created new signature.
+2025-10-12 17:58:34 - Startup: records signature OK
+2025-10-12 17:58:34 - Startup: log signature OK
+2025-10-12 17:58:35 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\6 october 2025_sniper.mp4
+2025-10-12 17:58:35 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\LISA.txt
+2025-10-12 17:58:35 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\payel.jpg
+2025-10-12 17:58:35 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\yamuna.jpg
+2025-10-12 17:58:35 - Initial scan added missing records and saved signature.
+2025-10-12 17:58:56 - DELETED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\6 october 2025_sniper.mp4
+2025-10-12 17:59:02 - MONITOR_STOPPED_BY_USER

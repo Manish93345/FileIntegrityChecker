@@ -1,18 +1,14 @@
 {
     "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\LISA.txt": {
-        "hash": "44c0b7ecdac62d3e25d390ef24b5500bb286fddf849c24742f9196ba83631c7f",
-        "last_checked": "2025-10-12 00:49:23"
+        "hash": "804dcd1ebc7d8ff28b4a03135adf47a5b97356cd25cd575152cc416ace31d4d7",
+        "last_checked": "2025-10-12 17:58:35"
     },
     "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\payel.jpg": {
         "hash": "2d38fe50aec2f65da3d530b54fb9122cde1fe0cbb1010ee87b230829021710cb",
-        "last_checked": "2025-10-12 00:49:23"
-    },
-    "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\Screenshot_20250721_120257_com.dts.freefiremax.jpg": {
-        "hash": "87e119ccf9a97b9533e1ccb707c01d3e3b719093242e35c04f04300462d23da5",
-        "last_checked": "2025-10-12 00:49:23"
+        "last_checked": "2025-10-12 17:58:35"
     },
     "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\yamuna.jpg": {
-        "hash": "d3d86abf67d71fc00f4533e4f890e5d9a2d97b2c4f5ac247ca64fe5a21dcd0e6",
-        "last_checked": "2025-10-12 00:49:23"
+        "hash": "4e5ea66d11a4793f5df12ecb4309cc5293579499bc68239a75684a44bbda6713",
+        "last_checked": "2025-10-12 17:58:35"
     }
 }

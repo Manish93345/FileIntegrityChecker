@@ -124,13 +124,18 @@
 
 
 ### 12 Oct 2025 - PHASE 3.5
-    -phase_3.5_secure_monitor_with_summary.py
+    -phase_3.5_secure_monitor.py  (SOME ISSUE WITH INTEGRITY_LOG.TXT)
+    -phase_3.5_secure_monitor_fixed.py
 
     -1: Report Summary Feature
         -Generate summary after program start or periodic verification
 
-    -2: Config System (config.json)
+
+### 12 Oct 2025 - PHASE 4
+    -1: Config System (config.json)
         -A config file where the user is able to change the settings like secret key, webhook url, etc.
+
+    
 
 
 
