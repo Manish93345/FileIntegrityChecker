@@ -75,6 +75,62 @@
 
 
 
+### 11 Oct 2025 PHASE -3
+    -Phase 3: phase_3_secure_log_monitor.py
+
+    -Advanced Security & Reporting
+
+    -1: Audit Trail (tamper-proof log system)
+        -HMAC for integrity_log.txt
+
+        phase_3_secure_log_monitor_fixed.py
+            -Default max size is 10 mb after that rotation will happen
+            -All backups are shifted (.1 → .2, .2 → .3, etc.)
+            -MAX_BACKUP_COUNT = 5  # Keep 5 backup files
+            -python phase_3_secure_log_monitor_fixed.py --max-log-size 50 --max-backups 10
+            -Example: 
+                integrity_log.txt          (current, active log)
+                integrity_log.txt.1        (most recent backup)
+                integrity_log.txt.2        (older backup)
+                integrity_log.txt.3        (even older backup)
+                integrity_log.sig          (current signatures)
+                integrity_log.sig.1        (most recent signatures backup)
+                integrity_log.sig.2        (older signatures backup)
+
+
+    
+    -2: Verification Summary Report (auto-generated JSON + text) ❌PENING -> PHASE 3.5
+        -Create a summary report after periodic verification
+
+    -3: Performance Optimization
+        -Will try to make hashing paraller or thread based
+
+    -4: CLI improvement (user options) ✅
+        -For user convenience like --verify, --summary, etc.
+
+                    # Verify log integrity only
+            python phase_2_secure_monitor_fixed.py --verify-log
+
+            # Full verification (hash records + files)
+            python phase_2_secure_monitor_fixed.py --verify
+
+            # With webhook enabled
+            python phase_2_secure_monitor_fixed.py --webhook "https://your-webhook-url.com"
+
+            # Custom watch folder and interval
+            python phase_2_secure_monitor_fixed.py --watch "/path/to/folder" --interval 300
+
+
+
+
+### 12 Oct 2025 - PHASE 3.5
+    -phase_3.5_secure_monitor_with_summary.py
+
+    -1: Report Summary Feature
+        -Generate summary after program start or periodic verification
+
+    -2: Config System (config.json)
+        -A config file where the user is able to change the settings like secret key, webhook url, etc.
 
 
 
