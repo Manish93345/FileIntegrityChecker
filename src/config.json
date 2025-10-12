@@ -1,0 +1,19 @@
+{
+  "watch_folder": "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests",
+  "verify_interval": 1800, 
+  "webhook_url": null,
+  "secret_key": "Lisacutie",
+  "max_log_size_mb": 10,
+  "max_log_backups": 5,
+  "hash_algo": "sha256",
+  "hash_chunk_size": 65536,
+  "hash_retries": 3,
+  "hash_retry_delay": 0.5,
+  "ignore_filenames": [
+    "hash_records.json",
+    "integrity_log.txt",
+    "integrity_log.sig",
+    "hash_records.sig",
+    "report_summary.txt"
+  ]
+}

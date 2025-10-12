@@ -1,12 +1,16 @@
-2025-10-12 17:58:34 - WARNING: hash_records.json corrupted or invalid JSON — resetting to {}
-2025-10-12 17:58:34 - WARNING: hash_records.json corrupted or invalid JSON — resetting to {}
-2025-10-12 17:58:34 - INFO: No hash signature found; created new signature.
-2025-10-12 17:58:34 - Startup: records signature OK
-2025-10-12 17:58:34 - Startup: log signature OK
-2025-10-12 17:58:35 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\6 october 2025_sniper.mp4
-2025-10-12 17:58:35 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\LISA.txt
-2025-10-12 17:58:35 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\payel.jpg
-2025-10-12 17:58:35 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\yamuna.jpg
-2025-10-12 17:58:35 - Initial scan added missing records and saved signature.
-2025-10-12 17:58:56 - DELETED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\6 october 2025_sniper.mp4
-2025-10-12 17:59:02 - MONITOR_STOPPED_BY_USER
+2025-10-12 18:36:41 - WARNING: hash_records.json corrupted or invalid JSON — resetting to {}
+2025-10-12 18:36:41 - WARNING: hash_records.json corrupted or invalid JSON — resetting to {}
+2025-10-12 18:36:41 - INFO: No hash signature found; created new signature.
+2025-10-12 18:36:41 - Startup: records signature OK
+2025-10-12 18:36:41 - Startup: log signature OK
+2025-10-12 18:36:41 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\LISA.txt
+2025-10-12 18:36:41 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\payel.jpg
+2025-10-12 18:36:41 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\yamuna.jpg
+2025-10-12 18:36:41 - Initial scan added missing records and saved signature.
+2025-10-12 18:36:51 - PERIODIC_VERIFICATION_START
+2025-10-12 18:36:51 - VERIFICATION_SUMMARY: === Summary @ 2025-10-12T18:36:51 ===
+2025-10-12 18:36:51 - Total=3 New=0 Mod=0 Del=0 Skip=0 TamperedRecords=False TamperedLogs=False
+2025-10-12 18:37:01 - PERIODIC_VERIFICATION_START
+2025-10-12 18:37:01 - VERIFICATION_SUMMARY: === Summary @ 2025-10-12T18:37:01 ===
+2025-10-12 18:37:01 - Total=3 New=0 Mod=0 Del=0 Skip=0 TamperedRecords=False TamperedLogs=False
+2025-10-12 18:37:05 - MONITOR_STOPPED_BY_USER

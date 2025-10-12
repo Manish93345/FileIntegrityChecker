@@ -151,7 +151,7 @@
         -1) Alerts (high value, small effort) ✅
         -2) Tamper-evident records (HMAC) (high value) ✅
         -3) Ignore-list & config (medium effort) ✅
-        -4) Log rotation & backups (medium) ❌
+        -4) Log rotation & backups (medium) ✅
         -5) Small Flask API + Dashboard (bigger, very visible)
         -6) Tests + Demo script + Packaging (essential polish)
         -7) GUI
