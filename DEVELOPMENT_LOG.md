@@ -140,6 +140,27 @@
 
 
 
+### 12 Oct 2025 - PHASE 5 GUI
+    
+    -1: integrity_core.py
+        -main backend logic (monitoring, hashing, HMAC, verification)
+    -2: integrity_cli.py
+        -command-line interface (for terminal users)
+    -3: integrity_gui.py 
+        -To import file from backend
+
+    -4: As for now, 4 button on gui
+        -Select folder
+        -Start Monitoring
+        -Run full verification
+        -Show summary report
+
+    -5: Background threading
+        -Monitor will run as a background thread to avoid freezing of gui during watchdog execution. 
+
+    -6 Live log feed
+        -Integrity_log.txt will be auto-refreshed in GUI textbox
+
 
 
 

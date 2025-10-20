@@ -1,16 +1,20 @@
-2025-10-12 18:36:41 - WARNING: hash_records.json corrupted or invalid JSON — resetting to {}
-2025-10-12 18:36:41 - WARNING: hash_records.json corrupted or invalid JSON — resetting to {}
-2025-10-12 18:36:41 - INFO: No hash signature found; created new signature.
-2025-10-12 18:36:41 - Startup: records signature OK
-2025-10-12 18:36:41 - Startup: log signature OK
-2025-10-12 18:36:41 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\LISA.txt
-2025-10-12 18:36:41 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\payel.jpg
-2025-10-12 18:36:41 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\yamuna.jpg
-2025-10-12 18:36:41 - Initial scan added missing records and saved signature.
-2025-10-12 18:36:51 - PERIODIC_VERIFICATION_START
-2025-10-12 18:36:51 - VERIFICATION_SUMMARY: === Summary @ 2025-10-12T18:36:51 ===
-2025-10-12 18:36:51 - Total=3 New=0 Mod=0 Del=0 Skip=0 TamperedRecords=False TamperedLogs=False
-2025-10-12 18:37:01 - PERIODIC_VERIFICATION_START
-2025-10-12 18:37:01 - VERIFICATION_SUMMARY: === Summary @ 2025-10-12T18:37:01 ===
-2025-10-12 18:37:01 - Total=3 New=0 Mod=0 Del=0 Skip=0 TamperedRecords=False TamperedLogs=False
-2025-10-12 18:37:05 - MONITOR_STOPPED_BY_USER
+2025-10-20 16:33:36 - WARNING: hash_records.json corrupted or invalid JSON — resetting to {}
+2025-10-20 16:33:36 - WARNING: hash_records.json corrupted or invalid JSON — resetting to {}
+2025-10-20 16:33:36 - INFO: No hash signature found; created new signature.
+2025-10-20 16:33:36 - Startup: records signature OK
+2025-10-20 16:33:36 - Startup: log signature OK
+2025-10-20 16:33:36 - INITIALIZED: D:\Resume\DIV Contents.pdf
+2025-10-20 16:33:36 - INITIALIZED: D:\Resume\IIT HYDERABAD.pdf
+2025-10-20 16:33:36 - INITIALIZED: D:\Resume\LISA.txt
+2025-10-20 16:33:37 - INITIALIZED: D:\Resume\Manish--Resume.pdf
+2025-10-20 16:33:37 - INITIALIZED: D:\Resume\Manish--Resume.zip
+2025-10-20 16:33:37 - INITIALIZED: D:\Resume\Manish-Resume.pdf
+2025-10-20 16:33:37 - INITIALIZED: D:\Resume\Manish..Resume.pdf
+2025-10-20 16:33:37 - INITIALIZED: D:\Resume\Manish_cyber_resume.pdf
+2025-10-20 16:33:37 - INITIALIZED: D:\Resume\Manish_Resume (2).pdf
+2025-10-20 16:33:37 - INITIALIZED: D:\Resume\Manish_Resume.pdf
+2025-10-20 16:33:37 - INITIALIZED: D:\Resume\Manish__Resume.pdf
+2025-10-20 16:33:37 - Initial scan added missing records and saved signature.
+2025-10-20 16:33:37 - MONITOR_STARTED: D:/Resume
+2025-10-20 16:33:54 - MODIFIED: D:\Resume\LISA.txt
+2025-10-20 16:34:03 - MONITOR_STOPPED

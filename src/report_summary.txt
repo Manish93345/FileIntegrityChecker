@@ -18,3 +18,13 @@ TAMPER - records: NO
 TAMPER - logs: NO
 Log check detail: Log signatures OK
 
+=== Summary @ 2025-10-20T16:15:57 ===
+Total files monitored: 3
+New files: 0
+Modified files: 0
+Deleted files: 0
+Skipped (couldn't hash): 0
+TAMPER - records: NO
+TAMPER - logs: NO
+Log check detail: Log signatures OK
+
