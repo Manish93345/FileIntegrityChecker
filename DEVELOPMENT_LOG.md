@@ -140,7 +140,7 @@
 
 
 
-### 12 Oct 2025 - PHASE 5 GUI
+### 12 Oct 2025 - PHASE 4.5 GUI
     
     -1: integrity_core.py
         -main backend logic (monitoring, hashing, HMAC, verification)
@@ -155,13 +155,14 @@
         -Run full verification
         -Show summary report
 
-    -5: Background threading
-        -Monitor will run as a background thread to avoid freezing of gui during watchdog execution. 
-
-    -6 Live log feed
+    -5 Live log feed
         -Integrity_log.txt will be auto-refreshed in GUI textbox
 
 
+
+### 21 Oct 2025 - PHASE 4.5 GUI
+    -1: Improvement in gui
+    -2: Making feature to edit config in gui direclty
 
 
 

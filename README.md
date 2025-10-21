@@ -11,7 +11,7 @@ FILE INTEGRITY CHECKER
 
 A lightweight app which verify the hash of files and detect wheteher the file is modified / tampered or not. 
 
-
+JUST RUN integrity_gui.py and choose the folder to be monitored.
 
 📂 Folder Structure
 .

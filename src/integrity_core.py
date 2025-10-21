@@ -12,6 +12,7 @@ import time
 import hashlib
 import hmac
 import threading
+import traceback
 from datetime import datetime
 
 try:
@@ -51,16 +52,34 @@ def now_pretty():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 def atomic_write_text(path, text):
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.write(text)
-    os.replace(tmp, path)
+    """Safely write text to a file"""
+    try:
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(text)
+        if os.path.exists(path):
+            os.remove(path)
+        os.rename(tmp, path)
+    except Exception as e:
+        print(f"Error in atomic_write_text: {e}")
+        # Fallback: direct write
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(text)
+        except Exception as e2:
+            print(f"Fallback write also failed: {e2}")
 
 def atomic_write_json(path, obj):
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(obj, f, indent=4, sort_keys=True)
-    os.replace(tmp, path)
+    """Safely write JSON to a file"""
+    try:
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(obj, f, indent=4, sort_keys=True)
+        if os.path.exists(path):
+            os.remove(path)
+        os.rename(tmp, path)
+    except Exception as e:
+        print(f"Error in atomic_write_json: {e}")
 
 def load_config(path=None):
     global CONFIG
@@ -114,21 +133,27 @@ def append_log_line(message):
     """
     Append a human-readable line to integrity_log.txt and append per-line HMAC to integrity_log.sig
     """
-    os.makedirs(os.path.dirname(os.path.abspath(LOG_FILE)) or ".", exist_ok=True)
-    line = f"{now_pretty()} - {message}"
-    with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(line + "\n")
-    append_log_signature(line)
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(LOG_FILE)) or ".", exist_ok=True)
+        line = f"{now_pretty()} - {message}"
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+        append_log_signature(line)
+    except Exception as e:
+        print(f"Error in append_log_line: {e}")
 
 def append_log_signature(line):
     """
     Compute HMAC of the full line string and append hex to LOG_SIG_FILE (one per line).
     """
-    key = CONFIG["secret_key"].encode("utf-8")
-    h = getattr(hashlib, CONFIG["hash_algo"])
-    sig = hmac.new(key, line.encode("utf-8"), h).hexdigest()
-    with open(LOG_SIG_FILE, "a", encoding="utf-8") as f:
-        f.write(sig + "\n")
+    try:
+        key = CONFIG["secret_key"].encode("utf-8")
+        h = getattr(hashlib, CONFIG["hash_algo"])
+        sig = hmac.new(key, line.encode("utf-8"), h).hexdigest()
+        with open(LOG_SIG_FILE, "a", encoding="utf-8") as f:
+            f.write(sig + "\n")
+    except Exception as e:
+        print(f"Error in append_log_signature: {e}")
 
 def rotate_logs_if_needed():
     """
@@ -322,14 +347,22 @@ def verify_all_files_and_update(records=None, watch_folder=None):
     Update records for new/modified files and remove deleted ones.
     Returns a summary dict including tamper flags.
     """
+    print("DEBUG: Starting verify_all_files_and_update")
+    
     if watch_folder is None:
         watch_folder = CONFIG["watch_folder"]
     if records is None:
         records = load_hash_records()
+    
+    print(f"DEBUG: Watch folder: {watch_folder}")
+    print(f"DEBUG: Initial records count: {len(records)}")
+    
     seen = set()
     created = []
     modified = []
     skipped = []
+    
+    # Scan all files
     for root, _, files in os.walk(watch_folder):
         for fn in files:
             if is_ignored_filename(fn):
@@ -344,20 +377,29 @@ def verify_all_files_and_update(records=None, watch_folder=None):
             if not old_hash:
                 records[path] = {"hash": h, "last_checked": now_pretty()}
                 created.append(path)
+                print(f"DEBUG: Created: {path}")
             elif old_hash != h:
                 records[path] = {"hash": h, "last_checked": now_pretty()}
                 modified.append(path)
+                print(f"DEBUG: Modified: {path}")
             else:
                 records[path]["last_checked"] = now_pretty()
+    
     # detect deleted
     deleted = [p for p in list(records.keys()) if p not in seen and not is_ignored_filename(os.path.basename(p))]
     for p in deleted:
         records.pop(p, None)
+        print(f"DEBUG: Deleted: {p}")
+    
+    print(f"DEBUG: Created: {len(created)}, Modified: {len(modified)}, Deleted: {len(deleted)}, Skipped: {len(skipped)}")
+    
     # save updated records & signature
     save_hash_records(records)
+    
     # verify signatures now
     records_ok = verify_records_signature_on_disk()
     logs_ok, logs_detail = verify_log_signatures()
+    
     summary = {
         "timestamp": now_iso(),
         "total_monitored": len(records),
@@ -369,34 +411,58 @@ def verify_all_files_and_update(records=None, watch_folder=None):
         "tampered_logs": not logs_ok,
         "logs_detail": logs_detail
     }
+    
+    print(f"DEBUG: Summary prepared, calling write_report_summary")
     write_report_summary(summary)
     return summary
 
 def write_report_summary(summary):
-    # human readable summary (append)
-    header = f"=== Summary @ {summary['timestamp']} ==="
-    lines = [
-        header,
-        f"Total files monitored: {summary['total_monitored']}",
-        f"New files: {len(summary['created'])}",
-        f"Modified files: {len(summary['modified'])}",
-        f"Deleted files: {len(summary['deleted'])}",
-        f"Skipped (couldn't hash): {len(summary['skipped'])}",
-        f"TAMPER - records: {'YES' if summary.get('tampered_records') else 'NO'}",
-        f"TAMPER - logs: {'YES' if summary.get('tampered_logs') else 'NO'}",
-        f"Log check detail: {summary.get('logs_detail')}",
-        ""
-    ]
-    text = "\n".join(lines)
-    with open(REPORT_SUMMARY_FILE, "a", encoding="utf-8") as f:
-        f.write(text + "\n")
-    append_log_line("VERIFICATION_SUMMARY: " + header)
-    append_log_line(f"Total={summary['total_monitored']} New={len(summary['created'])} Mod={len(summary['modified'])} Del={len(summary['deleted'])} Skip={len(summary['skipped'])} TamperedRecords={summary.get('tampered_records')} TamperedLogs={summary.get('tampered_logs')}")
-    # also print concise to console
-    print("\n" + header)
-    for l in lines[1:]:
-        print(l)
-    print()
+    """Write human-readable summary to report file - FIXED VERSION"""
+    try:
+        print("DEBUG: write_report_summary called")
+        
+        header = f"=== Summary @ {summary['timestamp']} ==="
+        lines = [
+            header,
+            f"Total files monitored: {summary['total_monitored']}",
+            f"New files: {len(summary['created'])}",
+            f"Modified files: {len(summary['modified'])}",
+            f"Deleted files: {len(summary['deleted'])}",
+            f"Skipped (couldn't hash): {len(summary['skipped'])}",
+            f"TAMPER - records: {'YES' if summary.get('tampered_records') else 'NO'}",
+            f"TAMPER - logs: {'YES' if summary.get('tampered_logs') else 'NO'}",
+            f"Log check detail: {summary.get('logs_detail', 'N/A')}",
+            "=" * 50,
+            ""
+        ]
+        text = "\n".join(lines)
+        
+        print(f"DEBUG: Writing to {REPORT_SUMMARY_FILE}")
+        print(f"DEBUG: Content to write:\n{text}")
+        
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(os.path.abspath(REPORT_SUMMARY_FILE)) or ".", exist_ok=True)
+        
+        # Use append mode to ensure we don't overwrite previous summaries
+        with open(REPORT_SUMMARY_FILE, "a", encoding="utf-8") as f:
+            f.write(text + "\n")
+        
+        print(f"DEBUG: Successfully wrote to {REPORT_SUMMARY_FILE}")
+        
+        append_log_line("VERIFICATION_SUMMARY: " + header)
+        append_log_line(f"Total={summary['total_monitored']} New={len(summary['created'])} Mod={len(summary['modified'])} Del={len(summary['deleted'])} Skip={len(summary['skipped'])}")
+        
+        # Print to console for debugging
+        print("\n" + "="*50)
+        print("SUMMARY WRITTEN SUCCESSFULLY:")
+        print(text)
+        print("="*50 + "\n")
+        
+    except Exception as e:
+        error_msg = f"ERROR writing report summary: {e}"
+        print(error_msg)
+        append_log_line(error_msg)
+        traceback.print_exc()
 
 # ------------------ Watchdog event handler ------------------
 class IntegrityHandler(FileSystemEventHandler):
@@ -535,39 +601,52 @@ class FileIntegrityMonitor:
         append_log_line("MONITOR_STOPPED")
 
     def _periodic_verifier_loop(self):
+        """Periodic verification loop"""
         while self.running:
             time.sleep(CONFIG["verify_interval"])
-            rotate_logs_if_needed()
-            append_log_line("PERIODIC_VERIFICATION_START")
-            # 1) check records signature on disk (detect external tampering)
-            records_ok = verify_records_signature_on_disk()
-            if not records_ok:
-                # already alerted by verify_records_signature_on_disk()
-                pass
-            # 2) check log signatures
-            logs_ok, detail = verify_log_signatures()
-            if not logs_ok:
-                # verify_log_signatures already logged & webhooked
-                pass
-            # 3) perform full verify & update summary (this will call verify functions again)
-            summary = verify_all_files_and_update(self.handler.records if self.handler else None, 
-                                                self.current_watch_folder)
-            # 4) optional webhook with numeric summary
-            send_webhook_safe("PERIODIC_SUMMARY", "Periodic verification completed", None)
+            try:
+                rotate_logs_if_needed()
+                append_log_line("PERIODIC_VERIFICATION_START")
+                
+                # Run the actual verification
+                if self.handler:
+                    summary = verify_all_files_and_update(self.handler.records, self.current_watch_folder)
+                else:
+                    summary = verify_all_files_and_update(None, self.current_watch_folder)
+                
+                # Optional webhook with numeric summary
+                send_webhook_safe("PERIODIC_SUMMARY", "Periodic verification completed", None)
+                
+            except Exception as e:
+                append_log_line(f"ERROR in periodic verification: {e}")
 
     def run_verification(self, watch_folder=None):
         """Run one-time verification and return summary"""
+        print("DEBUG: run_verification called")
         # Use provided watch_folder, current folder, or from config
         target_folder = watch_folder or self.current_watch_folder or CONFIG["watch_folder"]
         
+        append_log_line("MANUAL_VERIFICATION_STARTED")
+        
         if self.handler:
-            return verify_all_files_and_update(self.handler.records, target_folder)
+            result = verify_all_files_and_update(self.handler.records, target_folder)
         else:
-            return verify_all_files_and_update(None, target_folder)
+            result = verify_all_files_and_update(None, target_folder)
+        
+        print(f"DEBUG: run_verification returning: {result}")
+        return result
 
     def get_summary(self):
         """Get the last summary from report file"""
-        if os.path.exists(REPORT_SUMMARY_FILE):
-            with open(REPORT_SUMMARY_FILE, "r", encoding="utf-8") as f:
-                return f.read()
-        return "No report summary file found."
+        try:
+            if os.path.exists(REPORT_SUMMARY_FILE):
+                with open(REPORT_SUMMARY_FILE, "r", encoding="utf-8") as f:
+                    content = f.read().strip()
+                    if content:
+                        return content
+                    else:
+                        return "Report summary file exists but is empty."
+            else:
+                return "No report summary file found. Run a verification first."
+        except Exception as e:
+            return f"Error reading summary file: {e}"
