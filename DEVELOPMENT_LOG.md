@@ -160,12 +160,26 @@
 
 
 
-### 21 Oct 2025 - PHASE 4.5 GUI
+### 21 Oct 2025 - PHASE 5 GUI
     -1: Improvement in gui
     -2: Making feature to edit config in gui direclty
 
 
 
+### 21 Oct 2025 - PHASE 6 Improvement
+    -1: Visual Improvements
+        -color themes (light/dark switch)
+        -Use icons on buttons (start/stop, verify, settings)
+        -Replace pop-ups with in-window alerts or status banners for smooth UX.
+            -pip install pillow
+            -creating assets folder inside which there should image
+
+    -2: Enhanced Reporting  (Phase_6_step_2.py)
+        -pip install reportlab pillow
+        -pip install reportlab pillow watchdog requests
+        -User can export them as .txt or .pdf.
+
+    -3: 
 
 
 

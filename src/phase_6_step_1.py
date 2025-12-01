@@ -8,6 +8,8 @@ Features:
 - Settings dialog to edit config.json (watch_folder, interval, webhook, secret_key)
 - Test webhook button (if webhook configured and send function available)
 - Live tail of integrity_log.txt
+- Dark/Light theme toggle
+- Icons on buttons
 """
 
 import tkinter as tk
@@ -48,6 +50,14 @@ except Exception:
     verify_log_signatures = None
     send_webhook_safe = None
 
+# Import Pillow for image handling
+try:
+    from PIL import Image, ImageTk
+    HAS_PIL = True
+except ImportError:
+    HAS_PIL = False
+    print("Pillow not available - buttons will not have icons")
+
 
 class ProIntegrityGUI:
     def __init__(self, root):
@@ -55,6 +65,17 @@ class ProIntegrityGUI:
         self.root.title("🛡️ File Integrity Checker — Pro GUI")
         self.root.geometry("1000x700")
         self.root.minsize(900, 600)
+
+        # Theme management
+        self.dark_mode = False
+        self.colors = self._get_light_theme()
+        
+        # Configure styles
+        self.style = ttk.Style()
+        self._configure_styles()
+
+        # Load icons
+        self.icons = self._load_icons()
 
         # Ensure config is loaded
         cfg_ok = True
@@ -92,84 +113,301 @@ class ProIntegrityGUI:
         self._update_dashboard()
         self._tail_log_loop()
 
+    def _get_light_theme(self):
+        return {
+            'bg': '#f0f0f0',
+            'fg': 'black',
+            'accent': '#007acc',
+            'secondary_bg': '#ffffff',
+            'frame_bg': '#e8e8e8',
+            'text_bg': 'white',
+            'text_fg': 'black',
+            'button_bg': '#e1e1e1',
+            'hover_bg': '#d0d0d0',
+            'indicator_ok': '#4CAF50',
+            'indicator_tamper': '#f44336',
+            'indicator_unknown': '#9E9E9E'
+        }
+
+    def _get_dark_theme(self):
+        return {
+            'bg': '#2b2b2b',
+            'fg': 'white',
+            'accent': '#007acc',
+            'secondary_bg': '#3c3c3c',
+            'frame_bg': '#363636',
+            'text_bg': '#1e1e1e',
+            'text_fg': 'white',
+            'button_bg': '#404040',
+            'hover_bg': '#505050',
+            'indicator_ok': '#4CAF50',
+            'indicator_tamper': '#f44336',
+            'indicator_unknown': '#666666'
+        }
+
+    def _configure_styles(self):
+        """Configure ttk styles for light/dark theme"""
+        self.style.configure('.', background=self.colors['bg'], foreground=self.colors['fg'])
+        self.style.configure('Custom.TFrame', background=self.colors['bg'])
+        self.style.configure('Custom.TLabelframe', background=self.colors['bg'], foreground=self.colors['fg'])
+        self.style.configure('Custom.TLabelframe.Label', background=self.colors['bg'], foreground=self.colors['fg'])
+        self.style.configure('Custom.TButton', 
+                           background=self.colors['button_bg'],
+                           foreground=self.colors['fg'])
+        self.style.map('Custom.TButton',
+                      background=[('active', self.colors['hover_bg']),
+                                 ('pressed', self.colors['accent'])])
+        
+    def _load_icons(self):
+        """Load icons from assets folder"""
+        icons = {}
+        if not HAS_PIL:
+            return icons
+            
+        icon_size = (16, 16)  # Standard icon size for buttons
+        icon_files = {
+            'start': 'start.png',
+            'stop': 'stop.png', 
+            'verify': 'verify.png',
+            'settings': 'settings.png',
+            'log': 'log.png',
+            'report': 'report.png'
+        }
+        
+        assets_dir = 'assets'
+        if not os.path.exists(assets_dir):
+            # Try to create assets directory
+            try:
+                os.makedirs(assets_dir)
+                print(f"Created {assets_dir} directory - please add your icon files there")
+            except:
+                print(f"Could not create {assets_dir} directory")
+            return icons
+        
+        for key, filename in icon_files.items():
+            filepath = os.path.join(assets_dir, filename)
+            if os.path.exists(filepath):
+                try:
+                    img = Image.open(filepath)
+                    img = img.resize(icon_size, Image.Resampling.LANCZOS)
+                    icons[key] = ImageTk.PhotoImage(img)
+                except Exception as e:
+                    print(f"Failed to load icon {filepath}: {e}")
+            else:
+                print(f"Icon file not found: {filepath}")
+                
+        return icons
+
+    def toggle_theme(self):
+        """Toggle between light and dark themes"""
+        self.dark_mode = not self.dark_mode
+        self.colors = self._get_dark_theme() if self.dark_mode else self._get_light_theme()
+        self._apply_theme()
+        
+    def _apply_theme(self):
+        """Apply current theme to all widgets"""
+        # Update styles
+        self._configure_styles()
+        
+        # Apply to root and all frames
+        self.root.configure(bg=self.colors['bg'])
+        
+        # Update all child widgets
+        self._update_widget_colors(self.root)
+        
+        # Update tamper indicators
+        self._update_tamper_indicators()
+
+    def _update_widget_colors(self, widget):
+        """Recursively update widget colors"""
+        try:
+            if isinstance(widget, (tk.Frame, ttk.Frame)):
+                if isinstance(widget, ttk.Frame):
+                    widget.configure(style='Custom.TFrame')
+                else:
+                    widget.configure(bg=self.colors['bg'])
+            elif isinstance(widget, tk.Label):
+                widget.configure(bg=self.colors['bg'], fg=self.colors['fg'])
+            elif isinstance(widget, tk.Button):
+                widget.configure(bg=self.colors['button_bg'], fg=self.colors['fg'],
+                               activebackground=self.colors['hover_bg'])
+            elif isinstance(widget, tk.Entry):
+                widget.configure(bg=self.colors['text_bg'], fg=self.colors['text_fg'],
+                               insertbackground=self.colors['fg'])
+            elif isinstance(widget, scrolledtext.ScrolledText):
+                widget.configure(bg=self.colors['text_bg'], fg=self.colors['text_fg'])
+            elif isinstance(widget, (ttk.LabelFrame, ttk.Labelframe)):
+                widget.configure(style='Custom.TLabelframe')
+        except Exception:
+            pass
+            
+        # Recursively update children
+        for child in widget.winfo_children():
+            self._update_widget_colors(child)
+
+    def _update_tamper_indicators(self):
+        """Update tamper indicator colors based on current theme"""
+        rec_ok = self.tamper_records_var.get() == "OK"
+        log_ok = self.tamper_logs_var.get() == "OK"
+        
+        rec_bg = (self.colors['indicator_ok'] if rec_ok else 
+                 self.colors['indicator_tamper'] if self.tamper_records_var.get() == "TAMPERED" else 
+                 self.colors['indicator_unknown'])
+        log_bg = (self.colors['indicator_ok'] if log_ok else 
+                 self.colors['indicator_tamper'] if self.tamper_logs_var.get() == "TAMPERED" else 
+                 self.colors['indicator_unknown'])
+        
+        self._rec_indicator.configure(background=rec_bg, foreground='white')
+        self._log_indicator.configure(background=log_bg, foreground='white')
+
     def _build_widgets(self):
         pad = 8
         # Top frame: folder selection and controls
-        top = ttk.Frame(self.root, padding=pad)
+        top = ttk.Frame(self.root, padding=pad, style='Custom.TFrame')
         top.pack(fill=tk.X)
 
-        ttk.Label(top, text="Folder to monitor:").pack(anchor="w")
-        folder_frame = ttk.Frame(top)
+        ttk.Label(top, text="Folder to monitor:", background=self.colors['bg'], foreground=self.colors['fg']).pack(anchor="w")
+        folder_frame = ttk.Frame(top, style='Custom.TFrame')
         folder_frame.pack(fill=tk.X, pady=(4, 6))
-        self.folder_entry = ttk.Entry(folder_frame, textvariable=self.watch_folder_var)
+        self.folder_entry = ttk.Entry(folder_frame, width=60)
         self.folder_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        ttk.Button(folder_frame, text="Browse", command=self._browse).pack(side=tk.LEFT, padx=6)
+        self.folder_entry.insert(0, self.watch_folder_var.get())
+        
+        ttk.Button(folder_frame, text="Browse", command=self._browse, style='Custom.TButton').pack(side=tk.LEFT, padx=6)
 
-        btn_frame = ttk.Frame(top)
+        # Theme toggle button
+        theme_btn = ttk.Button(folder_frame, text="🌗", command=self.toggle_theme, 
+                              style='Custom.TButton', width=3)
+        theme_btn.pack(side=tk.RIGHT, padx=6)
+
+        btn_frame = ttk.Frame(top, style='Custom.TFrame')
         btn_frame.pack(fill=tk.X, pady=(6, 2))
-        ttk.Button(btn_frame, text="Start Monitoring", command=self.start_monitor, width=18).pack(side=tk.LEFT, padx=6)
-        ttk.Button(btn_frame, text="Stop Monitoring", command=self.stop_monitor, width=18).pack(side=tk.LEFT, padx=6)
-        ttk.Button(btn_frame, text="Run Full Verification", command=self.run_verification, width=18).pack(side=tk.LEFT, padx=6)
-        ttk.Button(btn_frame, text="Verify Signatures", command=self.verify_signatures, width=16).pack(side=tk.LEFT, padx=6)
-        ttk.Button(btn_frame, text="Settings", command=self.open_settings, width=12).pack(side=tk.LEFT, padx=6)
-        ttk.Button(btn_frame, text="Test Webhook", command=self.test_webhook, width=12).pack(side=tk.LEFT, padx=6)
 
-        status_bar = ttk.Frame(self.root, padding=(pad, 4))
+        # Create buttons with icons
+        start_icon = self.icons.get('start')
+        stop_icon = self.icons.get('stop')
+        verify_icon = self.icons.get('verify')
+        settings_icon = self.icons.get('settings')
+        log_icon = self.icons.get('log')
+        report_icon = self.icons.get('report')
+
+        self.start_btn = ttk.Button(btn_frame, text="Start Monitoring", 
+                                   image=start_icon, compound="left" if start_icon else "none",
+                                   command=self.start_monitor, width=18, style='Custom.TButton')
+        self.start_btn.pack(side=tk.LEFT, padx=6)
+
+        self.stop_btn = ttk.Button(btn_frame, text="Stop Monitoring", 
+                                  image=stop_icon, compound="left" if stop_icon else "none",
+                                  command=self.stop_monitor, width=18, style='Custom.TButton')
+        self.stop_btn.pack(side=tk.LEFT, padx=6)
+
+        self.verify_btn = ttk.Button(btn_frame, text="Run Full Verification", 
+                                    image=verify_icon, compound="left" if verify_icon else "none",
+                                    command=self.run_verification, width=18, style='Custom.TButton')
+        self.verify_btn.pack(side=tk.LEFT, padx=6)
+
+        ttk.Button(btn_frame, text="Verify Signatures", command=self.verify_signatures, 
+                  width=16, style='Custom.TButton').pack(side=tk.LEFT, padx=6)
+
+        self.settings_btn = ttk.Button(btn_frame, text="Settings", 
+                                      image=settings_icon, compound="left" if settings_icon else "none",
+                                      command=self.open_settings, width=12, style='Custom.TButton')
+        self.settings_btn.pack(side=tk.LEFT, padx=6)
+
+        ttk.Button(btn_frame, text="Test Webhook", command=self.test_webhook, 
+                  width=12, style='Custom.TButton').pack(side=tk.LEFT, padx=6)
+
+        status_bar = ttk.Frame(self.root, padding=(pad, 4), style='Custom.TFrame')
         status_bar.pack(fill=tk.X)
-        ttk.Label(status_bar, text="Status:").pack(side=tk.LEFT)
-        ttk.Label(status_bar, textvariable=self.status_var, foreground="blue").pack(side=tk.LEFT, padx=(6,20))
+        ttk.Label(status_bar, text="Status:", background=self.colors['bg'], foreground=self.colors['fg']).pack(side=tk.LEFT)
+        self.status_label = ttk.Label(status_bar, textvariable=self.status_var, 
+                                     foreground=self.colors['accent'], background=self.colors['bg'])
+        self.status_label.pack(side=tk.LEFT, padx=(6,20))
 
         # Dashboard Frame
-        dash = ttk.LabelFrame(self.root, text="Live Dashboard", padding=10)
+        dash = ttk.LabelFrame(self.root, text="Live Dashboard", padding=10, style='Custom.TLabelframe')
         dash.pack(fill=tk.X, padx=pad, pady=(4, 8))
 
-        left = ttk.Frame(dash)
+        left = ttk.Frame(dash, style='Custom.TFrame')
         left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        stats_grid = ttk.Frame(left)
+        stats_grid = ttk.Frame(left, style='Custom.TFrame')
         stats_grid.pack(anchor="w", padx=6, pady=6)
 
-        ttk.Label(stats_grid, text="Total files:").grid(row=0, column=0, sticky="w")
-        ttk.Label(stats_grid, textvariable=self.total_files_var, font=("TkDefaultFont", 12, "bold")).grid(row=0, column=1, sticky="w", padx=8)
+        ttk.Label(stats_grid, text="Total files:", background=self.colors['bg'], foreground=self.colors['fg']).grid(row=0, column=0, sticky="w")
+        ttk.Label(stats_grid, textvariable=self.total_files_var, 
+                 font=("TkDefaultFont", 12, "bold"), background=self.colors['bg'], 
+                 foreground=self.colors['fg']).grid(row=0, column=1, sticky="w", padx=8)
 
-        ttk.Label(stats_grid, text="New (since last verify):").grid(row=1, column=0, sticky="w")
-        ttk.Label(stats_grid, textvariable=self.created_var).grid(row=1, column=1, sticky="w", padx=8)
+        ttk.Label(stats_grid, text="New (since last verify):", background=self.colors['bg'], foreground=self.colors['fg']).grid(row=1, column=0, sticky="w")
+        ttk.Label(stats_grid, textvariable=self.created_var, background=self.colors['bg'], 
+                 foreground=self.colors['fg']).grid(row=1, column=1, sticky="w", padx=8)
 
-        ttk.Label(stats_grid, text="Modified:").grid(row=2, column=0, sticky="w")
-        ttk.Label(stats_grid, textvariable=self.modified_var).grid(row=2, column=1, sticky="w", padx=8)
+        ttk.Label(stats_grid, text="Modified:", background=self.colors['bg'], foreground=self.colors['fg']).grid(row=2, column=0, sticky="w")
+        ttk.Label(stats_grid, textvariable=self.modified_var, background=self.colors['bg'], 
+                 foreground=self.colors['fg']).grid(row=2, column=1, sticky="w", padx=8)
 
-        ttk.Label(stats_grid, text="Deleted:").grid(row=3, column=0, sticky="w")
-        ttk.Label(stats_grid, textvariable=self.deleted_var).grid(row=3, column=1, sticky="w", padx=8)
+        ttk.Label(stats_grid, text="Deleted:", background=self.colors['bg'], foreground=self.colors['fg']).grid(row=3, column=0, sticky="w")
+        ttk.Label(stats_grid, textvariable=self.deleted_var, background=self.colors['bg'], 
+                 foreground=self.colors['fg']).grid(row=3, column=1, sticky="w", padx=8)
 
-        # Tamper indicators
-        right = ttk.Frame(dash)
+        # Tamper indicators - FIXED: removed padding option from tk.Label
+        right = ttk.Frame(dash, style='Custom.TFrame')
         right.pack(side=tk.RIGHT, fill=tk.BOTH, padx=10)
 
-        ttk.Label(right, text="Tamper Status").pack(anchor="w")
-        self._rec_indicator = ttk.Label(right, textvariable=self.tamper_records_var, background="grey", foreground="white", padding=6)
-        self._rec_indicator.pack(fill=tk.X, pady=(6,10))
-        self._log_indicator = ttk.Label(right, textvariable=self.tamper_logs_var, background="grey", foreground="white", padding=6)
-        self._log_indicator.pack(fill=tk.X)
+        ttk.Label(right, text="Tamper Status", background=self.colors['bg'], 
+                 foreground=self.colors['fg']).pack(anchor="w")
+        
+        # Create frame for indicator with padding instead of using padding in Label
+        rec_frame = tk.Frame(right, bg=self.colors['bg'])
+        rec_frame.pack(fill=tk.X, pady=(6, 10))
+        self._rec_indicator = tk.Label(rec_frame, textvariable=self.tamper_records_var, 
+                                      background="grey", foreground="white")
+        self._rec_indicator.pack(fill=tk.X, padx=2, pady=2)
+        
+        log_frame = tk.Frame(right, bg=self.colors['bg'])
+        log_frame.pack(fill=tk.X)
+        self._log_indicator = tk.Label(log_frame, textvariable=self.tamper_logs_var, 
+                                      background="grey", foreground="white")
+        self._log_indicator.pack(fill=tk.X, padx=2, pady=2)
 
         # Middle: Buttons for report and file viewing
-        mid = ttk.Frame(self.root, padding=(pad,2))
+        mid = ttk.Frame(self.root, padding=(pad,2), style='Custom.TFrame')
         mid.pack(fill=tk.X)
-        ttk.Button(mid, text="View Last Report", command=self.view_report, width=16).pack(side=tk.LEFT, padx=6)
-        ttk.Button(mid, text="Open Log File", command=self.open_log, width=16).pack(side=tk.LEFT, padx=6)
-        ttk.Button(mid, text="Open Reports Folder", command=self.open_reports_folder, width=16).pack(side=tk.LEFT, padx=6)
+        
+        self.report_btn = ttk.Button(mid, text="View Last Report", 
+                                    image=report_icon, compound="left" if report_icon else "none",
+                                    command=self.view_report, width=16, style='Custom.TButton')
+        self.report_btn.pack(side=tk.LEFT, padx=6)
+
+        self.log_btn = ttk.Button(mid, text="Open Log File", 
+                                 image=log_icon, compound="left" if log_icon else "none",
+                                 command=self.open_log, width=16, style='Custom.TButton')
+        self.log_btn.pack(side=tk.LEFT, padx=6)
+
+        ttk.Button(mid, text="Open Reports Folder", command=self.open_reports_folder, 
+                  width=16, style='Custom.TButton').pack(side=tk.LEFT, padx=6)
 
         # Bottom: live log area
-        log_frame = ttk.LabelFrame(self.root, text="Live Logs (tail)", padding=6)
+        log_frame = ttk.LabelFrame(self.root, text="Live Logs (tail)", padding=6, style='Custom.TLabelframe')
         log_frame.pack(fill=tk.BOTH, expand=True, padx=pad, pady=(6, pad))
-        self.log_box = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, height=20, font=("Consolas", 10))
+        self.log_box = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, height=20, 
+                                               font=("Consolas", 10),
+                                               bg=self.colors['text_bg'], 
+                                               fg=self.colors['text_fg'])
         self.log_box.pack(fill=tk.BOTH, expand=True)
         self.log_box.configure(state="disabled")
+
+        # Apply initial theme
+        self._apply_theme()
 
     # ---------- Actions ----------
     def _browse(self):
         d = filedialog.askdirectory()
         if d:
             self.watch_folder_var.set(d)
+            self.folder_entry.delete(0, tk.END)
+            self.folder_entry.insert(0, d)
 
     def start_monitor(self):
         if not FileIntegrityMonitor:
@@ -178,7 +416,7 @@ class ProIntegrityGUI:
         if self.monitor_running:
             messagebox.showinfo("Info", "Monitor already running.")
             return
-        folder = self.watch_folder_var.get()
+        folder = self.folder_entry.get()
         if not folder or not os.path.exists(folder):
             messagebox.showerror("Error", "Please select a valid folder.")
             return
@@ -215,7 +453,7 @@ class ProIntegrityGUI:
             messagebox.showerror("Error", f"Exception: {ex}")
 
     def run_verification(self):
-        folder = self.watch_folder_var.get()
+        folder = self.folder_entry.get()
         if not folder or not os.path.exists(folder):
             messagebox.showerror("Error", "Choose valid folder first.")
             return
@@ -294,9 +532,8 @@ class ProIntegrityGUI:
 
         # update UI indicators
         self.tamper_records_var.set("OK" if rec_ok else "TAMPERED" if rec_ok is False else "UNKNOWN")
-        self._rec_indicator.configure(background="green" if rec_ok else "red" if rec_ok is False else "grey")
         self.tamper_logs_var.set("OK" if log_ok else "TAMPERED" if log_ok is False else "UNKNOWN")
-        self._log_indicator.configure(background="green" if log_ok else "red" if log_ok is False else "grey")
+        self._update_tamper_indicators()
 
         self._append_log(f"Verify signatures: records={rec_msg}, logs={log_msg}")
 
@@ -348,21 +585,24 @@ class ProIntegrityGUI:
         win = tk.Toplevel(self.root)
         win.title("Settings")
         win.geometry("520x260")
-        tk.Label(win, text="Edit configuration (config.json)").pack(anchor="w", padx=10, pady=(10,0))
+        win.configure(bg=self.colors['bg'])
+        
+        tk.Label(win, text="Edit configuration (config.json)", 
+                bg=self.colors['bg'], fg=self.colors['fg']).pack(anchor="w", padx=10, pady=(10,0))
 
         cfg = dict(CONFIG)  # copy
 
-        tk.Label(win, text="Watch folder:").pack(anchor="w", padx=10, pady=(8,0))
+        tk.Label(win, text="Watch folder:", bg=self.colors['bg'], fg=self.colors['fg']).pack(anchor="w", padx=10, pady=(8,0))
         watch_var = tk.StringVar(value=cfg.get("watch_folder", ""))
         e1 = ttk.Entry(win, textvariable=watch_var, width=70)
         e1.pack(padx=10)
 
-        tk.Label(win, text="Verify interval (seconds):").pack(anchor="w", padx=10, pady=(8,0))
+        tk.Label(win, text="Verify interval (seconds):", bg=self.colors['bg'], fg=self.colors['fg']).pack(anchor="w", padx=10, pady=(8,0))
         int_var = tk.StringVar(value=str(cfg.get("verify_interval", 1800)))
         e2 = ttk.Entry(win, textvariable=int_var, width=20)
         e2.pack(padx=10)
 
-        tk.Label(win, text="Webhook URL (optional):").pack(anchor="w", padx=10, pady=(8,0))
+        tk.Label(win, text="Webhook URL (optional):", bg=self.colors['bg'], fg=self.colors['fg']).pack(anchor="w", padx=10, pady=(8,0))
         web_var = tk.StringVar(value=str(cfg.get("webhook_url") or ""))
         e3 = ttk.Entry(win, textvariable=web_var, width=70)
         e3.pack(padx=10)
@@ -388,7 +628,7 @@ class ProIntegrityGUI:
             except Exception as ex:
                 messagebox.showerror("Error", f"Failed to save config: {ex}")
 
-        ttk.Button(win, text="Save", command=save_settings).pack(pady=12)
+        ttk.Button(win, text="Save", command=save_settings, style='Custom.TButton').pack(pady=12)
 
     # ---------- Helpers ----------
     def _append_log(self, text):
@@ -402,7 +642,10 @@ class ProIntegrityGUI:
         w = tk.Toplevel(self.root)
         w.title(title)
         w.geometry("720x520")
-        st = scrolledtext.ScrolledText(w, wrap=tk.WORD)
+        w.configure(bg=self.colors['bg'])
+        st = scrolledtext.ScrolledText(w, wrap=tk.WORD, 
+                                     bg=self.colors['text_bg'], 
+                                     fg=self.colors['text_fg'])
         st.pack(fill=tk.BOTH, expand=True)
         st.insert(tk.END, content)
         st.configure(state="disabled")
@@ -455,9 +698,8 @@ class ProIntegrityGUI:
                     log_ok = got
             # update UI
             self.tamper_records_var.set("OK" if rec_ok else "TAMPERED" if rec_ok is False else "UNKNOWN")
-            self._rec_indicator.configure(background="green" if rec_ok else "red" if rec_ok is False else "grey")
             self.tamper_logs_var.set("OK" if log_ok else "TAMPERED" if log_ok is False else "UNKNOWN")
-            self._log_indicator.configure(background="green" if log_ok else "red" if log_ok is False else "grey")
+            self._update_tamper_indicators()
         except Exception:
             # ignore errors
             pass
@@ -488,12 +730,6 @@ class ProIntegrityGUI:
 # ---------- Run ----------
 def main():
     root = tk.Tk()
-    style = ttk.Style()
-    # try to set native theme for nicer look
-    try:
-        style.theme_use('clam')
-    except Exception:
-        pass
     app = ProIntegrityGUI(root)
     root.mainloop()
 

@@ -1,0 +1,11 @@
+=== Summary @ 2025-12-01T14:56:13 ===
+Total files monitored: 23
+New files: 2
+Modified files: 0
+Deleted files: 2
+Skipped (couldn't hash): 0
+TAMPER - records: NO
+TAMPER - logs: NO
+Log check detail: Log signatures OK
+==================================================
+

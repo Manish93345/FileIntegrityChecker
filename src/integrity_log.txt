@@ -1,0 +1,37 @@
+2025-12-01 14:54:24 - WARNING: hash_records.json corrupted or invalid JSON — resetting to {}
+2025-12-01 14:54:24 - INFO: No hash signature found; created new signature.
+2025-12-01 14:54:34 - Startup: records signature OK
+2025-12-01 14:54:34 - Startup: log signature OK
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\8 November 2025_manish&Yamuna.jpg
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\downloaded-yamuna.jpg
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\FreeFire_09_01_2025 17_28_59.png
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\FreeFire_09_01_2025 17_29_04.png
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\FreeFire_09_01_2025 17_29_39.png
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\FreeFire_09_01_2025 17_29_56.png
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\FreeFire_10_10_2025 18_47_39.png
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\FreeFire_10_10_2025 18_47_47.png
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\FreeFire_10_10_2025 18_48_12.png
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\FreeFire_10_10_2025 18_48_40.png
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\payel.jpg
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\Screenshot_20250721_120246_com.dts.freefiremax.jpg
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\Screenshot_20250721_120257_com.dts.freefiremax.jpg
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\Screenshot_20250922_081636_com.dts.freefiremax.jpg
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\Screenshot_20250928_151351_com.dts.freefiremax.jpg
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\Screenshot_20250928_151415_com.dts.freefiremax.jpg
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\Screenshot_20250928_151423_com.dts.freefiremax.jpg
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\Screenshot_20250930_181746_com.dts.freefiremax.jpg
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\Screenshot_20251108_134932_com.dts.freefiremax.jpg
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\Screenshot_20251116_235151_com.dts.freefiremax.jpg
+2025-12-01 14:54:34 - INITIALIZED: D:\Free_fire\Photos\yamuna.jpg
+2025-12-01 14:54:34 - Initial scan added missing records and saved signature.
+2025-12-01 14:54:34 - MONITOR_STARTED: D:/Free_fire/Photos
+2025-12-01 14:54:50 - DELETED: D:\Free_fire\Photos\Screenshot_20250721_120257_com.dts.freefiremax.jpg
+2025-12-01 14:54:50 - DELETED: D:\Free_fire\Photos\Screenshot_20250721_120246_com.dts.freefiremax.jpg
+2025-12-01 14:54:53 - CREATED: D:\Free_fire\Photos\New Text Document.txt
+2025-12-01 14:55:07 - CREATED_ON_MODIFY: D:\Free_fire\Photos\LISA_JAAN.txt
+2025-12-01 14:55:23 - CREATED: D:\Free_fire\Photos\Screenshot_20250721_120246_com.dts.freefiremax.jpg
+2025-12-01 14:55:23 - CREATED: D:\Free_fire\Photos\Screenshot_20250721_120257_com.dts.freefiremax.jpg
+2025-12-01 14:55:44 - MONITOR_STOPPED
+2025-12-01 14:56:13 - MANUAL_VERIFICATION_STARTED
+2025-12-01 14:56:13 - VERIFICATION_SUMMARY: === Summary @ 2025-12-01T14:56:13 ===
+2025-12-01 14:56:13 - Total=23 New=2 Mod=0 Del=2 Skip=0
