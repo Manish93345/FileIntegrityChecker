@@ -77,7 +77,7 @@ except Exception as e:
     # Create mock objects
     FileIntegrityMonitor = MockFileIntegrityMonitor
     CONFIG = {
-        "watch_folder": os.getcwd(),
+        "watch_folder": "",
         "verify_interval": 1800,
         "webhook_url": None
     }
@@ -136,7 +136,59 @@ class ProIntegrityGUI:
 
         # Theme management
         self.dark_mode = False
-        self.colors = self._get_light_theme()
+        
+        # Professional color schemes
+        self.light_theme = {
+            'bg': '#f5f5f5',
+            'fg': '#333333',
+            'accent': '#007acc',
+            'secondary_bg': '#ffffff',
+            'frame_bg': '#e8e8e8',
+            'text_bg': '#ffffff',
+            'text_fg': '#000000',
+            'button_bg': '#e0e0e0',
+            'button_fg': '#333333',
+            'button_active': '#007acc',
+            'hover_bg': '#d0d0d0',
+            'entry_bg': '#ffffff',
+            'entry_fg': '#000000',
+            'entry_border': '#cccccc',
+            'indicator_ok': '#4CAF50',
+            'indicator_tamper': '#f44336',
+            'indicator_unknown': '#9E9E9E',
+            'log_bg': '#ffffff',
+            'log_fg': '#000000',
+            'tab_bg': '#ffffff',
+            'tab_fg': '#333333',
+            'tab_selected': '#007acc'
+        }
+        
+        self.dark_theme = {
+            'bg': '#1e1e1e',
+            'fg': '#e0e0e0',
+            'accent': '#569cd6',
+            'secondary_bg': '#252525',
+            'frame_bg': '#2d2d2d',
+            'text_bg': '#252525',
+            'text_fg': '#e0e0e0',
+            'button_bg': '#3c3c3c',
+            'button_fg': '#ffffff',
+            'button_active': '#569cd6',
+            'hover_bg': '#505050',
+            'entry_bg': '#2d2d2d',
+            'entry_fg': '#ffffff',
+            'entry_border': '#3e3e3e',
+            'indicator_ok': '#4CAF50',
+            'indicator_tamper': '#f44336',
+            'indicator_unknown': '#666666',
+            'log_bg': '#1e1e1e',
+            'log_fg': '#d4d4d4',
+            'tab_bg': '#2d2d2d',
+            'tab_fg': '#ffffff',
+            'tab_selected': '#569cd6'
+        }
+        
+        self.colors = self.light_theme
         
         # Configure styles
         self.style = ttk.Style()
@@ -195,50 +247,61 @@ class ProIntegrityGUI:
         self._update_dashboard()
         self._tail_log_loop()
 
-    def _get_light_theme(self):
-        return {
-            'bg': '#f0f0f0',
-            'fg': 'black',
-            'accent': '#007acc',
-            'secondary_bg': '#ffffff',
-            'frame_bg': '#e8e8e8',
-            'text_bg': 'white',
-            'text_fg': 'black',
-            'button_bg': '#e1e1e1',
-            'hover_bg': '#d0d0d0',
-            'indicator_ok': '#4CAF50',
-            'indicator_tamper': '#f44336',
-            'indicator_unknown': '#9E9E9E'
-        }
-
-    def _get_dark_theme(self):
-        return {
-            'bg': '#2b2b2b',
-            'fg': 'white',
-            'accent': '#007acc',
-            'secondary_bg': '#3c3c3c',
-            'frame_bg': '#363636',
-            'text_bg': '#1e1e1e',
-            'text_fg': 'white',
-            'button_bg': '#404040',
-            'hover_bg': '#505050',
-            'indicator_ok': '#4CAF50',
-            'indicator_tamper': '#f44336',
-            'indicator_unknown': '#666666'
-        }
-
     def _configure_styles(self):
-        """Configure ttk styles for light/dark theme"""
-        self.style.configure('.', background=self.colors['bg'], foreground=self.colors['fg'])
-        self.style.configure('Custom.TFrame', background=self.colors['bg'])
-        self.style.configure('Custom.TLabelframe', background=self.colors['bg'], foreground=self.colors['fg'])
-        self.style.configure('Custom.TLabelframe.Label', background=self.colors['bg'], foreground=self.colors['fg'])
-        self.style.configure('Custom.TButton', 
+        """Configure ttk styles for the current theme"""
+        # Try to use a modern theme if available
+        try:
+            self.style.theme_use('clam')
+        except:
+            pass
+        
+        # Configure base styles
+        self.style.configure('.', 
+                           background=self.colors['bg'],
+                           foreground=self.colors['fg'],
+                           font=('Segoe UI', 10))
+        
+        self.style.configure('TFrame', background=self.colors['bg'])
+        self.style.configure('TLabel', 
+                           background=self.colors['bg'],
+                           foreground=self.colors['fg'],
+                           font=('Segoe UI', 10))
+        
+        self.style.configure('TButton',
                            background=self.colors['button_bg'],
-                           foreground=self.colors['fg'])
-        self.style.map('Custom.TButton',
+                           foreground=self.colors['button_fg'],
+                           borderwidth=1,
+                           relief='raised',
+                           font=('Segoe UI', 10, 'normal'))
+        
+        self.style.map('TButton',
                       background=[('active', self.colors['hover_bg']),
-                                 ('pressed', self.colors['accent'])])
+                                 ('pressed', self.colors['button_active'])],
+                      foreground=[('active', self.colors['button_fg']),
+                                 ('pressed', self.colors['button_fg'])])
+        
+        self.style.configure('TEntry',
+                           fieldbackground=self.colors['entry_bg'],
+                           foreground=self.colors['entry_fg'],
+                           borderwidth=1,
+                           insertcolor=self.colors['entry_fg'])
+        
+        self.style.configure('TLabelframe',
+                           background=self.colors['bg'],
+                           foreground=self.colors['fg'],
+                           bordercolor=self.colors['frame_bg'])
+        
+        self.style.configure('TLabelframe.Label',
+                           background=self.colors['bg'],
+                           foreground=self.colors['fg'],
+                           font=('Segoe UI', 10, 'bold'))
+        
+        # Custom style for indicators
+        self.style.configure('Indicator.TLabel',
+                           font=('Segoe UI', 9, 'bold'),
+                           anchor='center',
+                           relief='sunken',
+                           padding=4)
         
     def _load_icons(self):
         """Load icons from assets folder"""
@@ -283,64 +346,63 @@ class ProIntegrityGUI:
     def toggle_theme(self):
         """Toggle between light and dark themes"""
         self.dark_mode = not self.dark_mode
-        self.colors = self._get_dark_theme() if self.dark_mode else self._get_light_theme()
+        self.colors = self.dark_theme if self.dark_mode else self.light_theme
         self._apply_theme()
         
     def _apply_theme(self):
-        """Apply current theme to root and widgets (used after toggle)."""
+        """Apply current theme to all widgets"""
         try:
-            # Re-configure ttk styles with current colors
+            # Reconfigure styles with new colors
             self._configure_styles()
-            # Set background of root
+            
+            # Apply to root window
             self.root.configure(bg=self.colors['bg'])
-            # Recursively update all widgets colors
-            self._update_widget_colors(self.root)
-            # Update tamper indicators to match theme
+            
+            # Apply theme to all widgets recursively
+            self._apply_theme_recursive(self.root)
+            
+            # Update tamper indicators
             self._update_tamper_indicators()
-        except Exception:
-            # Don't crash GUI on theme update errors; print for debug
-            import traceback as _tb
-            print("Error applying theme:", _tb.format_exc())
+            
+            # Update theme button text
+            self.theme_btn.configure(text="🌙" if self.dark_mode else "☀️")
+            
+        except Exception as e:
+            print(f"Error applying theme: {e}")
 
-    def _safe_image_resize(self, img, size):
-        """Resize helper compatible across Pillow versions."""
+    def _apply_theme_recursive(self, widget):
+        """Recursively apply theme to widget and its children"""
         try:
-            resample = getattr(Image, "Resampling", None)
-            if resample:
-                resample_filter = resample.LANCZOS
-            else:
-                resample_filter = getattr(Image, "LANCZOS", Image.BICUBIC)
-        except Exception:
-            resample_filter = Image.BICUBIC
-        return img.resize(size, resample_filter)
-
-
-    def _update_widget_colors(self, widget):
-        """Recursively update widget colors"""
-        try:
-            if isinstance(widget, (tk.Frame, ttk.Frame)):
-                if isinstance(widget, ttk.Frame):
-                    widget.configure(style='Custom.TFrame')
-                else:
-                    widget.configure(bg=self.colors['bg'])
-            elif isinstance(widget, tk.Label):
+            widget_class = widget.winfo_class()
+            
+            # Apply to different widget types
+            if widget_class in ('TFrame', 'Frame'):
+                widget.configure(bg=self.colors['bg'])
+            elif widget_class in ('TLabel', 'Label'):
                 widget.configure(bg=self.colors['bg'], fg=self.colors['fg'])
-            elif isinstance(widget, tk.Button):
-                widget.configure(bg=self.colors['button_bg'], fg=self.colors['fg'],
-                               activebackground=self.colors['hover_bg'])
-            elif isinstance(widget, tk.Entry):
-                widget.configure(bg=self.colors['text_bg'], fg=self.colors['text_fg'],
-                               insertbackground=self.colors['fg'])
-            elif isinstance(widget, scrolledtext.ScrolledText):
-                widget.configure(bg=self.colors['text_bg'], fg=self.colors['text_fg'])
-            elif isinstance(widget, (ttk.LabelFrame, ttk.Labelframe)):
-                widget.configure(style='Custom.TLabelframe')
+            elif widget_class in ('TButton', 'Button'):
+                widget.configure(bg=self.colors['button_bg'], fg=self.colors['button_fg'],
+                               activebackground=self.colors['hover_bg'],
+                               activeforeground=self.colors['button_fg'])
+            elif widget_class in ('TEntry', 'Entry'):
+                widget.configure(bg=self.colors['entry_bg'], fg=self.colors['entry_fg'],
+                               insertbackground=self.colors['entry_fg'],
+                               selectbackground=self.colors['accent'],
+                               selectforeground=self.colors['text_bg'])
+            elif widget_class == 'Text' or 'ScrolledText' in widget_class:
+                widget.configure(bg=self.colors['log_bg'], fg=self.colors['log_fg'],
+                               insertbackground=self.colors['log_fg'],
+                               selectbackground=self.colors['accent'],
+                               selectforeground=self.colors['text_bg'])
+            elif widget_class in ('TLabelframe', 'Labelframe'):
+                widget.configure(bg=self.colors['bg'], fg=self.colors['fg'])
+                
         except Exception:
             pass
             
-        # Recursively update children
+        # Recursively apply to children
         for child in widget.winfo_children():
-            self._update_widget_colors(child)
+            self._apply_theme_recursive(child)
 
     def _update_tamper_indicators(self):
         """Update tamper indicator colors based on current theme"""
@@ -355,30 +417,29 @@ class ProIntegrityGUI:
                      self.colors['indicator_tamper'] if self.tamper_logs_var.get() == "TAMPERED" else 
                      self.colors['indicator_unknown'])
             
-            self._rec_indicator.configure(background=rec_bg, foreground='white')
-            self._log_indicator.configure(background=log_bg, foreground='white')
+            self._rec_indicator.configure(bg=rec_bg, fg='white')
+            self._log_indicator.configure(bg=log_bg, fg='white')
 
     def _build_widgets(self):
-        pad = 8
+        pad = 10
         # Top frame: folder selection and controls
-        top = ttk.Frame(self.root, padding=pad, style='Custom.TFrame')
+        top = ttk.Frame(self.root, padding=pad)
         top.pack(fill=tk.X)
 
-        ttk.Label(top, text="Folder to monitor:", background=self.colors['bg'], foreground=self.colors['fg']).pack(anchor="w")
-        folder_frame = ttk.Frame(top, style='Custom.TFrame')
+        ttk.Label(top, text="Folder to monitor:").pack(anchor="w")
+        folder_frame = ttk.Frame(top)
         folder_frame.pack(fill=tk.X, pady=(4, 6))
         self.folder_entry = ttk.Entry(folder_frame, width=60)
         self.folder_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.folder_entry.insert(0, self.watch_folder_var.get())
         
-        ttk.Button(folder_frame, text="Browse", command=self._browse, style='Custom.TButton').pack(side=tk.LEFT, padx=6)
+        ttk.Button(folder_frame, text="Browse", command=self._browse).pack(side=tk.LEFT, padx=6)
 
         # Theme toggle button
-        theme_btn = ttk.Button(folder_frame, text="🌗", command=self.toggle_theme, 
-                              style='Custom.TButton', width=3)
-        theme_btn.pack(side=tk.RIGHT, padx=6)
+        self.theme_btn = ttk.Button(folder_frame, text="☀️", command=self.toggle_theme, width=3)
+        self.theme_btn.pack(side=tk.RIGHT, padx=6)
 
-        btn_frame = ttk.Frame(top, style='Custom.TFrame')
+        btn_frame = ttk.Frame(top)
         btn_frame.pack(fill=tk.X, pady=(6, 2))
 
         # Create buttons with icons
@@ -391,114 +452,116 @@ class ProIntegrityGUI:
 
         self.start_btn = ttk.Button(btn_frame, text="Start Monitoring", 
                                    image=start_icon, compound="left" if start_icon else "none",
-                                   command=self.start_monitor, width=18, style='Custom.TButton')
-        self.start_btn.pack(side=tk.LEFT, padx=6)
+                                   command=self.start_monitor, width=18)
+        self.start_btn.pack(side=tk.LEFT, padx=4)
 
         self.stop_btn = ttk.Button(btn_frame, text="Stop Monitoring", 
                                   image=stop_icon, compound="left" if stop_icon else "none",
-                                  command=self.stop_monitor, width=18, style='Custom.TButton')
-        self.stop_btn.pack(side=tk.LEFT, padx=6)
+                                  command=self.stop_monitor, width=18)
+        self.stop_btn.pack(side=tk.LEFT, padx=4)
 
         self.verify_btn = ttk.Button(btn_frame, text="Run Full Verification", 
                                     image=verify_icon, compound="left" if verify_icon else "none",
-                                    command=self.run_verification, width=18, style='Custom.TButton')
-        self.verify_btn.pack(side=tk.LEFT, padx=6)
+                                    command=self.run_verification, width=20)
+        self.verify_btn.pack(side=tk.LEFT, padx=4)
 
         ttk.Button(btn_frame, text="Verify Signatures", command=self.verify_signatures, 
-                  width=16, style='Custom.TButton').pack(side=tk.LEFT, padx=6)
+                  width=16).pack(side=tk.LEFT, padx=4)
 
         self.settings_btn = ttk.Button(btn_frame, text="Settings", 
                                       image=settings_icon, compound="left" if settings_icon else "none",
-                                      command=self.open_settings, width=12, style='Custom.TButton')
-        self.settings_btn.pack(side=tk.LEFT, padx=6)
+                                      command=self.open_settings, width=12)
+        self.settings_btn.pack(side=tk.LEFT, padx=4)
 
         ttk.Button(btn_frame, text="Test Webhook", command=self.test_webhook, 
-                  width=12, style='Custom.TButton').pack(side=tk.LEFT, padx=6)
+                  width=12).pack(side=tk.LEFT, padx=4)
 
-        status_bar = ttk.Frame(self.root, padding=(pad, 4), style='Custom.TFrame')
+        status_bar = ttk.Frame(self.root, padding=(pad, 4))
         status_bar.pack(fill=tk.X)
-        ttk.Label(status_bar, text="Status:", background=self.colors['bg'], foreground=self.colors['fg']).pack(side=tk.LEFT)
+        ttk.Label(status_bar, text="Status:").pack(side=tk.LEFT)
         self.status_label = ttk.Label(status_bar, textvariable=self.status_var, 
-                                     foreground=self.colors['accent'], background=self.colors['bg'])
-        self.status_label.pack(side=tk.LEFT, padx=(6,20))
+                                     foreground=self.colors['accent'])
+        self.status_label.pack(side=tk.LEFT, padx=(6, 20))
 
         # Dashboard Frame
-        dash = ttk.LabelFrame(self.root, text="Live Dashboard", padding=10, style='Custom.TLabelframe')
+        dash = ttk.LabelFrame(self.root, text="Live Dashboard", padding=10)
         dash.pack(fill=tk.X, padx=pad, pady=(4, 8))
 
-        left = ttk.Frame(dash, style='Custom.TFrame')
+        left = ttk.Frame(dash)
         left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        stats_grid = ttk.Frame(left, style='Custom.TFrame')
+        stats_grid = ttk.Frame(left)
         stats_grid.pack(anchor="w", padx=6, pady=6)
 
-        ttk.Label(stats_grid, text="Total files:", background=self.colors['bg'], foreground=self.colors['fg']).grid(row=0, column=0, sticky="w")
+        # Configure grid with proper spacing
+        stats_grid.columnconfigure(0, weight=1)
+        stats_grid.columnconfigure(1, weight=1)
+
+        ttk.Label(stats_grid, text="Total files:", font=('Segoe UI', 10)).grid(row=0, column=0, sticky="w", pady=4)
         ttk.Label(stats_grid, textvariable=self.total_files_var, 
-                 font=("TkDefaultFont", 12, "bold"), background=self.colors['bg'], 
-                 foreground=self.colors['fg']).grid(row=0, column=1, sticky="w", padx=8)
+                 font=("Segoe UI", 12, "bold")).grid(row=0, column=1, sticky="w", padx=8, pady=4)
 
-        ttk.Label(stats_grid, text="New (since last verify):", background=self.colors['bg'], foreground=self.colors['fg']).grid(row=1, column=0, sticky="w")
-        ttk.Label(stats_grid, textvariable=self.created_var, background=self.colors['bg'], 
-                 foreground=self.colors['fg']).grid(row=1, column=1, sticky="w", padx=8)
+        ttk.Label(stats_grid, text="New (since last verify):", font=('Segoe UI', 10)).grid(row=1, column=0, sticky="w", pady=4)
+        ttk.Label(stats_grid, textvariable=self.created_var, font=('Segoe UI', 10)).grid(row=1, column=1, sticky="w", padx=8, pady=4)
 
-        ttk.Label(stats_grid, text="Modified:", background=self.colors['bg'], foreground=self.colors['fg']).grid(row=2, column=0, sticky="w")
-        ttk.Label(stats_grid, textvariable=self.modified_var, background=self.colors['bg'], 
-                 foreground=self.colors['fg']).grid(row=2, column=1, sticky="w", padx=8)
+        ttk.Label(stats_grid, text="Modified:", font=('Segoe UI', 10)).grid(row=2, column=0, sticky="w", pady=4)
+        ttk.Label(stats_grid, textvariable=self.modified_var, font=('Segoe UI', 10)).grid(row=2, column=1, sticky="w", padx=8, pady=4)
 
-        ttk.Label(stats_grid, text="Deleted:", background=self.colors['bg'], foreground=self.colors['fg']).grid(row=3, column=0, sticky="w")
-        ttk.Label(stats_grid, textvariable=self.deleted_var, background=self.colors['bg'], 
-                 foreground=self.colors['fg']).grid(row=3, column=1, sticky="w", padx=8)
+        ttk.Label(stats_grid, text="Deleted:", font=('Segoe UI', 10)).grid(row=3, column=0, sticky="w", pady=4)
+        ttk.Label(stats_grid, textvariable=self.deleted_var, font=('Segoe UI', 10)).grid(row=3, column=1, sticky="w", padx=8, pady=4)
 
         # Tamper indicators
-        right = ttk.Frame(dash, style='Custom.TFrame')
+        right = ttk.Frame(dash)
         right.pack(side=tk.RIGHT, fill=tk.BOTH, padx=10)
 
-        ttk.Label(right, text="Tamper Status", background=self.colors['bg'], 
-                 foreground=self.colors['fg']).pack(anchor="w")
+        ttk.Label(right, text="Tamper Status", font=('Segoe UI', 10, 'bold')).pack(anchor="w", pady=(0, 8))
         
-        # Create frame for indicator with padding instead of using padding in Label
+        # Create frame for indicator with padding
         rec_frame = tk.Frame(right, bg=self.colors['bg'])
-        rec_frame.pack(fill=tk.X, pady=(6, 10))
+        rec_frame.pack(fill=tk.X, pady=(0, 8))
         self._rec_indicator = tk.Label(rec_frame, textvariable=self.tamper_records_var, 
-                                      background="grey", foreground="white", relief="sunken", width=12)
+                                      bg="grey", fg="white", relief="sunken", 
+                                      width=15, font=('Segoe UI', 9, 'bold'))
         self._rec_indicator.pack(fill=tk.X, padx=2, pady=2)
         
         log_frame = tk.Frame(right, bg=self.colors['bg'])
         log_frame.pack(fill=tk.X)
         self._log_indicator = tk.Label(log_frame, textvariable=self.tamper_logs_var, 
-                                      background="grey", foreground="white", relief="sunken", width=12)
+                                      bg="grey", fg="white", relief="sunken", 
+                                      width=15, font=('Segoe UI', 9, 'bold'))
         self._log_indicator.pack(fill=tk.X, padx=2, pady=2)
 
         # Middle: Buttons for report and file viewing
-        mid = ttk.Frame(self.root, padding=(pad,2), style='Custom.TFrame')
+        mid = ttk.Frame(self.root, padding=(pad, 2))
         mid.pack(fill=tk.X)
         
         self.report_btn = ttk.Button(mid, text="View Last Report", 
                                     image=report_icon, compound="left" if report_icon else "none",
-                                    command=self.view_report, width=16, style='Custom.TButton')
-        self.report_btn.pack(side=tk.LEFT, padx=6)
+                                    command=self.view_report, width=16)
+        self.report_btn.pack(side=tk.LEFT, padx=4)
 
         self.log_btn = ttk.Button(mid, text="Open Log File", 
                                  image=log_icon, compound="left" if log_icon else "none",
-                                 command=self.open_log, width=16, style='Custom.TButton')
-        self.log_btn.pack(side=tk.LEFT, padx=6)
+                                 command=self.open_log, width=16)
+        self.log_btn.pack(side=tk.LEFT, padx=4)
 
         ttk.Button(mid, text="Open Reports Folder", command=self.open_reports_folder, 
-                  width=16, style='Custom.TButton').pack(side=tk.LEFT, padx=6)
+                  width=16).pack(side=tk.LEFT, padx=4)
 
         # PDF Export button
         if HAS_REPORTLAB:
             self.pdf_btn = ttk.Button(mid, text="Export PDF Report", 
-                                     command=self.export_pdf_report, width=18, style='Custom.TButton')
-            self.pdf_btn.pack(side=tk.LEFT, padx=6)
+                                     command=self.export_pdf_report, width=18)
+            self.pdf_btn.pack(side=tk.LEFT, padx=4)
 
         # Bottom: live log area
-        log_frame = ttk.LabelFrame(self.root, text="Live Logs (tail)", padding=6, style='Custom.TLabelframe')
+        log_frame = ttk.LabelFrame(self.root, text="Live Logs (tail)", padding=6)
         log_frame.pack(fill=tk.BOTH, expand=True, padx=pad, pady=(6, pad))
         self.log_box = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, height=20, 
                                                font=("Consolas", 10),
-                                               bg=self.colors['text_bg'], 
-                                               fg=self.colors['text_fg'])
+                                               bg=self.colors['log_bg'], 
+                                               fg=self.colors['log_fg'],
+                                               insertbackground=self.colors['log_fg'])
         self.log_box.pack(fill=tk.BOTH, expand=True)
         self.log_box.configure(state="disabled")
 
@@ -977,21 +1040,21 @@ FILE CHANGES:
         win.configure(bg=self.colors['bg'])
         
         tk.Label(win, text="Edit configuration (config.json)", 
-                bg=self.colors['bg'], fg=self.colors['fg']).pack(anchor="w", padx=10, pady=(10,0))
+                bg=self.colors['bg'], fg=self.colors['fg'], font=('Segoe UI', 10, 'bold')).pack(anchor="w", padx=10, pady=(10, 0))
 
         cfg = dict(CONFIG)  # copy
 
-        tk.Label(win, text="Watch folder:", bg=self.colors['bg'], fg=self.colors['fg']).pack(anchor="w", padx=10, pady=(8,0))
+        tk.Label(win, text="Watch folder:", bg=self.colors['bg'], fg=self.colors['fg'], font=('Segoe UI', 10)).pack(anchor="w", padx=10, pady=(8, 0))
         watch_var = tk.StringVar(value=cfg.get("watch_folder", ""))
         e1 = ttk.Entry(win, textvariable=watch_var, width=70)
         e1.pack(padx=10)
 
-        tk.Label(win, text="Verify interval (seconds):", bg=self.colors['bg'], fg=self.colors['fg']).pack(anchor="w", padx=10, pady=(8,0))
+        tk.Label(win, text="Verify interval (seconds):", bg=self.colors['bg'], fg=self.colors['fg'], font=('Segoe UI', 10)).pack(anchor="w", padx=10, pady=(8, 0))
         int_var = tk.StringVar(value=str(cfg.get("verify_interval", 1800)))
         e2 = ttk.Entry(win, textvariable=int_var, width=20)
         e2.pack(padx=10)
 
-        tk.Label(win, text="Webhook URL (optional):", bg=self.colors['bg'], fg=self.colors['fg']).pack(anchor="w", padx=10, pady=(8,0))
+        tk.Label(win, text="Webhook URL (optional):", bg=self.colors['bg'], fg=self.colors['fg'], font=('Segoe UI', 10)).pack(anchor="w", padx=10, pady=(8, 0))
         web_var = tk.StringVar(value=str(cfg.get("webhook_url") or ""))
         e3 = ttk.Entry(win, textvariable=web_var, width=70)
         e3.pack(padx=10)
@@ -1017,7 +1080,7 @@ FILE CHANGES:
             except Exception as ex:
                 messagebox.showerror("Error", f"Failed to save config: {ex}")
 
-        ttk.Button(win, text="Save", command=save_settings, style='Custom.TButton').pack(pady=12)
+        ttk.Button(win, text="Save", command=save_settings).pack(pady=12)
 
     # ---------- Helpers ----------
     def _append_log(self, text):
@@ -1033,8 +1096,9 @@ FILE CHANGES:
         w.geometry("720x520")
         w.configure(bg=self.colors['bg'])
         st = scrolledtext.ScrolledText(w, wrap=tk.WORD, 
-                                     bg=self.colors['text_bg'], 
-                                     fg=self.colors['text_fg'])
+                                     bg=self.colors['log_bg'], 
+                                     fg=self.colors['log_fg'],
+                                     font=("Consolas", 10))
         st.pack(fill=tk.BOTH, expand=True)
         st.insert(tk.END, content)
         st.configure(state="disabled")
