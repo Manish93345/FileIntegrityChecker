@@ -179,16 +179,10 @@
         -pip install reportlab pillow watchdog requests
         -User can export them as .txt or .pdf.
 
-    -3: 
+    -3: Created a new sliding window for showing status 
+        -phase_6_step_3.py
+        -created a sliding window to show the status
 
 
 
-    -TODO
-        -1) Alerts (high value, small effort) ✅
-        -2) Tamper-evident records (HMAC) (high value) ✅
-        -3) Ignore-list & config (medium effort) ✅
-        -4) Log rotation & backups (medium) ✅
-        -5) Small Flask API + Dashboard (bigger, very visible)
-        -6) Tests + Demo script + Packaging (essential polish)
-        -7) GUI
-    
+   
