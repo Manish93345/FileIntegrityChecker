@@ -1226,6 +1226,152 @@ FILE CHANGES:
         except Exception:
             pass
 
+
+        # ---------- ALERT PANEL (Right-side slide-in) ----------
+
+    # Panel config
+    _ALERT_PANEL_WIDTH = 400          # chosen: medium
+    _ALERT_ANIM_STEP = 20             # pixels per frame
+    _ALERT_ANIM_DELAY = 12            # ms between frames
+    _ALERT_SHOW_MS = 4500             # show duration before hide (4.5s)
+
+    def _create_alert_panel(self):
+        """Call once at startup to create the hidden alert container."""
+        # top-level container placed at right, initially off-screen
+        root_w = self.root.winfo_width() or 1000
+        root_h = self.root.winfo_height() or 700
+        x = root_w  # start at right edge (offscreen)
+        y = 60
+        self._alert_frame = tk.Frame(self.root, width=_ALERT_PANEL_WIDTH, height=root_h - 120, bd=1, relief="flat")
+        # use place() so we can animate x coordinate
+        self._alert_frame.place(x=x, y=y)
+        # inner widgets
+        self._alert_title = tk.Label(self._alert_frame, text="ALERT", font=("Segoe UI", 12, "bold"))
+        self._alert_title.pack(anchor="nw", padx=10, pady=(8,0))
+        self._alert_msg = scrolledtext.ScrolledText(self._alert_frame, wrap=tk.WORD, height=10, state="disabled")
+        self._alert_msg.pack(fill=tk.BOTH, expand=True, padx=10, pady=8)
+        self._alert_meta = tk.Label(self._alert_frame, text="", font=("Segoe UI", 9, "italic"))
+        self._alert_meta.pack(anchor="se", padx=10, pady=(0,8))
+
+        # styling: ensure contrast in both themes (self.colors expected)
+        colors = getattr(self, "colors", None) or {"bg":"#1e1e1e","fg":"#ffffff"}
+        self._alert_frame.configure(bg=colors.get("bg", "#1e1e1e"))
+        self._alert_title.configure(bg=colors.get("bg"), fg=colors.get("accent", "#ffcc00"))
+        self._alert_msg.configure(bg="#111111" if colors.get("bg","#1e1e1e")!="#ffffff" else "#ffffff",
+                                fg=colors.get("fg", "#ffffff"), insertbackground=colors.get("fg", "#ffffff"))
+        self._alert_meta.configure(bg=colors.get("bg"), fg=colors.get("fg"))
+
+        # internal state
+        self._alert_visible = False
+        self._alert_current_x = x
+        self._alert_hide_after_id = None
+
+    def _show_alert(self, title, message, level="info"):
+        """
+        Show a slide-in alert.
+        level in: "created", "modified", "deleted", "tampered", "info"
+        """
+        if not hasattr(self, "_alert_frame"):
+            self._create_alert_panel()
+
+        # Color mapping per level
+        level_map = {
+            "created": ("#0f9d58", "Created"),
+            "modified": ("#f4b400", "Modified"),
+            "deleted": ("#ea4335", "Deleted"),
+            "tampered": ("#ff3b3b", "TAMPERED"),
+            "info": ("#4e9af1", "Info")
+        }
+        color, label = level_map.get(level, ("#4e9af1", "Info"))
+
+        # Update title and text
+        self._alert_title.configure(text=f"🔔  {label}", fg=color)
+        self._alert_msg.configure(state="normal")
+        # prepend new alert at top
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        entry = f"{ts} — {label}\n{message}\n\n"
+        self._alert_msg.insert("1.0", entry)
+        self._alert_msg.configure(state="disabled")
+        self._alert_meta.configure(text=f"{label} • {ts}")
+
+        # determine target x for slide-in (anchored to right edge)
+        root_w = self.root.winfo_width() or self.root.winfo_screenwidth()
+        target_x = root_w - _ALERT_PANEL_WIDTH - 10  # 10px margin from right
+        start_x = root_w + 10
+
+        # cancel any pending hide
+        if getattr(self, "_alert_hide_after_id", None):
+            try: self.root.after_cancel(self._alert_hide_after_id)
+            except Exception: pass
+            self._alert_hide_after_id = None
+
+        # place frame at start_x if not visible
+        if not self._alert_visible:
+            self._alert_current_x = start_x
+            self._alert_frame.place(x=self._alert_current_x, y=60)
+            self._alert_visible = True
+
+        # animate to target_x
+        def _anim_in():
+            if self._alert_current_x <= target_x:
+                # arrived
+                self._alert_frame.place(x=target_x, y=60)
+                self._alert_current_x = target_x
+                # schedule auto hide
+                self._alert_hide_after_id = self.root.after(_ALERT_SHOW_MS, self._hide_alert)
+                return
+            self._alert_current_x -= _ALERT_ANIM_STEP
+            self._alert_frame.place(x=self._alert_current_x, y=60)
+            self.root.after(_ALERT_ANIM_DELAY, _anim_in)
+
+        _anim_in()
+
+    def _hide_alert(self):
+        """Slide out and hide the alert."""
+        if not getattr(self, "_alert_frame", None) or not self._alert_visible:
+            return
+        root_w = self.root.winfo_width() or self.root.winfo_screenwidth()
+        off_x = root_w + 10
+
+        def _anim_out():
+            if self._alert_current_x >= off_x:
+                # fully hidden
+                self._alert_frame.place_forget()
+                self._alert_visible = False
+                self._alert_current_x = off_x
+                return
+            self._alert_current_x += _ALERT_ANIM_STEP
+            self._alert_frame.place(x=self._alert_current_x, y=60)
+            self.root.after(_ALERT_ANIM_DELAY, _anim_out)
+
+        _anim_out()
+
+    # Helper: parse log lines -> produce alerts
+    def _handle_log_line(self, line):
+        """
+        Inspect a log line and show alert for important events.
+        Matches keywords CREATED, MODIFIED, DELETED, TAMPERED (case-insensitive).
+        """
+        try:
+            txt = line.strip()
+            if not txt:
+                return
+            # Lower for matching, but keep original for message
+            low = txt.lower()
+            if "tamper" in low or "tampered" in low or "tampere" in low:
+                # tamper event (strong)
+                self._show_alert("Tampering detected", txt, level="tampered")
+            elif "created:" in low:
+                self._show_alert("File created", txt, level="created")
+            elif "modified:" in low:
+                self._show_alert("File modified", txt, level="modified")
+            elif "deleted:" in low:
+                self._show_alert("File deleted", txt, level="deleted")
+            # else: ignore less-important lines
+        except Exception:
+            pass
+
+
     # Tail the integrity_log into GUI - FIXED RECURSION ISSUE
     def _tail_log_loop(self):
         try:
@@ -1242,6 +1388,7 @@ FILE CHANGES:
                         self.log_box.insert(tk.END, line)
                         self.log_box.configure(state="disabled")
                         self.log_box.see(tk.END)
+                        self._handle_log_line(line)
         except Exception:
             pass
         # FIXED: Pass function reference, don't call it
