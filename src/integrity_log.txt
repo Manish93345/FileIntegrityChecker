@@ -1,83 +1,45 @@
-2025-12-02 00:53:52 - WARNING: hash_records.json corrupted or invalid JSON — resetting to {}
-2025-12-02 00:53:52 - INFO: No hash signature found; created new signature.
-2025-12-02 00:53:58 - Startup: records signature OK
-2025-12-02 00:53:58 - Startup: log signature OK
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\config.json
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\detailed_reports.txt
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\file_checker.py
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\folder_monitor.py
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\hash_generator.py
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\integrity_cli.py
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\integrity_core.py
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\integrity_gui.py
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\phase_2_secure_monitor.py
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\phase_2_secure_monitor_fixed.py
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\phase_3.5_secure_monitor.py
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\phase_3.5_secure_monitor_fixed.py
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\phase_3_secure_log_monitor.py
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\phase_3_secure_log_monitor_fixed.py
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\phase_4_added_config.py
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\phase_6_step_1.py
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\phase_6_step_2.py
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\phase_6_step_3.py
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\realtime_monitor.py
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\realtime_monitor_enhanced.py
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\temp.py
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\assets\log.png
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\assets\report.png
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\assets\settings.png
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\assets\start.png
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\assets\stop.png
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\assets\verify.png
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\__pycache__\hash_generator.cpython-313.pyc
-2025-12-02 00:53:58 - INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src\__pycache__\integrity_core.cpython-313.pyc
-2025-12-02 00:53:58 - Initial scan added missing records and saved signature.
-2025-12-02 00:53:58 - MONITOR_STARTED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src
-2025-12-02 00:54:22 - MONITOR_STOPPED
-2025-12-02 00:55:16 - Startup: records signature OK
-2025-12-02 00:55:16 - Startup: log signature OK
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\8 November 2025_manish&Yamuna.jpg
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\downloaded-yamuna.jpg
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\FreeFire_09_01_2025 17_28_59.png
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\FreeFire_09_01_2025 17_29_04.png
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\FreeFire_09_01_2025 17_29_39.png
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\FreeFire_09_01_2025 17_29_56.png
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\FreeFire_10_10_2025 18_47_39.png
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\FreeFire_10_10_2025 18_47_47.png
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\FreeFire_10_10_2025 18_48_12.png
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\FreeFire_10_10_2025 18_48_40.png
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\integrity_report_20251201_154257.pdf
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\LISA.txt
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\payel.jpg
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\Screenshot_20250721_120246_com.dts.freefiremax.jpg
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\Screenshot_20250721_120257_com.dts.freefiremax.jpg
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\Screenshot_20250922_081636_com.dts.freefiremax.jpg
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\Screenshot_20250928_151351_com.dts.freefiremax.jpg
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\Screenshot_20250928_151415_com.dts.freefiremax.jpg
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\Screenshot_20250928_151423_com.dts.freefiremax.jpg
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\Screenshot_20250930_181746_com.dts.freefiremax.jpg
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\Screenshot_20251108_134932_com.dts.freefiremax.jpg
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\Screenshot_20251116_235151_com.dts.freefiremax.jpg
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\security_report_20251201_235349.pdf
-2025-12-02 00:55:16 - INITIALIZED: D:\Free_fire\Photos\yamuna.jpg
-2025-12-02 00:55:16 - Initial scan added missing records and saved signature.
-2025-12-02 00:55:16 - MONITOR_STARTED: D:/Free_fire/Photos
-2025-12-02 00:55:21 - MONITOR_STOPPED
-2025-12-02 01:04:30 - Startup: records signature OK
-2025-12-02 01:04:30 - Startup: log signature OK
-2025-12-02 01:04:30 - MONITOR_STARTED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src
-2025-12-02 01:06:17 - Startup: records signature OK
-2025-12-02 01:06:17 - Startup: log signature OK
-2025-12-02 01:06:17 - MONITOR_STARTED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src
-2025-12-02 01:06:23 - MONITOR_STOPPED
-2025-12-02 01:06:37 - Startup: records signature OK
-2025-12-02 01:06:37 - Startup: log signature OK
-2025-12-02 01:06:37 - MONITOR_STARTED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src
-2025-12-02 01:06:42 - MONITOR_STOPPED
-2025-12-02 01:06:51 - Startup: records signature OK
-2025-12-02 01:06:51 - Startup: log signature OK
-2025-12-02 01:06:51 - MONITOR_STARTED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src
-2025-12-02 01:07:03 - Startup: records signature OK
-2025-12-02 01:07:03 - Startup: log signature OK
-2025-12-02 01:07:03 - MONITOR_STARTED: D:\Study\LISA_PROJECT\FileIntegrityChecker\src
-2025-12-02 01:07:10 - MONITOR_STOPPED
+2026-01-08 15:02:27 - MANUAL_VERIFICATION_STARTED
+2026-01-08 15:02:27 - WARNING: hash_records.json corrupted or invalid JSON — resetting to {}
+2026-01-08 15:02:27 - VERIFICATION_SUMMARY: === Summary @ 2026-01-08T15:02:27 ===
+2026-01-08 15:02:27 - Total=10 New=10 Mod=0 Del=0 Skip=0
+2026-01-08 15:02:33 - Startup: records signature OK
+2026-01-08 15:02:33 - Startup: log signature OK
+2026-01-08 15:02:33 - MONITOR_STARTED: D:/Study/LISA_PROJECT/FileIntegrityChecker/tests
+2026-01-08 15:02:54 - MODIFIED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\LISA.txt
+2026-01-08 15:03:11 - MODIFIED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\baby.txt
+2026-01-08 15:03:15 - DELETED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20250721_120257_com.dts.freefiremax.jpg
+2026-01-08 15:03:15 - DELETED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20251221_115811_com.dts.freefiremax.jpg
+2026-01-08 15:03:15 - DELETED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20251221_115815_com.dts.freefiremax.jpg
+2026-01-08 15:03:23 - CREATED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20251108_134932_com.dts.freefiremax.jpg
+2026-01-08 15:03:23 - CREATED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\FreeFire_10_10_2025 18_48_12.png
+2026-01-08 15:03:23 - CREATED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\FreeFire_10_10_2025 18_48_40.png
+2026-01-08 15:03:23 - CREATED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\FreeFire_10_10_2025 18_47_39.png
+2026-01-08 15:03:23 - CREATED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\FreeFire_10_10_2025 18_47_47.png
+2026-01-08 15:03:23 - CREATED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20250930_181746_com.dts.freefiremax.jpg
+2026-01-08 15:03:23 - CREATED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20250928_151423_com.dts.freefiremax.jpg
+2026-01-08 15:03:23 - CREATED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20250928_151415_com.dts.freefiremax.jpg
+2026-01-08 15:03:25 - DELETED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20251108_134932_com.dts.freefiremax.jpg
+2026-01-08 15:03:25 - DELETED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\FreeFire_10_10_2025 18_48_12.png
+2026-01-08 15:03:25 - DELETED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\FreeFire_10_10_2025 18_48_40.png
+2026-01-08 15:03:25 - DELETED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\FreeFire_10_10_2025 18_47_39.png
+2026-01-08 15:03:25 - DELETED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\FreeFire_10_10_2025 18_47_47.png
+2026-01-08 15:03:25 - DELETED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20250930_181746_com.dts.freefiremax.jpg
+2026-01-08 15:03:25 - DELETED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20250928_151423_com.dts.freefiremax.jpg
+2026-01-08 15:03:25 - DELETED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20250928_151415_com.dts.freefiremax.jpg
+2026-01-08 15:03:32 - CREATED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\FreeFire_09_01_2025 17_29_04.png
+2026-01-08 15:03:32 - CREATED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\FreeFire_10_10_2025 18_48_40.png
+2026-01-08 15:03:32 - CREATED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\FreeFire_10_10_2025 18_47_39.png
+2026-01-08 15:03:32 - CREATED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\FreeFire_10_10_2025 18_47_47.png
+2026-01-08 15:03:32 - CREATED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20250930_181746_com.dts.freefiremax.jpg
+2026-01-08 15:03:32 - CREATED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20250928_151423_com.dts.freefiremax.jpg
+2026-01-08 15:03:32 - CREATED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\downloaded-yamuna.jpg
+2026-01-08 15:03:32 - CREATED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\payel.jpg
+2026-01-08 15:03:32 - CREATED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20250922_081636_com.dts.freefiremax.jpg
+2026-01-08 15:03:39 - DELETED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\FreeFire_09_01_2025 17_29_04.png
+2026-01-08 15:03:44 - MONITOR_STOPPED
+2026-01-08 15:03:45 - MANUAL_VERIFICATION_STARTED
+2026-01-08 15:03:45 - VERIFICATION_SUMMARY: === Summary @ 2026-01-08T15:03:45 ===
+2026-01-08 15:03:45 - Total=15 New=0 Mod=0 Del=0 Skip=0
+2026-01-08 15:05:29 - MANUAL_VERIFICATION_STARTED
+2026-01-08 15:05:29 - VERIFICATION_SUMMARY: === Summary @ 2026-01-08T15:05:29 ===
+2026-01-08 15:05:29 - Total=14 New=2 Mod=2 Del=3 Skip=0

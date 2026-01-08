@@ -184,5 +184,35 @@
         -created a sliding window to show the status
 
 
+### 2 Dec 2025 - PHASE 7 
+    -1: Dark/Light theme toggle
+    -2: PDF report export with signatures
+    -3: Color-coded alerts for different event types
 
-   
+
+
+### 6 January 2026 - PHASE 8
+    -1: Report Data Normalization
+        -GUI ke report summary ko ek structured dict mein convert karna
+        -summary = {
+            "total": 120,
+            "created": [...],
+            "modified": [...],
+            "deleted": [...]
+            }
+
+    -2: Bar Chart Generator (matplotlib)
+        -Created / Modified / Deleted counts ka bar graph
+        -Save as PNG
+        -Dark + Light theme compatible
+
+    -3: PDF Generator (ReportLab)
+        -Title + timestamp
+        -Summary numbers
+        -Embedded chart image
+        -Optional: top-N file list
+
+    -4: GUI Integration
+        -“📄 Export PDF Report” button
+        -Success popup + “Open Folder”
+        -Graceful error handling (library missing etc.)
