@@ -31,3 +31,14 @@ TAMPER - logs: NO
 Log check detail: Log signatures OK
 ==================================================
 
+=== Summary @ 2026-01-08T22:37:54 ===
+Total files monitored: 14
+New files: 0
+Modified files: 0
+Deleted files: 0
+Skipped (couldn't hash): 0
+TAMPER - records: NO
+TAMPER - logs: NO
+Log check detail: Log signatures OK
+==================================================
+

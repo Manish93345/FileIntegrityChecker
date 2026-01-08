@@ -1452,6 +1452,17 @@ class ProIntegrityGUI:
                 
                 # Track file changes
                 self._track_file_changes(normalized)
+
+                # Update UI Status Indicators based on verification results
+                rec_status = "TAMPERED" if normalized['tampered_records'] else "OK"
+                log_status = "TAMPERED" if normalized['tampered_logs'] else "OK"
+                
+                # Update the text variables
+                self.tamper_records_var.set(rec_status)
+                self.tamper_logs_var.set(log_status)
+                
+                # Force the dashboard to refresh colors immediately
+                self.root.after(0, self._update_tamper_indicators)
                 
                 # Show results (UI Code remains the same...)
                 txt = (f"🔍 SECURITY VERIFICATION COMPLETE\n\n"
