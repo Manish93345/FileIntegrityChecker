@@ -17,10 +17,6 @@ DEFAULT_USERS = {
     "admin": {
         "password": "admin123", # Will be hashed on creation
         "role": "admin"
-    },
-    "user": {
-        "password": "user123",  # Will be hashed on creation
-        "role": "user"
     }
 }
 
@@ -84,6 +80,25 @@ class AuthManager:
             return True, user_data["role"], "Login Successful"
         else:
             return False, None, "Invalid Password"
+
+    def update_password(self, username, new_password):
+        """Update the password for a specific user"""
+        if username not in self.users:
+            return False, "User not found"
+        
+        # Generate new hash and salt
+        h, s = self._hash_password(new_password)
+        
+        # Update in memory
+        self.users[username]["hash"] = h
+        self.users[username]["salt"] = s
+        
+        # Save to file
+        try:
+            self._save_db()
+            return True, "Password updated successfully"
+        except Exception as e:
+            return False, f"Failed to save database: {e}"
 
     def get_role(self, username):
         return self.users.get(username, {}).get("role", "user")

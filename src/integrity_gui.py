@@ -21,7 +21,7 @@ Features:
 """
 
 import tkinter as tk
-from tkinter import ttk, filedialog, scrolledtext, messagebox
+from tkinter import ttk, filedialog, scrolledtext, messagebox, simpledialog
 import threading
 import time
 import os
@@ -29,8 +29,16 @@ import json
 import traceback
 from datetime import datetime
 import tempfile
+
+# Import Auth for password changing
+try:
+    from auth_manager import auth
+except ImportError:
+    auth = None
+
 from pathlib import Path
 import re
+
 
 # Mock backend classes if import fails
 class MockFileIntegrityMonitor:
@@ -409,37 +417,43 @@ class ProIntegrityGUI:
         if self.user_role == 'admin':
             return # Full access
             
-        # If we are here, role is 'user' (Read-Only)
-        
-        # 1. Disable Control Panel Buttons
-        # We need to access buttons. In your _build_widgets, you created them 
-        # but didn't save them all to self. Let's find them or you can modify _build_widgets to store them.
-        # A quick way to disable specific buttons by text matching if you didn't save references:
-        
-        self._append_log(f"Logged in as restricted user: {self.username}")
+        # Role is 'user' (Read-Only)
+        self._append_log(f"Logged in as restricted viewer: {self.username}")
         self.status_var.set("🔒 Read-Only Mode")
         
-        # Iterate through all widgets to find buttons and disable sensitive ones
-        # This is a generic way to find the buttons based on your previous code structure
-        
-        # RESTRICTED ACTIONS for User Mode
-        restricted_actions = ["Start Monitor", "Stop Monitor", "Settings", "Verify Now"]
-        
-        # Walk through widgets to find buttons with these texts
-        for widget in self.root.winfo_children():
-            for child in widget.winfo_children():
-                # Check 3 levels deep (Frame -> Frame -> Button)
-                if isinstance(child, ttk.Button):
-                    self._check_and_disable(child, restricted_actions)
-                for subchild in child.winfo_children():
-                    if isinstance(subchild, ttk.Button):
-                        self._check_and_disable(subchild, restricted_actions)
-                    for subsub in subchild.winfo_children():
-                        if isinstance(subsub, ttk.Button):
-                            self._check_and_disable(subsub, restricted_actions)
-
-        # Disable folder entry
+        # 1. Disable Folder Entry
         self.folder_entry.configure(state='disabled')
+        
+        # 2. Define Restricted Actions (Text that appears on buttons)
+        # Added "Open Folder" and "Browse" to this list
+        restricted_actions = [
+            "Start Monitor", 
+            "Stop Monitor", 
+            "Settings", 
+            "Verify Now",
+            "Open Folder",  # <--- Specifically requested
+            "Browse"        # <--- Prevent changing folder via browse
+        ]
+        
+        # 3. Recursively find and disable buttons
+        self._disable_recursive(self.root, restricted_actions)
+
+    def _disable_recursive(self, widget, restricted_list):
+        """Helper to find buttons recursively"""
+        for child in widget.winfo_children():
+            # If it's a button (tk or ttk), check its text
+            if isinstance(child, (tk.Button, ttk.Button)):
+                try:
+                    btn_text = child.cget('text')
+                    # Check if any restricted keyword is in the button text
+                    for action in restricted_list:
+                        if action in btn_text:
+                            child.configure(state='disabled')
+                except:
+                    pass
+            
+            # Recurse into children (Frames, LabelFrames, etc.)
+            self._disable_recursive(child, restricted_list)
         
     def _check_and_disable(self, btn, restricted_list):
         """Helper to check button text and disable if restricted"""
@@ -509,15 +523,27 @@ class ProIntegrityGUI:
                                 font=('Segoe UI', 10), 
                                 bg=self.colors['bg'], fg=self.colors['fg'])
         self.subtitle_label.pack(side=tk.LEFT, padx=(10, 0))
+
+
         
-        # Theme toggle button on right
-        theme_frame = ttk.Frame(header_frame)
-        theme_frame.pack(side=tk.RIGHT)
+        # --- NEW: HEADER BUTTONS (Theme + Change Pass) ---
+        right_header_frame = ttk.Frame(header_frame)
+        right_header_frame.pack(side=tk.RIGHT)
         
-        self.theme_btn = tk.Button(theme_frame, text="🌙", command=self.toggle_theme, 
+        # Only show "Change Password" button if user is Admin
+        if self.user_role == 'admin':
+            self.pass_btn = tk.Button(right_header_frame, text="🔑 Change Password", 
+                                    command=self.change_admin_password,
+                                    font=('Segoe UI', 9), bg=self.colors['accent'], 
+                                    fg='white', bd=0, padx=10, pady=2)
+            self.pass_btn.pack(side=tk.LEFT, padx=(0, 10))
+
+        self.theme_btn = tk.Button(right_header_frame, text="🌙", command=self.toggle_theme, 
                                  font=('Segoe UI', 12), bg=self.colors['button_bg'], 
                                  fg=self.colors['button_fg'], bd=0, padx=10)
-        self.theme_btn.pack()
+        self.theme_btn.pack(side=tk.LEFT)
+
+
         
         # Control Panel Section
         control_frame = ttk.LabelFrame(main_container, text="CONTROL PANEL", padding="15")
@@ -1423,6 +1449,51 @@ class ProIntegrityGUI:
         except Exception as e:
             print("Animation error:", e)
 
+
+        # --- NEW METHOD: CHANGE PASSWORD ---
+    def change_admin_password(self):
+        """Allow admin to change their password"""
+        if self.user_role != 'admin':
+            messagebox.showerror("Permission Denied", "Only administrators can change passwords.")
+            return
+
+        if not auth:
+            messagebox.showerror("Error", "Authentication backend not loaded.")
+            return
+
+        # Simple prompt flow
+        new_pass = simpledialog.askstring("Change Password", "Enter new password:", show='•', parent=self.root)
+        if not new_pass:
+            return # Cancelled
+        
+        confirm_pass = simpledialog.askstring("Confirm Password", "Confirm new password:", show='•', parent=self.root)
+        
+        if new_pass != confirm_pass:
+            messagebox.showerror("Error", "Passwords do not match!")
+            return
+            
+        if len(new_pass) < 4:
+            messagebox.showwarning("Weak Password", "Password must be at least 4 characters.")
+            return
+
+        # Call backend to update
+        # We assume we are updating the current user's password
+        success, msg = auth.update_password(self.username, new_pass)
+        
+        if success:
+            messagebox.showinfo("Success", "Password updated successfully!")
+            self._append_log(f"Admin password changed for user: {self.username}")
+        else:
+            messagebox.showerror("Error", f"Failed to update password: {msg}")
+
+    # ... [KEEP ALL OTHER METHODS FROM PREVIOUS integrity_gui.py] ...
+    # (normalize_report_data, generate_bar_chart, _show_chart_in_gui, export_report_pdf, 
+    #  _create_alert_panel, _show_alert, start_monitor, stop_monitor, etc...)
+    
+    # -------------------------------------------------------------
+    # FOR COMPLETENESS, COPIED HELPER METHODS REQUIRED FOR RUNNING:
+    # -------------------------------------------------------------
+
     # ---------- Core Actions ----------
     def _browse(self):
         """Browse for folder"""
@@ -1432,6 +1503,9 @@ class ProIntegrityGUI:
             self.folder_entry.delete(0, tk.END)
             self.folder_entry.insert(0, d)
             self._append_log(f"Selected monitor folder: {d}")
+
+
+    
 
     def start_monitor(self):
         """Start monitoring"""
