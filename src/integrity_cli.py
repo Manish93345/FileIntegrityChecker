@@ -17,6 +17,7 @@ from integrity_core import (
     LOG_FILE, LOG_SIG_FILE
 )
 
+
 def main():
     parser = argparse.ArgumentParser(description="Secure File Integrity Monitor CLI")
     parser.add_argument("--config", type=str, help="Path to config.json (optional)")

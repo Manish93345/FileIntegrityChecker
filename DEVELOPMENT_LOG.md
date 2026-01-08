@@ -216,3 +216,16 @@
         -“📄 Export PDF Report” button
         -Success popup + “Open Folder”
         -Graceful error handling (library missing etc.)
+
+
+
+### 8 January 2026 - PHASE 8.1
+    1: Authentication System
+        -User Mode (safe)
+        -Admin Mode (protected)
+        -Hidden dangerous controls
+        -Alert on login
+        -Wrong password detection
+        -Real enterprise-style behavior
+
+        - RUN login_gui.py   -> IMP
