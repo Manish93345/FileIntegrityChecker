@@ -29,6 +29,8 @@ import json
 import traceback
 from datetime import datetime
 import tempfile
+import subprocess
+import sys
 
 # Import Auth for password changing
 try:
@@ -400,7 +402,8 @@ class ProIntegrityGUI:
             'alert': '🔔',
             'security': '🛡️',
             'chart': '📈',
-            'export': '📤'
+            'export': '📤',
+            'logout': '🚪'
         }
         for key, symbol in icon_symbols.items():
             icons[key] = symbol
@@ -537,6 +540,13 @@ class ProIntegrityGUI:
                                     font=('Segoe UI', 9), bg=self.colors['accent'], 
                                     fg='white', bd=0, padx=10, pady=2)
             self.pass_btn.pack(side=tk.LEFT, padx=(0, 10))
+
+        # Logout Button
+            self.logout_btn = tk.Button(right_header_frame, text="🚪 Logout", 
+                                    command=self.logout,
+                                    font=('Segoe UI', 9), bg='#dc3545', # Red Color
+                                    fg='white', bd=0, padx=10, pady=2)
+            self.logout_btn.pack(side=tk.LEFT, padx=(0, 10))
 
         self.theme_btn = tk.Button(right_header_frame, text="🌙", command=self.toggle_theme, 
                                  font=('Segoe UI', 12), bg=self.colors['button_bg'], 
@@ -713,6 +723,28 @@ class ProIntegrityGUI:
         
         # Apply initial theme
         self._apply_theme()
+
+    
+
+    def logout(self):
+        """Logout and restart application"""
+        if messagebox.askyesno("Logout", "Are you sure you want to logout?"):
+            # Stop monitor if running
+            if self.monitor_running:
+                try:
+                    self.monitor.stop_monitoring()
+                except: pass
+            
+            # Destroy current window
+            self.root.destroy()
+            
+            # Restart login_gui.py
+            try:
+                # We restart the python process pointing to login_gui.py
+                # This assumes login_gui.py is in the current directory
+                subprocess.Popen([sys.executable, "login_gui.py"])
+            except Exception as e:
+                print(f"Failed to restart login: {e}")
 
     # ---------- Report Data Normalization (FIXED) ----------
     def normalize_report_data(self, summary=None):
