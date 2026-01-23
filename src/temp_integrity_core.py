@@ -28,66 +28,6 @@ except Exception:
     requests = None  # webhook optional; code will continue without requests
 
 
-# --- GLOBAL MEMORY COUNTERS (Prevents Race Conditions) ---
-_COUNTER_LOCK = threading.Lock()
-_SEVERITY_CACHE = {
-    "CRITICAL": 0, 
-    "HIGH": 0, 
-    "MEDIUM": 0, 
-    "INFO": 0
-}
-
-# Attempt to load existing counts from disk on startup
-if os.path.exists("severity_counters.json"):
-    try:
-        with open("severity_counters.json", "r", encoding="utf-8") as f:
-            loaded = json.load(f)
-            # Merge loaded data into cache safely
-            for k, v in loaded.items():
-                if k in _SEVERITY_CACHE:
-                    _SEVERITY_CACHE[k] = int(v)
-    except Exception:
-        print("Warning: Could not load existing severity counters.")
-
-
-# [In integrity_core.py - Add this Class after imports]
-
-class SimpleLock:
-    """A simple file-based lock to prevent race conditions"""
-    def __init__(self, lock_file, timeout=2.0):
-        self.lock_file = lock_file
-        self.timeout = timeout
-
-    def __enter__(self):
-        start_time = time.time()
-        # Wait while lock exists
-        while os.path.exists(self.lock_file):
-            if time.time() - start_time > self.timeout:
-                # Lock is stale (crashed process?), break it
-                print("⚠️ Breaking stale lock file")
-                try:
-                    os.remove(self.lock_file)
-                except OSError:
-                    pass
-                break
-            time.sleep(0.05)
-        
-        # Create lock
-        try:
-            with open(self.lock_file, 'w') as f:
-                f.write(str(os.getpid()))
-        except Exception:
-            pass # Should not happen often if wait worked
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        try:
-            if os.path.exists(self.lock_file):
-                os.remove(self.lock_file)
-        except OSError:
-            pass
-
-
 # ------------------ Severity Levels ------------------
 SEVERITY_LEVELS = {
     "INFO": {"color": "🟢", "priority": 0, "gui_color": "#0dcaf0"},  # Blue/Cyan
@@ -260,14 +200,11 @@ def append_log_line(message, event_type=None, severity=None):
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(line + "\n")
         
-        # DEBUG: Print what we're logging
-        print(f"DEBUG: Logging - Severity: {severity}, Event: {event_type}")
-        
         # Store event type and severity in signature for verification
         sig_line = f"{line}|{event_type or 'UNKNOWN'}|{severity}"
         append_log_signature(sig_line)
         
-        # Update severity counters (for GUI) - THIS IS THE CRITICAL LINE
+        # Update severity counters (for GUI)
         update_severity_counter(severity)
         
     except Exception as e:
@@ -275,55 +212,28 @@ def append_log_line(message, event_type=None, severity=None):
 
 
 def update_severity_counter(severity):
-    """
-    Update severity counters safely using a file lock.
-    Prevents race conditions during burst operations.
-    """
-    counter_file = "severity_counters.json"
-    lock_file = counter_file + ".lock"
-    
-    # Default structure in case file is missing
-    counters = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "INFO": 0}
-
+    """Update severity counters in a JSON file for GUI access"""
     try:
-        # Use our new SimpleLock to force single-file access
-        with SimpleLock(lock_file):
-            
-            # 1. READ
-            if os.path.exists(counter_file):
-                try:
-                    with open(counter_file, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                        if data:
-                            counters = data
-                except (json.JSONDecodeError, OSError):
-                    # If file is corrupt, we stick to current 'counters' (reset? or keep memory?)
-                    # Ideally, we should not reset if read fails, but for now we assume 
-                    # corrupt file needs reset.
-                    pass
-
-            # 2. MODIFY
-            if severity in counters:
-                counters[severity] += 1
-            else:
-                counters[severity] = 1 # Handle unexpected keys
-
-            # DEBUG: Print what we're updating
-            print(f"DEBUG: Updating severity counter - {severity}: {counters[severity]}")
-
-            # 3. WRITE (Atomic-ish)
-            # Write to temp file first, then rename to ensure file never looks empty to GUI
-            temp_file = counter_file + ".tmp"
-            with open(temp_file, "w", encoding="utf-8") as f:
-                json.dump(counters, f, indent=2)
-            
-            # Rename is atomic on POSIX, mostly atomic on Windows
-            if os.path.exists(counter_file):
-                os.remove(counter_file)
-            os.rename(temp_file, counter_file)
+        counter_file = "severity_counters.json"
+        counters = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "INFO": 0}
+        
+        if os.path.exists(counter_file):
+            try:
+                with open(counter_file, "r", encoding="utf-8") as f:
+                    counters = json.load(f)
+            except:
+                pass
+        
+        # Increment counter for this severity
+        if severity in counters:
+            counters[severity] += 1
+        
+        # Save back
+        with open(counter_file, "w", encoding="utf-8") as f:
+            json.dump(counters, f, indent=2)
             
     except Exception as e:
-        print(f"Failed to update severity counters: {e}")
+        print(f"Error updating severity counter: {e}")
 
 
 def append_log_signature(line):
@@ -834,16 +744,15 @@ class IntegrityHandler(FileSystemEventHandler):
         
         # Clean old deletes
         self.recent_deletes = [t for t in self.recent_deletes 
-                            if current_time - t < self.burst_time_window]
+                             if current_time - t < self.burst_time_window]
         
-        # Check for multiple deletes - IMPORTANT: This should trigger BEFORE individual delete logging
+        # Check for multiple deletes
         if len(self.recent_deletes) >= 3:  # 3 or more deletes in short time
             severity = "HIGH"
             message = f"Multiple deletes detected: {len(self.recent_deletes)} files deleted in {self.burst_time_window} seconds"
             append_log_line(message, event_type="MULTIPLE_DELETES", severity=severity)
             send_webhook_safe("MULTIPLE_DELETES", message, None)
         
-        # Individual delete logging
         if path in self.records:
             self.records.pop(path, None)
             self.save_records()

@@ -41,6 +41,22 @@ except ImportError:
 from pathlib import Path
 import re
 
+# Severity mapping for GUI
+SEVERITY_COLORS = {
+    "INFO": "#0dcaf0",      # Blue/Cyan
+    "MEDIUM": "#ffc107",    # Yellow
+    "HIGH": "#fd7e14",      # Orange
+    "CRITICAL": "#dc3545",  # Red
+}
+
+SEVERITY_EMOJIS = {
+    "INFO": "🟢",
+    "MEDIUM": "🟡",
+    "HIGH": "🟠",
+    "CRITICAL": "🔴",
+}
+
+
 
 # Mock backend classes if import fails
 class MockFileIntegrityMonitor:
@@ -285,6 +301,21 @@ class ProIntegrityGUI:
         # Load icons
         self.icons = self._load_icons()
 
+
+        # Severity counters
+        self.severity_counters = {
+            'CRITICAL': 0,
+            'HIGH': 0,
+            'MEDIUM': 0,
+            'INFO': 0
+        }
+
+         # UI variables for severity counters
+        self.critical_var = tk.StringVar(value="0")
+        self.high_var = tk.StringVar(value="0")
+        self.medium_var = tk.StringVar(value="0")
+        self.info_var = tk.StringVar(value="0")
+
         # Ensure config is loaded
         cfg_ok = True
         try:
@@ -333,7 +364,30 @@ class ProIntegrityGUI:
 
         # Start background update loops
         self._update_dashboard()
+        self._update_severity_counters()
         self._tail_log_loop()
+
+
+    def _update_severity_counters(self):
+        """Update severity counters from file"""
+        try:
+            counter_file = "severity_counters.json"
+            if os.path.exists(counter_file):
+                with open(counter_file, "r", encoding="utf-8") as f:
+                    self.severity_counters = json.load(f)
+                    
+                # Update UI variables
+                self.critical_var.set(str(self.severity_counters.get('CRITICAL', 0)))
+                self.high_var.set(str(self.severity_counters.get('HIGH', 0)))
+                self.medium_var.set(str(self.severity_counters.get('MEDIUM', 0)))
+                self.info_var.set(str(self.severity_counters.get('INFO', 0)))
+                
+        except Exception as e:
+            print(f"Error updating severity counters: {e}")
+        
+        # Schedule next update
+        self.root.after(5000, self._update_severity_counters)
+
 
     def _configure_styles(self):
         """Configure ttk styles for the current theme"""
@@ -597,6 +651,7 @@ class ProIntegrityGUI:
             ("🔍 Verify Now", self.run_verification, ""),
             ("🔒 Check Signatures", self.verify_signatures, ""),
             ("⚙️ Settings", self.open_settings, ""),
+            ("🔄 Reset Counters", self.reset_severity_counters, ""),
         ]
         
         for i, (text, command, icon_key) in enumerate(buttons_config):
@@ -618,6 +673,11 @@ class ProIntegrityGUI:
         
         report_buttons.append(("📊 View Reports", self.view_report, ""))
         report_buttons.append(("📁 Open Folder", self.open_reports_folder, ""))
+
+        if hasattr(self, 'action_frame'):
+            reset_btn = ttk.Button(self.action_frame, text="🔄 Reset Counters", 
+                                 command=self.reset_severity_counters, width=18)
+            reset_btn.grid(row=0, column=5, padx=5, pady=5)  # Adjust column as needed
         
         for i, (text, command, icon_key) in enumerate(report_buttons):
             icon = self.icons.get(icon_key, '')
@@ -627,6 +687,20 @@ class ProIntegrityGUI:
         # Dashboard Section
         dashboard_frame = ttk.LabelFrame(main_container, text="SECURITY DASHBOARD", padding="15")
         dashboard_frame.pack(fill=tk.X, pady=(0, 15))
+
+        # Create three columns for dashboard instead of two
+        left_dashboard = ttk.Frame(dashboard_frame)
+        left_dashboard.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 20))
+        
+        center_dashboard = ttk.Frame(dashboard_frame)
+        center_dashboard.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 20))
+        
+        right_dashboard = ttk.Frame(dashboard_frame)
+        right_dashboard.pack(side=tk.RIGHT, fill=tk.BOTH)
+        
+        # File Statistics (in left_dashboard - unchanged)
+        stats_frame = ttk.LabelFrame(left_dashboard, text="📊 FILE STATISTICS", padding="10")
+        stats_frame.pack(fill=tk.BOTH, expand=True)
         
         # Create two columns for dashboard
         left_dashboard = ttk.Frame(dashboard_frame)
@@ -647,6 +721,44 @@ class ProIntegrityGUI:
             stats_grid.rowconfigure(i, weight=1)
         stats_grid.columnconfigure(0, weight=1)
         stats_grid.columnconfigure(1, weight=2)
+
+
+        # NEW: Severity Dashboard (in center_dashboard)
+        severity_frame = ttk.LabelFrame(center_dashboard, text="🚨 SECURITY ALERT COUNTERS", padding="10")
+        severity_frame.pack(fill=tk.BOTH, expand=True)
+        
+        severity_grid = ttk.Frame(severity_frame)
+        severity_grid.pack(fill=tk.BOTH, expand=True)
+        
+        # Configure grid for severity
+        for i in range(4):
+            severity_grid.rowconfigure(i, weight=1)
+        severity_grid.columnconfigure(0, weight=1)
+        severity_grid.columnconfigure(1, weight=2)
+        
+        severity_data = [
+            ("🔴 CRITICAL Alerts:", self.critical_var, SEVERITY_COLORS["CRITICAL"]),
+            ("🟠 HIGH Alerts:", self.high_var, SEVERITY_COLORS["HIGH"]),
+            ("🟡 MEDIUM Alerts:", self.medium_var, SEVERITY_COLORS["MEDIUM"]),
+            ("🟢 INFO Alerts:", self.info_var, SEVERITY_COLORS["INFO"])
+        ]
+        
+        for row, (label, var, color) in enumerate(severity_data):
+            label_widget = ttk.Label(severity_grid, text=label, font=('Segoe UI', 10, 'bold'))
+            label_widget.grid(row=row, column=0, sticky="w", pady=8, padx=(0, 20))
+            
+            value_widget = tk.Label(severity_grid, textvariable=var, font=('Segoe UI', 14, 'bold'),
+                                  bg=self.colors['secondary_bg'], fg='white',
+                                  relief="solid", borderwidth=1, width=12, anchor="center")
+            value_widget.configure(bg=color)
+            value_widget.grid(row=row, column=1, sticky="ew", pady=8)
+            
+            # Store reference for theme updates
+            setattr(self, f'severity_label_{row}', value_widget)
+        
+        # Security Status (in right_dashboard - unchanged)
+        security_frame = ttk.LabelFrame(right_dashboard, text="🛡️ SECURITY STATUS", padding="10")
+        security_frame.pack(fill=tk.BOTH, expand=True)
         
         stats_data = [
             ("Total Monitored Files:", self.total_files_var, "#0d6efd"),
@@ -1010,6 +1122,9 @@ class ProIntegrityGUI:
                 
                 # Normalize data
                 data = self.normalize_report_data()
+
+                # Get severity counters
+                severity_summary = self.severity_counters
                 
                 # Generate chart image
                 chart_path = None
@@ -1060,6 +1175,34 @@ class ProIntegrityGUI:
                 # Title Section
                 story.append(Paragraph("SECURITY INTEGRITY MONITOR REPORT", title_style))
                 story.append(Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", normal_style))
+                story.append(Spacer(1, 20))
+
+                # NEW: Security Severity Summary
+                story.append(Paragraph("🚨 SECURITY SEVERITY SUMMARY", heading_style))
+
+                severity_data = [
+                    ["Severity Level", "Count", "Description"],
+                    ["🔴 CRITICAL", str(severity_summary.get('CRITICAL', 0)), "Hash/Log tampering, major breaches"],
+                    ["🟠 HIGH", str(severity_summary.get('HIGH', 0)), "Config changes, multiple deletes"],
+                    ["🟡 MEDIUM", str(severity_summary.get('MEDIUM', 0)), "File modifications, deletions"],
+                    ["🟢 INFO", str(severity_summary.get('INFO', 0)), "Normal file operations, system events"]
+                ]
+
+                severity_table = Table(severity_data, colWidths=[1.5*inch, 1*inch, 3*inch])
+                severity_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0d6efd')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#dee2e6')),
+                    ('PADDING', (0, 0), (-1, -1), 8),
+                    ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 10),
+                    ('BACKGROUND', (0, 1), (0, 1), colors.HexColor('#dc3545')),  # CRITICAL
+                    ('BACKGROUND', (0, 2), (0, 2), colors.HexColor('#fd7e14')),  # HIGH
+                    ('BACKGROUND', (0, 3), (0, 3), colors.HexColor('#ffc107')),  # MEDIUM
+                    ('BACKGROUND', (0, 4), (0, 4), colors.HexColor('#0dcaf0')),  # INFO
+                    ('TEXTCOLOR', (0, 1), (0, 4), colors.white),
+                ]))
+                story.append(severity_table)
                 story.append(Spacer(1, 20))
                 
                 # Executive Summary
@@ -1376,37 +1519,61 @@ class ProIntegrityGUI:
         self.alert_hide_after_id = None
 
     def _show_alert(self, title, message, level="info"):
-        """Show alert panel"""
+        """Show alert panel with severity"""
         try:
             if not getattr(self, "_alert_frame", None):
                 self._create_alert_panel()
-
-            # Prepare text + color
-            level_map = {
-                "created": ("🟢 CREATED", "#198754"),
-                "modified": ("🟡 MODIFIED", "#ffc107"),
-                "deleted": ("🔴 DELETED", "#dc3545"),
-                "tampered": ("🔥 TAMPERED", "#dc3545"),
-                "info": ("ℹ️ INFO", "#0dcaf0")
+            
+            # Map level to severity
+            severity_map = {
+                "info": "INFO",
+                "created": "INFO",
+                "modified": "MEDIUM",
+                "deleted": "MEDIUM",
+                "tampered": "CRITICAL",
+                "high": "HIGH",
+                "critical": "CRITICAL"
             }
-            label_text, color = level_map.get(level, ("ℹ️ INFO", "#0dcaf0"))
-
+            
+            severity = severity_map.get(level, "INFO")
+            severity_emoji = SEVERITY_EMOJIS.get(severity, "⚪")
+            severity_color = SEVERITY_COLORS.get(severity, "#0dcaf0")
+            
             ts = time.strftime("%Y-%m-%d %H:%M:%S")
-            entry = f"{label_text} • {ts}\n{message}\n{'-'*36}\n"
-
-            # Insert at top
+            entry = f"{severity_emoji} {severity} • {ts}\n{title}\n{message}\n{'-'*36}\n"
+            
+            # Insert at top with color tag
             self._alert_msg.configure(state="normal")
-            self._alert_msg.insert("1.0", entry)
+            
+            # Configure tag for this severity
+            tag_name = f"severity_{severity}"
+            self._alert_msg.tag_config(tag_name, foreground=severity_color, 
+                                      font=('Segoe UI', 9, 'bold' if severity == 'CRITICAL' else 'normal'))
+            
+            # Insert text with tag
+            self._alert_msg.insert("1.0", entry, tag_name)
             self._alert_msg.configure(state="disabled")
-
+            
             # Update meta
             self.alert_count = getattr(self, "alert_count", 0) + 1
             self._alert_counter.configure(text=f"Alerts: {self.alert_count}")
-            self._alert_meta.configure(text=f"Last: {label_text} @ {ts}")
-
+            self._alert_meta.configure(text=f"Last: {severity} @ {ts}")
+            
+            # Update severity counter immediately
+            if severity in self.severity_counters:
+                self.severity_counters[severity] += 1
+                if severity == "CRITICAL":
+                    self.critical_var.set(str(self.severity_counters["CRITICAL"]))
+                elif severity == "HIGH":
+                    self.high_var.set(str(self.severity_counters["HIGH"]))
+                elif severity == "MEDIUM":
+                    self.medium_var.set(str(self.severity_counters["MEDIUM"]))
+                elif severity == "INFO":
+                    self.info_var.set(str(self.severity_counters["INFO"]))
+            
             # Show alert panel
             self._animate_panel_show()
-
+            
         except Exception as e:
             print("Error showing alert:", e)
             traceback.print_exc()
@@ -1593,7 +1760,7 @@ class ProIntegrityGUI:
             messagebox.showerror("Error", f"Exception: {ex}")
 
     def run_verification(self):
-        """Run manual verification"""
+        """Run manual verification with severity tracking"""
         folder = self.folder_entry.get()
         if not folder or not os.path.exists(folder):
             messagebox.showerror("Error", "Choose valid folder first.")
@@ -1609,7 +1776,7 @@ class ProIntegrityGUI:
                 # Normalize AND SAVE to JSON cache automatically
                 normalized = self.normalize_report_data(summary)
                 
-                # Track file changes
+                # Track file changes with severity
                 self._track_file_changes(normalized)
 
                 # Update UI Status Indicators based on verification results
@@ -1620,26 +1787,31 @@ class ProIntegrityGUI:
                 self.tamper_records_var.set(rec_status)
                 self.tamper_logs_var.set(log_status)
                 
+                # Show tamper alerts with CRITICAL severity if detected
+                if normalized['tampered_records']:
+                    self._show_alert("CRITICAL: Hash Database Tampered!", 
+                                   "File hash records have been tampered with!", 
+                                   "critical")
+                if normalized['tampered_logs']:
+                    self._show_alert("CRITICAL: Log Files Tampered!", 
+                                   "Audit log files have been tampered with!", 
+                                   "critical")
+                
                 # Force the dashboard to refresh colors immediately
                 self.root.after(0, self._update_tamper_indicators)
                 
-                # Show results (UI Code remains the same...)
+                # Show results with severity summary
                 txt = (f"🔍 SECURITY VERIFICATION COMPLETE\n\n"
                     f"📊 Total monitored: {normalized['total']}\n"
                     f"🟢 New files: {len(normalized['created'])}\n"
                     f"🟡 Modified files: {len(normalized['modified'])}\n"
-                    f"🔴 Deleted files: {len(normalized['deleted'])}\n"
-                    f"🔥 TAMPER - records: {'YES' if normalized['tampered_records'] else 'NO'}\n"
-                    f"🔥 TAMPER - logs: {'YES' if normalized['tampered_logs'] else 'NO'}\n")
+                    f"🔴 Deleted files: {len(normalized['deleted'])}\n\n"
+                    f"🚨 SECURITY STATUS:\n"
+                    f"🔥 CRITICAL - Hash DB: {'TAMPERED' if normalized['tampered_records'] else 'SECURE'}\n"
+                    f"🔥 CRITICAL - Logs: {'TAMPERED' if normalized['tampered_logs'] else 'SECURE'}\n")
                 
                 messagebox.showinfo("Security Verification Summary", txt)
                 self._append_log("Manual security verification finished.")
-                
-                # Show tamper alerts if detected
-                if normalized['tampered_records'] or normalized['tampered_logs']:
-                    self._show_alert("TAMPER DETECTED!", 
-                                   "File hash records or log signatures have been tampered with!", 
-                                   "tampered")
                 
             except Exception as ex:
                 self._append_log(f"Verification error: {ex}")
@@ -1877,6 +2049,16 @@ class ProIntegrityGUI:
         """View reports"""
         report_files = ["report_summary.txt", "activity_reports.txt", "detailed_reports.txt"]
         combined_content = ""
+
+        
+        severity_summary = self.severity_counters
+        combined_content += f"🚨 SECURITY SEVERITY SUMMARY\n"
+        combined_content += f"{'='*60}\n"
+        combined_content += f"CRITICAL Alerts: {severity_summary.get('CRITICAL', 0)}\n"
+        combined_content += f"HIGH Alerts: {severity_summary.get('HIGH', 0)}\n"
+        combined_content += f"MEDIUM Alerts: {severity_summary.get('MEDIUM', 0)}\n"
+        combined_content += f"INFO Alerts: {severity_summary.get('INFO', 0)}\n"
+        combined_content += f"{'='*60}\n\n"
         
         for report_file in report_files:
             if os.path.exists(report_file):
@@ -1894,6 +2076,27 @@ class ProIntegrityGUI:
             self._show_text("Combined Security Reports", combined_content)
         else:
             messagebox.showinfo("Report", "No report files found.")
+
+    #  method to reset severity counters
+    def reset_severity_counters(self):
+        """Reset all severity counters"""
+        if messagebox.askyesno("Reset Counters", "Reset all severity counters to zero?"):
+            self.severity_counters = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'INFO': 0}
+            
+            # Update UI
+            self.critical_var.set("0")
+            self.high_var.set("0")
+            self.medium_var.set("0")
+            self.info_var.set("0")
+            
+            # Save to file
+            try:
+                with open("severity_counters.json", "w", encoding="utf-8") as f:
+                    json.dump(self.severity_counters, f, indent=2)
+                self._append_log("Severity counters reset to zero")
+                self._show_alert("Counters Reset", "All severity counters have been reset to zero.", "info")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to save counters: {e}")
 
     def open_reports_folder(self):
         """Open reports folder"""
