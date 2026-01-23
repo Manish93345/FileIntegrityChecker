@@ -15,6 +15,33 @@ import threading
 import traceback
 from datetime import datetime
 
+# Import security features (silent imports)
+try:
+    from security_imports import (
+        AUTO_RESPONSE_AVAILABLE,
+        trigger_auto_response,
+        handle_tamper_event,
+        SAFE_MODE_AVAILABLE,
+        enable_safe_mode,
+        is_safe_mode_enabled
+    )
+except ImportError:
+    # If security_imports doesn't exist, use dummy functions
+    AUTO_RESPONSE_AVAILABLE = False
+    SAFE_MODE_AVAILABLE = False
+    
+    def trigger_auto_response(*args, **kwargs):
+        return False
+    
+    def handle_tamper_event(*args, **kwargs):
+        return False
+    
+    def enable_safe_mode(*args, **kwargs):
+        return False
+    
+    def is_safe_mode_enabled():
+        return False
+
 try:
     from watchdog.observers import Observer
     from watchdog.events import FileSystemEventHandler
@@ -216,7 +243,7 @@ def load_config(path=None):
         "watch_folder": r"D:\Study\LISA_PROJECT\FileIntegrityChecker\tests",
         "verify_interval": 60,
         "webhook_url": None,
-        "secret_key": "Lisamerijaanu_change_me",
+        "secret_key": "Lisacutie",
         "max_log_size_mb": 10,
         "max_log_backups": 5,
         "hash_algo": "sha256",
@@ -243,35 +270,33 @@ def load_config(path=None):
 
 # ------------------ Logging & Log HMAC (per-line) ------------------
 def append_log_line(message, event_type=None, severity=None):
-    """
-    Append a human-readable line to integrity_log.txt with severity
-    """
+    """Append log line and sign it"""
     try:
         os.makedirs(os.path.dirname(os.path.abspath(LOG_FILE)) or ".", exist_ok=True)
         
-        # Determine severity
-        if severity is None and event_type is not None:
-            severity = get_severity(event_type)
+        if severity is None:
+            if event_type:
+                severity = get_severity(event_type)
+            else:
+                severity = "INFO"
         
-        # Get severity emoji
-        severity_emoji = SEVERITY_LEVELS.get(severity, {}).get("color", "⚪")
+        emoji = SEVERITY_LEVELS.get(severity, {}).get("color", "⚪")
+        line = f"{now_pretty()} - [{emoji} {severity}] {message}"
         
-        line = f"{now_pretty()} - [{severity_emoji} {severity}] {message}"
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(line + "\n")
+            f.flush()
+            os.fsync(f.fileno())
         
-        # DEBUG: Print what we're logging
-        print(f"DEBUG: Logging - Severity: {severity}, Event: {event_type}")
-        
-        # Store event type and severity in signature for verification
-        sig_line = f"{line}|{event_type or 'UNKNOWN'}|{severity}"
+        # Consistent signing format
+        sig_line = f"{line}|UNKNOWN|{severity}"
         append_log_signature(sig_line)
         
-        # Update severity counters (for GUI) - THIS IS THE CRITICAL LINE
         update_severity_counter(severity)
+        print(f"DEBUG: Logging - Severity: {severity}, Event: {event_type}")
         
     except Exception as e:
-        print(f"Error in append_log_line: {e}")
+        print(f"Log Error: {e}")
 
 
 def update_severity_counter(severity):
@@ -317,17 +342,23 @@ def update_severity_counter(severity):
 
 
 def append_log_signature(line):
-    """
-    Compute HMAC of the full line string and append hex to LOG_SIG_FILE (one per line).
-    """
+    """Compute HMAC of full line and append to signature file"""
     try:
-        key = CONFIG["secret_key"].encode("utf-8")
-        h = getattr(hashlib, CONFIG["hash_algo"])
+        # ENSURE CONFIG IS LOADED
+        if "secret_key" not in CONFIG: load_config()
+            
+        key = CONFIG.get("secret_key", "Lisacutie").encode("utf-8")
+        h = getattr(hashlib, CONFIG.get("hash_algo", "sha256"))
+        
+        # Consistent UTF-8 encoding
         sig = hmac.new(key, line.encode("utf-8"), h).hexdigest()
+        
         with open(LOG_SIG_FILE, "a", encoding="utf-8") as f:
             f.write(sig + "\n")
+            f.flush()
+            os.fsync(f.fileno())
     except Exception as e:
-        print(f"Error in append_log_signature: {e}")
+        print(f"Sig Write Error: {e}")
 
 def rotate_logs_if_needed():
     """
@@ -411,94 +442,86 @@ def verify_records_signature_on_disk():
         append_log_line("ALERT: hash_records.json signature mismatch (possible tampering)", 
                        event_type="TAMPERED_RECORDS", severity="CRITICAL")
         send_webhook_safe("INTEGRITY_FAIL", "hash_records.json HMAC mismatch", HASH_RECORD_FILE)
+        if handle_tamper_event:
+            handle_tamper_event("records", HASH_RECORD_FILE)
     return ok
 
 # ------------------ Log signature verification ------------------
 # [In integrity_core.py] Replace the verify_log_signatures function
 
 def verify_log_signatures():
-    """
-    Verify integrity_log.txt lines vs integrity_log.sig lines.
-    Auto-heals (creates signature) if log exists but signature is missing.
-    Returns (ok:bool, details:str)
-    """
-    # 1. Check if files exist
-    if not os.path.exists(LOG_FILE):
-        # If log doesn't exist, it's not tampered. It's just empty/fresh.
-        return True, "No log file present (Clean state)"
+    """Verify logs - Strict & Robust"""
+    if not os.path.exists(LOG_FILE): return True, "No log file"
     
-    # 2. Read Log Lines
     try:
-        with open(LOG_FILE, "r", encoding="utf-8") as lf:
-            log_lines = [l.rstrip("\n") for l in lf.readlines() if l.strip()]
-    except Exception as e:
-        return False, f"Failed to read log file: {e}"
+        with open(LOG_FILE, "r", encoding="utf-8") as f:
+            log_lines = [l.rstrip("\n") for l in f.readlines() if l.strip()]
+    except: return False, "Read fail"
 
-    # 3. Handle Empty Log File
-    if not log_lines:
-        return True, "Log file is empty (Clean state)"
+    if not log_lines: return True, "Empty"
 
-    # 4. Read Signature Lines
     sig_lines = []
     if os.path.exists(LOG_SIG_FILE):
         try:
-            with open(LOG_SIG_FILE, "r", encoding="utf-8") as sf:
-                sig_lines = [s.rstrip("\n") for s in sf.readlines() if s.strip()]
-        except Exception as e:
-            return False, f"Failed to read sig file: {e}"
-    
-    # 5. AUTO-HEAL: If log exists but signature is missing/empty, create it now.
-    # This prevents false "Tampered" flags on fresh installs or manual clears.
-    if not sig_lines and log_lines:
-        append_log_line("INFO: Log signature missing. Re-initializing signatures...", severity="INFO")
+            with open(LOG_SIG_FILE, "r", encoding="utf-8") as f:
+                sig_lines = [s.rstrip("\n") for s in f.readlines() if s.strip()]
+        except: return False, "Sig read fail"
+
+    # AUTO HEAL (Crash/Sync)
+    if len(log_lines) > len(sig_lines):
+        missing = len(log_lines) - len(sig_lines)
         try:
-            # Clear file first
-            with open(LOG_SIG_FILE, "w", encoding="utf-8") as f: 
-                f.write("")
-            # Re-sign all existing lines
-            for line in log_lines:
-                # We need to guess the event type/severity if missing, 
-                # but for re-signing, we just hash the line as is.
-                sig_line = f"{line}|UNKNOWN|INFO" 
-                append_log_signature(sig_line)
-            return True, "Log signatures re-initialized"
-        except Exception as e:
-            return False, f"Failed to re-initialize signatures: {e}"
+            for line in log_lines[-missing:]:
+                append_log_signature(f"{line}|UNKNOWN|INFO")
+            print(f"DEBUG: Auto-healed {missing} signatures")
+            return True, f"Auto-healed {missing}"
+        except: return False, "Heal failed"
 
-    # 6. Verify Length
-    if len(log_lines) != len(sig_lines):
-        # Fallback: Try to heal if the counts are just slightly off due to a crash?
-        # For security, we usually flag this. But for your request, we can be softer.
-        msg = f"Log/Sig length mismatch: {len(log_lines)} logs vs {len(sig_lines)} sigs"
-        return False, msg
-    
-    # 7. Verify Content (HMAC)
-    key = CONFIG["secret_key"].encode("utf-8")
-    h = getattr(hashlib, CONFIG["hash_algo"])
-    
-    for i, (line, sig) in enumerate(zip(log_lines, sig_lines)):
-        # The signature file might contain the raw hash OR the hash of (line|meta).
-        # We try to verify against the standard format.
-        
-        # In append_log_line, we write: sig_line = f"{line}|{event_type}|{severity}"
-        # We don't have event_type/severity here easily to reconstruct the exact string 
-        # unless we stored it in the log text exactly.
-        
-        # SIMPLIFIED VERIFICATION STRATEGY:
-        # Since we can't perfectly reconstruct the metadata (event_type) from just the log line
-        # without parsing it, we will assume the stored signature is valid if the Log File 
-        # hasn't been purely edited by text editor.
-        
-        # If strict verification fails frequently due to metadata mismatch, 
-        # you might want to switch to signing JUST the log line content:
-        # calc = hmac.new(key, line.encode("utf-8"), h).hexdigest()
-        
-        # However, to respect your current architecture, we will flag only if 
-        # we are sure it's wrong. If you are getting constant errors here,
-        # let me know and we can switch to "Content-Only Signing".
-        pass 
+    # TAMPER (Deletion)
+    if len(log_lines) < len(sig_lines):
+        if handle_tamper_event: handle_tamper_event("logs", LOG_FILE)
+        return False, "Deletion Detected"
 
-    return True, "Log signatures OK"
+    # CONTENT VERIFICATION
+    # Ensure config is loaded
+    if "secret_key" not in CONFIG: load_config()
+    
+    key = CONFIG.get("secret_key", "Lisacutie").encode("utf-8")
+    h_factory = getattr(hashlib, CONFIG.get("hash_algo", "sha256"))
+    
+    for i, (line, stored_sig) in enumerate(zip(log_lines, sig_lines)):
+        # Strategy 1: Check Standard/Healed format (INFO)
+        check1 = f"{line}|UNKNOWN|INFO"
+        sig1 = hmac.new(key, check1.encode("utf-8"), h_factory).hexdigest()
+        
+        if stored_sig == sig1: continue
+
+        # Strategy 2: Parse Severity from Text
+        parsed_sev = "INFO"
+        if "[🔴 CRITICAL]" in line: parsed_sev = "CRITICAL"
+        elif "[🟠 HIGH]" in line: parsed_sev = "HIGH"
+        elif "[🟡 MEDIUM]" in line: parsed_sev = "MEDIUM"
+        
+        check2 = f"{line}|UNKNOWN|{parsed_sev}"
+        sig2 = hmac.new(key, check2.encode("utf-8"), h_factory).hexdigest()
+
+        if stored_sig == sig2: continue
+
+        # Strategy 3: The "None" Fallback
+        check3 = f"{line}|UNKNOWN|None"
+        sig3 = hmac.new(key, check3.encode("utf-8"), h_factory).hexdigest()
+        if stored_sig == sig3: continue
+
+        # FAIL
+        print(f"\n[DEBUG] SIGNATURE MISMATCH AT LINE {i+1}")
+        print(f"Content: {line}")
+        print(f"Expected 1 (INFO): {sig1}")
+        print(f"Found on Disk:   {stored_sig}")
+        
+        if handle_tamper_event: handle_tamper_event("signature", LOG_FILE)
+        return False, f"Signature Mismatch at line {i+1}"
+
+    return True, "Signatures OK"
 
 # ------------------ Hashing (chunked + retry) ------------------
 def is_ignored_filename(name):

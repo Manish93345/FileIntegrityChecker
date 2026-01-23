@@ -1,4 +1,0 @@
-2026-01-23 17:51:24 - [🟢 INFO] AUTO_RESPONSE_INFO: Information level test event
-2026-01-23 17:51:25 - [🟡 MEDIUM] AUTO_RESPONSE_MEDIUM: Medium severity test
-2026-01-23 17:51:25 - [🟠 HIGH] AUTO_RESPONSE_HIGH: High severity test
-2026-01-23 17:51:25 - [🟢 INFO] Incident snapshot created: incident_2026-01-23_17-51-25_TEST_HIGH.txt for TEST_HIGH

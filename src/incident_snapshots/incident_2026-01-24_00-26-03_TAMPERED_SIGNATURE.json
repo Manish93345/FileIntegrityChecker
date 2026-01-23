@@ -1,0 +1,70 @@
+{
+  "incident": {
+    "event_type": "TAMPERED_SIGNATURE",
+    "severity": "CRITICAL",
+    "message": "Signature mismatch: integrity_log.txt",
+    "affected_file": "integrity_log.txt",
+    "timestamp": "2026-01-24T00:26:03.685904",
+    "human_timestamp": "2026-01-24T00:26:03.685904"
+  },
+  "system_state": {
+    "time": "2026-01-24T00:26:03.685912",
+    "safe_mode": true,
+    "monitoring_active": {
+      "status": "unknown",
+      "details": "Monitoring status check not implemented"
+    },
+    "config": {
+      "error": "Config not available"
+    },
+    "disk_usage": {
+      "total_gb": 294.15,
+      "used_gb": 256.43,
+      "free_gb": 37.72,
+      "free_percent": 12.82
+    },
+    "critical_files": {
+      "integrity_log.txt": {
+        "exists": true,
+        "size": 4186,
+        "modified": "2026-01-24T00:26:03.685348"
+      },
+      "hash_records.json": {
+        "exists": true,
+        "size": 5777,
+        "modified": "2026-01-24T00:26:03.600180"
+      },
+      "config.json": {
+        "exists": true,
+        "size": 489,
+        "modified": "2026-01-23T18:34:56.887189"
+      },
+      "severity_counters.json": {
+        "exists": true,
+        "size": 80,
+        "modified": "2026-01-24T00:26:03.682729"
+      }
+    }
+  },
+  "recent_events": [
+    "2026-01-24 00:25:59 - [\u26aa None] INITIALIZED: D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\Screenshot_20260105_232157_com.dts.freefiremax.jpg",
+    "2026-01-24 00:25:59 - [\u26aa None] INITIALIZED: D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\Screenshot_20260105_232252_com.dts.freefiremax.jpg",
+    "2026-01-24 00:25:59 - [\u26aa None] INITIALIZED: D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\Screenshot_20260105_232553_com.dts.freefiremax.jpg",
+    "2026-01-24 00:25:59 - [\u26aa None] INITIALIZED: D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\Screenshot_20260107_233117_com.dts.freefiremax.jpg",
+    "2026-01-24 00:25:59 - [\u26aa None] INITIALIZED: D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\yamuna.jpg",
+    "2026-01-24 00:25:59 - [\u26aa None] Initial scan added missing records and saved signature.",
+    "2026-01-24 00:25:59 - [\u26aa None] MONITOR_STARTED: D:/Study/LISA_PROJECT/FileIntegrityChecker/tests",
+    "2026-01-24 00:26:03 - [\u26aa None] MANUAL_VERIFICATION_STARTED",
+    "2026-01-24 00:26:03 - [\ud83d\udd34 CRITICAL] AUTO_RESPONSE_CRITICAL: Signature mismatch: integrity_log.txt - ACTIVATING SAFE MODE",
+    "2026-01-24 00:26:03 - [\ud83d\udd34 CRITICAL] \ud83d\udea8 SAFE MODE ACTIVATED: TAMPERED_SIGNATURE: Signature mismatch: integrity_log.txt"
+  ],
+  "file_hashes": {
+    "integrity_log.txt": "b768411e57417559",
+    "hash_records.json": "d99fac9f6ab38af8",
+    "config.json": "ea5cd2d5f3ae7441"
+  },
+  "process_info": {
+    "error": "psutil not installed"
+  },
+  "additional_data": {}
+}

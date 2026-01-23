@@ -31,6 +31,8 @@ from datetime import datetime
 import tempfile
 import subprocess
 import sys
+
+import safe_mode
 REPORT_DATA_JSON = "report_data.json"
 # --- IMPORT BACKEND SAFELY ---
 # We define these globally first to prevent "NameError" if import fails
@@ -393,6 +395,9 @@ class ProIntegrityGUI:
         self._update_severity_counters()
         self._tail_log_loop()
 
+        # NEW: Start Safe Mode Watcher
+        self._check_safe_mode_status()  # <--- ADD THIS LINE
+
 
     def _update_severity_counters(self):
         """Update severity counters without crashing if backend is missing"""
@@ -638,6 +643,14 @@ class ProIntegrityGUI:
                                     fg='white', bd=0, padx=10, pady=2)
             self.logout_btn.pack(side=tk.LEFT, padx=(0, 10))
 
+            # In _build_widgets, near the Logout button:
+        
+        self.unlock_btn = tk.Button(right_header_frame, text="🔓 Unlock System", 
+                                command=self.disable_lockdown,
+                                font=('Segoe UI', 9), bg='#ffc107', 
+                                fg='black', bd=0, padx=10, pady=2)
+        self.unlock_btn.pack(side=tk.LEFT, padx=(0, 10))
+
         self.theme_btn = tk.Button(right_header_frame, text="🌙", command=self.toggle_theme, 
                                  font=('Segoe UI', 12), bg=self.colors['button_bg'], 
                                  fg=self.colors['button_fg'], bd=0, padx=10)
@@ -677,8 +690,9 @@ class ProIntegrityGUI:
         self.status_label.pack(side=tk.LEFT, padx=(10, 20))
         
         # Action Buttons Row
-        action_frame = ttk.Frame(control_frame)
-        action_frame.pack(fill=tk.X)
+        # CHANGE: 'action_frame' to 'self.action_frame'
+        self.action_frame = ttk.Frame(control_frame)  # <--- ADD 'self.'
+        self.action_frame.pack(fill=tk.X)
         
         # Create button grid with icons
         buttons_config = [
@@ -692,7 +706,7 @@ class ProIntegrityGUI:
         
         for i, (text, command, icon_key) in enumerate(buttons_config):
             icon = self.icons.get(icon_key, '')
-            btn = ttk.Button(action_frame, text=f"{icon} {text}", command=command, width=18)
+            btn = ttk.Button(self.action_frame, text=f"{icon} {text}", command=command, width=18)
             btn.grid(row=0, column=i, padx=5, pady=5)
         
         # Report Buttons Row
@@ -893,6 +907,67 @@ class ProIntegrityGUI:
                 subprocess.Popen([sys.executable, "login_gui.py"])
             except Exception as e:
                 print(f"Failed to restart login: {e}")
+
+
+    # Add this method to your ProIntegrityGUI class
+    def _check_safe_mode_status(self):
+        """Constantly check if backend triggered Safe Mode"""
+        try:
+            # Check if Safe Mode is active (backend state or file flag)
+            is_safe = safe_mode.is_safe_mode_enabled() or os.path.exists("lockdown.flag")
+            
+            if is_safe:
+                # 1. Update Status visually
+                self.status_var.set("⛔ SAFE MODE ACTIVE")
+                self.status_label.configure(foreground="#dc3545") # Red text
+                
+                # 2. Disable Critical Buttons
+                # We iterate through the buttons we created
+                if hasattr(self, 'action_frame'):
+                    for child in self.action_frame.winfo_children():
+                        if isinstance(child, ttk.Button):
+                            text = str(child.cget('text'))
+                            # Disable Start, Verify, Settings
+                            if "Start" in text or "Verify" in text or "Settings" in text:
+                                child.configure(state='disabled')
+                            # Enable a "Unlock" button if you want (or keep it locked)
+                
+                # 3. Force the monitor to stop (UI side) if it thinks it's running
+                if self.monitor_running:
+                    self.monitor_running = False
+                    self._append_log("UI: Recognized Safe Mode - Controls Locked")
+                    self._show_alert("SYSTEM LOCKDOWN", "Safe Mode detected. Controls disabled.", "critical")
+
+            # If NOT safe mode, ensure buttons are enabled (unless stopped normally)
+            elif not is_safe and not self.monitor_running:
+                 if hasattr(self, 'action_frame'):
+                    for child in self.action_frame.winfo_children():
+                        if isinstance(child, ttk.Button):
+                            text = str(child.cget('text'))
+                            # Re-enable Start, Verify, Settings
+                            if "Start" in text or "Verify" in text or "Settings" in text:
+                                child.configure(state='normal')
+
+        except Exception as e:
+            print(f"Safe Mode Check Error: {e}")
+        
+        # Check again in 1 second
+        self.root.after(1000, self._check_safe_mode_status)
+
+    def disable_lockdown(self):
+        """Admin override to disable safe mode"""
+        if self.user_role != 'admin':
+            messagebox.showerror("Access Denied", "Only Admins can disable Safe Mode.")
+            return
+            
+        if messagebox.askyesno("Confirm Unlock", "Are you sure the system is secure?\nThis will re-enable monitoring controls."):
+            success = safe_mode.disable_safe_mode("Admin Override via GUI")
+            if success:
+                messagebox.showinfo("Unlocked", "Safe Mode disabled. System returned to normal.")
+                self.status_var.set("🔴 Stopped") # Reset status text
+                self.status_label.configure(foreground=self.colors['fg']) # Reset color
+            else:
+                messagebox.showerror("Error", "Failed to disable Safe Mode.")
 
     # ---------- Report Data Normalization (FIXED) ----------
     def normalize_report_data(self, summary=None):

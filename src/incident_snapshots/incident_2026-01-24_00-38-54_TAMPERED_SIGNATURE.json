@@ -1,0 +1,66 @@
+{
+  "incident": {
+    "event_type": "TAMPERED_SIGNATURE",
+    "severity": "CRITICAL",
+    "message": "Signature mismatch: integrity_log.txt",
+    "affected_file": "integrity_log.txt",
+    "timestamp": "2026-01-24T00:38:54.817477",
+    "human_timestamp": "2026-01-24T00:38:54.817477"
+  },
+  "system_state": {
+    "time": "2026-01-24T00:38:54.817493",
+    "safe_mode": true,
+    "monitoring_active": {
+      "status": "unknown",
+      "details": "Monitoring status check not implemented"
+    },
+    "config": {
+      "error": "Config not available"
+    },
+    "disk_usage": {
+      "total_gb": 294.15,
+      "used_gb": 256.43,
+      "free_gb": 37.72,
+      "free_percent": 12.82
+    },
+    "critical_files": {
+      "integrity_log.txt": {
+        "exists": true,
+        "size": 617,
+        "modified": "2026-01-24T00:38:54.815882"
+      },
+      "hash_records.json": {
+        "exists": true,
+        "size": 2,
+        "modified": "2026-01-24T00:38:54.682238"
+      },
+      "config.json": {
+        "exists": true,
+        "size": 489,
+        "modified": "2026-01-23T18:34:56.887189"
+      },
+      "severity_counters.json": {
+        "exists": true,
+        "size": 66,
+        "modified": "2026-01-24T00:38:54.811320"
+      }
+    }
+  },
+  "recent_events": [
+    "2026-01-24 00:38:54 - [\ud83d\udfe2 INFO] WARNING: hash_records.json corrupted or invalid JSON \u2014 resetting to {}",
+    "2026-01-24 00:38:54 - [\ud83d\udfe2 INFO] WARNING: hash_records.json corrupted or invalid JSON \u2014 resetting to {}",
+    "2026-01-24 00:38:54 - [\ud83d\udfe2 INFO] INFO: No hash signature found; created new signature.",
+    "2026-01-24 00:38:54 - [\ud83d\udfe2 INFO] Startup: records signature OK",
+    "2026-01-24 00:38:54 - [\ud83d\udd34 CRITICAL] AUTO_RESPONSE_CRITICAL: Signature mismatch: integrity_log.txt - ACTIVATING SAFE MODE",
+    "2026-01-24 00:38:54 - [\ud83d\udd34 CRITICAL] \ud83d\udea8 SAFE MODE ACTIVATED: TAMPERED_SIGNATURE: Signature mismatch: integrity_log.txt"
+  ],
+  "file_hashes": {
+    "integrity_log.txt": "e92ed8ffe7cc7a6f",
+    "hash_records.json": "44136fa355b3678a",
+    "config.json": "ea5cd2d5f3ae7441"
+  },
+  "process_info": {
+    "error": "psutil not installed"
+  },
+  "additional_data": {}
+}

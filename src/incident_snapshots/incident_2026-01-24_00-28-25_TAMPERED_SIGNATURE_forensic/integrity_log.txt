@@ -1,0 +1,7 @@
+2026-01-24 00:28:25 - [⚪ None] WARNING: hash_records.json corrupted or invalid JSON — resetting to {}
+2026-01-24 00:28:25 - [⚪ None] WARNING: hash_records.json corrupted or invalid JSON — resetting to {}
+2026-01-24 00:28:25 - [🟢 INFO] INFO: No hash signature found; created new signature.
+2026-01-24 00:28:25 - [⚪ None] Startup: records signature OK
+2026-01-24 00:28:25 - [🔴 CRITICAL] AUTO_RESPONSE_CRITICAL: Signature mismatch: integrity_log.txt - ACTIVATING SAFE MODE
+2026-01-24 00:28:25 - [🔴 CRITICAL] 🚨 SAFE MODE ACTIVATED: TAMPERED_SIGNATURE: Signature mismatch: integrity_log.txt
+2026-01-24 00:28:25 - [🟢 INFO] Incident snapshot created: incident_2026-01-24_00-28-25_TAMPERED_SIGNATURE.txt

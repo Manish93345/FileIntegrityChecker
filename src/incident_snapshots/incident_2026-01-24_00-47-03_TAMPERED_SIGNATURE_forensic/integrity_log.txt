@@ -1,0 +1,36 @@
+2026-01-24 00:46:47 - [🟢 INFO] SAFE MODE DISABLED: Admin Override via GUI
+2026-01-24 00:46:54 - [🟢 INFO] WARNING: hash_records.json corrupted or invalid JSON — resetting to {}
+2026-01-24 00:46:54 - [🟢 INFO] WARNING: hash_records.json corrupted or invalid JSON — resetting to {}
+2026-01-24 00:46:54 - [🟢 INFO] INFO: No hash signature found; created new signature.
+2026-01-24 00:46:54 - [🟢 INFO] Startup: records signature OK
+2026-01-24 00:46:55 - [🟢 INFO] Startup: log signature OK
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\8 November 2025_manish&Yamuna.jpg
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\baby.txt
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\downloaded-yamuna.jpg
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\FreeFire_09_01_2025 17_29_04.png
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\FreeFire_09_01_2025 17_29_39.png
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\FreeFire_09_01_2025 17_29_56.png
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\FreeFire_10_10_2025 18_47_47.png
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\FreeFire_10_10_2025 18_48_12.png
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\FreeFire_10_10_2025 18_48_40.png
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\IMG_20251223_181839.jpg
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\LISA.txt
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\payel.jpg
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20250922_081636_com.dts.freefiremax.jpg
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20250928_151351_com.dts.freefiremax.jpg
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20251116_235151_com.dts.freefiremax.jpg
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20251221_115811_com.dts.freefiremax.jpg
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20251221_115815_com.dts.freefiremax.jpg
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20260105_224626_com.dts.freefiremax.jpg
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20260105_224627_com.dts.freefiremax.jpg
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20260105_232157_com.dts.freefiremax.jpg
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20260105_232252_com.dts.freefiremax.jpg
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20260105_232553_com.dts.freefiremax.jpg
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\Screenshot_20260107_233117_com.dts.freefiremax.jpg
+2026-01-24 00:46:55 - [🟢 INFO] INITIALIZED: D:\Study\LISA_PROJECT\FileIntegrityChecker\tests\yamuna.jpg
+2026-01-24 00:46:55 - [🟢 INFO] Initial scan added missing records and saved signature.
+2026-01-24 00:46:55 - [🟢 INFO] MONITOR_STARTED: D:/Study/LISA_PROJECT/FileIntegrityChecker/tests
+2026-01-24 00:47:03 - [🟢 INFO] MANUAL_VERIFICATION_STARTED
+2026-01-24 00:47:03 - [🔴 CRITICAL] AUTO_RESPONSE_CRITICAL: Signature mismatch: integrity_log.txt - ACTIVATING SAFE MODE
+2026-01-24 00:47:03 - [🔴 CRITICAL] 🚨 SAFE MODE ACTIVATED: TAMPERED_SIGNATURE: Signature mismatch: integrity_log.txt
+2026-01-24 00:47:03 - [🟢 INFO] Incident snapshot created: incident_2026-01-24_00-47-03_TAMPERED_SIGNATURE.txt

@@ -1,0 +1,70 @@
+{
+  "incident": {
+    "event_type": "TAMPERED_SIGNATURE",
+    "severity": "CRITICAL",
+    "message": "Signature mismatch: integrity_log.txt",
+    "affected_file": "integrity_log.txt",
+    "timestamp": "2026-01-24T00:47:50.725714",
+    "human_timestamp": "2026-01-24T00:47:50.725714"
+  },
+  "system_state": {
+    "time": "2026-01-24T00:47:50.725723",
+    "safe_mode": true,
+    "monitoring_active": {
+      "status": "unknown",
+      "details": "Monitoring status check not implemented"
+    },
+    "config": {
+      "error": "Config not available"
+    },
+    "disk_usage": {
+      "total_gb": 294.15,
+      "used_gb": 256.43,
+      "free_gb": 37.72,
+      "free_percent": 12.82
+    },
+    "critical_files": {
+      "integrity_log.txt": {
+        "exists": true,
+        "size": 5900,
+        "modified": "2026-01-24T00:47:50.725110"
+      },
+      "hash_records.json": {
+        "exists": true,
+        "size": 5777,
+        "modified": "2026-01-24T00:47:50.635576"
+      },
+      "config.json": {
+        "exists": true,
+        "size": 489,
+        "modified": "2026-01-23T18:34:56.887189"
+      },
+      "severity_counters.json": {
+        "exists": true,
+        "size": 66,
+        "modified": "2026-01-24T00:47:50.720591"
+      }
+    }
+  },
+  "recent_events": [
+    "2026-01-24 00:47:20 - [\ud83d\udfe2 INFO] Incident snapshot created: incident_2026-01-24_00-47-20_TAMPERED_SIGNATURE.txt",
+    "2026-01-24 00:47:20 - [\ud83d\udfe2 INFO] Startup: log signature FAILED (Signature Mismatch at line 1)",
+    "2026-01-24 00:47:20 - [\ud83d\udfe2 INFO] MONITOR_STARTED: D:/Study/LISA_PROJECT/FileIntegrityChecker/tests",
+    "2026-01-24 00:47:42 - [\ud83d\udfe2 INFO] SAFE MODE DISABLED: Admin Override via GUI",
+    "2026-01-24 00:47:44 - [\ud83d\udfe2 INFO] Startup: records signature OK",
+    "2026-01-24 00:47:44 - [\ud83d\udfe2 INFO] Startup: log signature OK",
+    "2026-01-24 00:47:44 - [\ud83d\udfe2 INFO] MONITOR_STARTED: D:/Study/LISA_PROJECT/FileIntegrityChecker/tests",
+    "2026-01-24 00:47:50 - [\ud83d\udfe2 INFO] MANUAL_VERIFICATION_STARTED",
+    "2026-01-24 00:47:50 - [\ud83d\udd34 CRITICAL] AUTO_RESPONSE_CRITICAL: Signature mismatch: integrity_log.txt - ACTIVATING SAFE MODE",
+    "2026-01-24 00:47:50 - [\ud83d\udd34 CRITICAL] \ud83d\udea8 SAFE MODE ACTIVATED: TAMPERED_SIGNATURE: Signature mismatch: integrity_log.txt"
+  ],
+  "file_hashes": {
+    "integrity_log.txt": "72ac53fa90670047",
+    "hash_records.json": "caddfc30910e4fe6",
+    "config.json": "ea5cd2d5f3ae7441"
+  },
+  "process_info": {
+    "error": "psutil not installed"
+  },
+  "additional_data": {}
+}

@@ -10,6 +10,8 @@ import json
 import os
 import time
 import threading
+import hashlib  # <--- CRITICAL FIX: Added missing import
+import hmac     # <--- CRITICAL FIX: Added missing import
 from datetime import datetime
 import traceback
 
@@ -21,6 +23,59 @@ SAFE_MODE_LOCK = threading.Lock()
 
 # State file
 SAFE_MODE_STATE_FILE = "safe_mode_state.json"
+LOG_FILE = "integrity_log.txt"
+LOG_SIG_FILE = "integrity_log.sig"
+
+def _log_direct(message, severity="INFO"):
+    """
+    Directly append to log file AND SIGN IT to avoid integrity mismatches.
+    """
+    try:
+        # 1. Get Config (for Secret Key)
+        secret = "Lisacutie" # Default
+        algo = "sha256"
+        
+        # Try to find config.json in current or parent dir
+        config_path = "config.json"
+        if not os.path.exists(config_path):
+             config_path = os.path.join(os.path.dirname(__file__), "config.json")
+
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, "r") as f:
+                    cfg = json.load(f)
+                    secret = cfg.get("secret_key", secret)
+                    algo = cfg.get("hash_algo", algo)
+            except: pass
+
+        # 2. Prepare Log Line
+        emojis = {"INFO": "🟢", "MEDIUM": "🟡", "HIGH": "🟠", "CRITICAL": "🔴"}
+        icon = emojis.get(severity, "⚪")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # The content line (without newline)
+        log_content = f"{timestamp} - [{icon} {severity}] {message}"
+        
+        # 3. Write Log
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(log_content + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+            
+        # 4. Generate & Write Signature
+        # Format must match integrity_core: line|UNKNOWN|severity
+        payload = f"{log_content}|UNKNOWN|{severity}"
+        h = getattr(hashlib, algo)
+        sig = hmac.new(secret.encode("utf-8"), payload.encode("utf-8"), h).hexdigest()
+        
+        with open(LOG_SIG_FILE, "a", encoding="utf-8") as f:
+            f.write(sig + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+            
+    except Exception as e:
+        print(f"SafeMode Log Error: {e}")
+        traceback.print_exc()
 
 class SafeModeManager:
     def __init__(self):
@@ -64,96 +119,66 @@ class SafeModeManager:
             print(f"Error saving safe mode state: {e}")
     
     def enable_safe_mode(self, reason="Unknown critical incident", file_path=None):
-        """Enable safe mode and freeze monitoring"""
         with SAFE_MODE_LOCK:
             if self.active:
-                print("Safe mode already active")
-                return False
+                return True
             
             try:
-                # Log safe mode activation
-                from integrity_core import append_log_line
-                append_log_line(f"🚨 SAFE MODE ACTIVATED: {reason}", 
-                              event_type="SAFE_MODE_ACTIVATED", 
-                              severity="CRITICAL")
-                
-                # Store previous state
-                self.previous_monitor_state = self._get_monitor_state()
-                
-                # Set safe mode state
+                # 1. Update Internal State
                 self.active = True
                 self.reason = reason
                 self.start_time = datetime.now().isoformat()
                 
-                # Update global state
+                # 2. Update Globals
                 global SAFE_MODE_ACTIVE, SAFE_MODE_REASON, SAFE_MODE_START_TIME
                 SAFE_MODE_ACTIVE = True
                 SAFE_MODE_REASON = reason
                 SAFE_MODE_START_TIME = self.start_time
                 
-                # Save state
+                # 3. Create Lockdown Files (The physical proof of safe mode)
+                self._create_lockdown_file(reason, file_path)
                 self._save_state()
                 
-                # Notify admin (webhook)
-                self._notify_admin(reason, file_path)
-                
-                # Stop monitoring (if available)
-                self._freeze_monitoring()
-                
-                # Create lockdown file
-                self._create_lockdown_file(reason, file_path)
-                
+                # 4. Log it (Using local function, no imports!)
+                _log_direct(f"🚨 SAFE MODE ACTIVATED: {reason}", "CRITICAL")
                 print(f"SAFE MODE ENABLED: {reason}")
-                return True
                 
+                return True
             except Exception as e:
                 print(f"Error enabling safe mode: {e}")
                 traceback.print_exc()
                 return False
     
-    def disable_safe_mode(self, reason="Manually disabled by admin"):
-        """Disable safe mode and restore monitoring"""
+    def disable_safe_mode(self, reason="Manually disabled"):
+        """Disable safe mode and force cleanup of lock files"""
         with SAFE_MODE_LOCK:
-            if not self.active:
-                print("Safe mode not active")
-                return False
+            # --- FIX: REMOVED THE "if not self.active" CHECK ---
+            # We want to force cleanup regardless of internal state
+            # because the GUI relies on the file existence.
             
             try:
-                # Log safe mode deactivation
-                from integrity_core import append_log_line
-                append_log_line(f"SAFE MODE DISABLED: {reason}", 
-                              event_type="SAFE_MODE_DISABLED", 
-                              severity="INFO")
-                
-                # Reset state
                 self.active = False
                 self.reason = ""
                 self.start_time = None
                 
-                # Update global state
-                global SAFE_MODE_ACTIVE, SAFE_MODE_REASON, SAFE_MODE_START_TIME
+                global SAFE_MODE_ACTIVE
                 SAFE_MODE_ACTIVE = False
-                SAFE_MODE_REASON = ""
-                SAFE_MODE_START_TIME = None
                 
-                # Save state
                 self._save_state()
                 
-                # Restore monitoring (if applicable)
-                self._restore_monitoring()
-                
-                # Remove lockdown file
+                # Always force remove the files
                 self._remove_lockdown_file()
                 
-                # Notify admin
-                self._notify_admin(f"Safe mode disabled: {reason}", None)
+                # Log it
+                _log_direct(f"SAFE MODE DISABLED: {reason}", "INFO")
                 
                 print("SAFE MODE DISABLED")
                 return True
-                
             except Exception as e:
                 print(f"Error disabling safe mode: {e}")
-                traceback.print_exc()
+                # Even if logging fails, try to return True if files are gone
+                if not os.path.exists("lockdown.flag"):
+                    return True
                 return False
     
     def is_safe_mode_active(self):
@@ -203,19 +228,36 @@ class SafeModeManager:
         """Freeze/stop monitoring activities"""
         try:
             # Import the monitor if available
-            from integrity_core import FileIntegrityMonitor
-            global _monitor_instance
-            
-            # Store reference to stop it
-            if '_monitor_instance' in globals() and _monitor_instance:
-                if hasattr(_monitor_instance, 'stop_monitoring'):
-                    _monitor_instance.stop_monitoring()
-                    print("Monitoring frozen due to safe mode")
-            
-        except ImportError:
-            print("Monitor module not available for freezing")
+            try:
+                from integrity_core import FileIntegrityMonitor
+                # Get the global monitor instance if it exists
+                import integrity_core
+                
+                # Check if monitor is running in the GUI
+                if hasattr(integrity_core, '_global_monitor'):
+                    monitor = integrity_core._global_monitor
+                    if monitor and hasattr(monitor, 'stop_monitoring'):
+                        monitor.stop_monitoring()
+                        print("✓ Monitoring frozen due to safe mode")
+                        
+                        # Log the freeze
+                        try:
+                            from integrity_core import append_log_line
+                            append_log_line("MONITORING FROZEN: Safe mode activated", 
+                                        event_type="MONITORING_FROZEN",
+                                        severity="CRITICAL")
+                        except:
+                            pass
+                else:
+                    print("⚠️ No active monitor found to freeze")
+                    
+            except ImportError:
+                print("Monitor module not available for freezing")
+                
         except Exception as e:
             print(f"Error freezing monitoring: {e}")
+            import traceback
+            traceback.print_exc()
     
     def _restore_monitoring(self):
         """Restore monitoring activities"""

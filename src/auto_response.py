@@ -12,23 +12,9 @@ import os
 import time
 from datetime import datetime
 import traceback
+import sys
 
-try:
-    from integrity_core import append_log_line, CONFIG, LOG_FILE, HASH_RECORD_FILE, HASH_SIGNATURE_FILE, LOG_SIG_FILE
-except ImportError:
-    print("Warning: Could not import from integrity_core")
 
-# Import safe_mode for CRITICAL actions
-try:
-    import safe_mode
-except ImportError:
-    safe_mode = None
-
-# Import incident_snapshot for HIGH severity actions
-try:
-    import incident_snapshot
-except ImportError:
-    incident_snapshot = None
 
 class AutoResponseEngine:
     def __init__(self, config=None):
@@ -123,8 +109,8 @@ class AutoResponseEngine:
             
             # Log the event
             append_log_line(f"AUTO_RESPONSE_HIGH: {message}", 
-                          event_type=f"HIGH_ALERT_{event_type}", 
-                          severity="HIGH")
+                        event_type=f"HIGH_ALERT_{event_type}", 
+                        severity="HIGH")
             
             # Send webhook alert
             if 'webhook_url' in self.config and self.config['webhook_url']:
@@ -132,75 +118,88 @@ class AutoResponseEngine:
                                 f"HIGH Alert: {message}", 
                                 file_path)
             
-            # Generate incident snapshot
-            if incident_snapshot:
-                snapshot_file = incident_snapshot.generate_incident_snapshot(
-                    event_type=event_type,
-                    severity="HIGH",
-                    message=message,
-                    affected_file=file_path,
-                    additional_data=data
-                )
-                
-                append_log_line(f"Incident snapshot created: {snapshot_file}", 
-                              event_type="INCIDENT_SNAPSHOT",
-                              severity="INFO")
+            # Generate incident snapshot - FIXED
+            try:
+                # Check if incident_snapshot is available
+                if 'incident_snapshot' in sys.modules:
+                    from incident_snapshot import generate_incident_snapshot
+                    
+                    # Prepare snapshot data
+                    snapshot_data = {
+                        "event_type": event_type,
+                        "severity": "HIGH",
+                        "message": message,
+                        "file_path": file_path,
+                        "auto_response": True,
+                        "timestamp": datetime.now().isoformat(),
+                        "additional_data": data or {}
+                    }
+                    
+                    # Generate snapshot
+                    snapshot_file = generate_incident_snapshot(
+                        event_type=event_type,
+                        severity="HIGH",
+                        message=message,
+                        affected_file=file_path,
+                        additional_data=snapshot_data
+                    )
+                    
+                    if snapshot_file:
+                        append_log_line(f"Incident snapshot created: {os.path.basename(snapshot_file)}", 
+                                    event_type="INCIDENT_SNAPSHOT_CREATED",
+                                    severity="INFO")
+                    else:
+                        append_log_line(f"Failed to create snapshot for {event_type}", 
+                                    event_type="SNAPSHOT_FAILED",
+                                    severity="MEDIUM")
+            except ImportError as e:
+                append_log_line(f"Cannot generate snapshot: {e}", 
+                            event_type="SNAPSHOT_MODULE_MISSING",
+                            severity="MEDIUM")
+            except Exception as e:
+                append_log_line(f"Snapshot error: {e}", 
+                            event_type="SNAPSHOT_ERROR",
+                            severity="MEDIUM")
             
             return True
-        except:
+        except Exception as e:
+            print(f"Error in _handle_high: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def _handle_critical(self, event_type, message, file_path=None, data=None):
         """CRITICAL: Trigger Safe Mode + monitoring freeze"""
         try:
-            from integrity_core import append_log_line, send_webhook_safe
+            # 1. Log to main core (Attempt 1)
+            try:
+                from integrity_core import append_log_line
+                append_log_line(f"AUTO_RESPONSE_CRITICAL: {message} - ACTIVATING SAFE MODE", 
+                              event_type=f"CRITICAL_{event_type}", 
+                              severity="CRITICAL")
+            except ImportError:
+                print(f"CRITICAL: {message}")
+
+            # 2. ACTIVATE SAFE MODE (Guaranteed)
+            import safe_mode
+            safe_mode.enable_safe_mode(
+                reason=f"{event_type}: {message}",
+                file_path=file_path
+            )
             
-            # Log CRITICAL event
-            append_log_line(f"AUTO_RESPONSE_CRITICAL: {message} - ACTIVATING SAFE MODE", 
-                          event_type=f"CRITICAL_{event_type}", 
-                          severity="CRITICAL")
-            
-            # Send emergency webhook
-            if 'webhook_url' in self.config and self.config['webhook_url']:
-                send_webhook_safe(f"CRITICAL_ALERT_{event_type}", 
-                                f"🚨 CRITICAL ALERT - SAFE MODE ACTIVATED: {message}", 
-                                file_path)
-            
-            # Activate Safe Mode
-            if safe_mode:
-                safe_mode.enable_safe_mode(
-                    reason=f"{event_type}: {message}",
-                    file_path=file_path
-                )
-            
-            # Generate detailed incident snapshot
-            if incident_snapshot:
-                # Include recent events in snapshot
-                recent_events = self._get_recent_events(10)
-                snapshot_data = {
-                    "event_type": event_type,
-                    "severity": "CRITICAL",
-                    "message": message,
-                    "file_path": file_path,
-                    "safe_mode_activated": True,
-                    "timestamp": datetime.now().isoformat(),
-                    "recent_events": recent_events
-                }
-                
-                snapshot_file = incident_snapshot.generate_incident_snapshot(
-                    event_type=event_type,
-                    severity="CRITICAL",
-                    message=message,
-                    affected_file=file_path,
-                    additional_data=snapshot_data
-                )
-                
-                append_log_line(f"CRITICAL incident snapshot created: {snapshot_file}", 
-                              event_type="CRITICAL_SNAPSHOT",
-                              severity="INFO")
+            # 3. GENERATE SNAPSHOT (Guaranteed)
+            import incident_snapshot
+            incident_snapshot.generate_incident_snapshot(
+                event_type=event_type,
+                severity="CRITICAL",
+                message=message,
+                affected_file=file_path
+            )
             
             return True
-        except:
+        except Exception as e:
+            print(f"Auto-Response Critical Failed: {e}")
+            traceback.print_exc()
             return False
     
     def _get_recent_events(self, count=10):

@@ -14,10 +14,18 @@ from datetime import datetime
 import hashlib
 import shutil
 
-try:
-    from integrity_core import LOG_FILE, HASH_RECORD_FILE, CONFIG, now_pretty, append_log_line
-except ImportError:
-    print("Warning: Could not import from integrity_core")
+LOG_FILE = "integrity_log.txt"
+
+def _log_direct(message, severity="INFO"):
+    """Direct logging to avoid circular imports"""
+    try:
+        emojis = {"INFO": "🟢", "MEDIUM": "🟡", "HIGH": "🟠", "CRITICAL": "🔴"}
+        icon = emojis.get(severity, "⚪")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(f"{timestamp} - [{icon} {severity}] {message}\n")
+    except: pass
+
 
 class IncidentSnapshot:
     def __init__(self, base_dir="incident_snapshots"):
@@ -35,53 +43,37 @@ class IncidentSnapshot:
     
     def generate_incident_snapshot(self, event_type, severity, message, 
                                  affected_file=None, additional_data=None):
-        """
-        Generate a snapshot for an incident
-        
-        Args:
-            event_type: Type of event (TAMPERED_RECORDS, etc.)
-            severity: INFO/MEDIUM/HIGH/CRITICAL
-            message: Description of the incident
-            affected_file: Path to affected file (optional)
-            additional_data: Additional data for snapshot (optional)
-            
-        Returns:
-            Path to the generated snapshot file
-        """
         try:
+            # Generate Filename
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            safe_event = event_type.replace(":", "_").replace("/", "_")
+            safe_event = str(event_type).replace(":", "_").replace("/", "_").replace("\\", "_")
             filename = f"incident_{timestamp}_{safe_event}.txt"
             filepath = os.path.join(self.base_dir, filename)
             
-            # Collect snapshot data
+            # Collect Data
             snapshot_data = self._collect_snapshot_data(
                 event_type, severity, message, affected_file, additional_data
             )
             
-            # Generate snapshot content
-            snapshot_content = self._format_snapshot(snapshot_data)
-            
-            # Write snapshot file
+            # Write Text File
             with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(snapshot_content)
+                f.write(self._format_snapshot(snapshot_data))
             
-            # Generate JSON version for machine reading
+            # Write JSON File
             json_filepath = filepath.replace('.txt', '.json')
             with open(json_filepath, 'w', encoding='utf-8') as f:
                 json.dump(snapshot_data, f, indent=2, default=str)
             
-            # Log snapshot creation
-            self._log_snapshot_creation(filepath, event_type, severity)
+            # Log Success locally
+            _log_direct(f"Incident snapshot created: {filename}", "INFO")
             
-            # Copy critical files for forensic analysis
-            self._copy_critical_files(filepath, snapshot_data)
+            # Attempt to copy forensic files
+            self._copy_critical_files(filepath)
             
-            print(f"Incident snapshot created: {filepath}")
             return filepath
             
         except Exception as e:
-            print(f"Error generating incident snapshot: {e}")
+            print(f"SNAPSHOT FAILED: {e}")
             traceback.print_exc()
             return None
     
@@ -339,49 +331,22 @@ class IncidentSnapshot:
         except:
             pass
     
-    def _copy_critical_files(self, snapshot_path, snapshot_data):
-        """Copy critical files for forensic analysis"""
+    def _copy_critical_files(self, snapshot_path, snapshot_data=None):
         try:
-            # Create forensic subdirectory
             base_name = os.path.splitext(os.path.basename(snapshot_path))[0]
             forensic_dir = os.path.join(self.base_dir, f"{base_name}_forensic")
             os.makedirs(forensic_dir, exist_ok=True)
             
-            # Files to copy
-            files_to_copy = [
-                LOG_FILE if 'LOG_FILE' in globals() else 'integrity_log.txt',
-                HASH_RECORD_FILE if 'HASH_RECORD_FILE' in globals() else 'hash_records.json',
-                'config.json',
-                'severity_counters.json'
-            ]
-            
-            copied_files = []
-            for file in files_to_copy:
-                if os.path.exists(file):
+            # Copy files if they exist
+            for f_name in [LOG_FILE, "hash_records.json", "config.json"]:
+                if os.path.exists(f_name):
                     try:
-                        shutil.copy2(file, os.path.join(forensic_dir, os.path.basename(file)))
-                        copied_files.append(file)
-                    except Exception as e:
-                        print(f"Failed to copy {file}: {e}")
-            
-            # Record what was copied
-            if copied_files:
-                copy_report = os.path.join(forensic_dir, "copied_files.txt")
-                with open(copy_report, 'w') as f:
-                    f.write(f"Forensic files copied at: {datetime.now().isoformat()}\n")
-                    f.write("Files copied:\n")
-                    for copied in copied_files:
-                        f.write(f"- {copied}\n")
-            
-            # Update snapshot data with forensic info
-            snapshot_data['forensic_files_copied'] = copied_files
-            snapshot_data['forensic_directory'] = forensic_dir
-            
-        except Exception as e:
-            print(f"Error copying forensic files: {e}")
+                        shutil.copy2(f_name, os.path.join(forensic_dir, f_name))
+                    except: pass
+        except Exception as e: 
+            print(f"Forensic copy error: {e}")
 
 def generate_incident_snapshot(event_type, severity, message, affected_file=None, additional_data=None):
-    """Convenience function to generate incident snapshot"""
     snapshot = IncidentSnapshot()
     return snapshot.generate_incident_snapshot(
         event_type, severity, message, affected_file, additional_data
