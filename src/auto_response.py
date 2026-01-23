@@ -1,0 +1,275 @@
+"""
+auto_response.py
+Auto-response rules based on severity levels
+- INFO: Just log
+- MEDIUM: Alert + log
+- HIGH: Alert + report snapshot
+- CRITICAL: Trigger Safe Mode + monitoring freeze
+"""
+
+import json
+import os
+import time
+from datetime import datetime
+import traceback
+
+try:
+    from integrity_core import append_log_line, CONFIG, LOG_FILE, HASH_RECORD_FILE, HASH_SIGNATURE_FILE, LOG_SIG_FILE
+except ImportError:
+    print("Warning: Could not import from integrity_core")
+
+# Import safe_mode for CRITICAL actions
+try:
+    import safe_mode
+except ImportError:
+    safe_mode = None
+
+# Import incident_snapshot for HIGH severity actions
+try:
+    import incident_snapshot
+except ImportError:
+    incident_snapshot = None
+
+class AutoResponseEngine:
+    def __init__(self, config=None):
+        self.config = config or {}
+        self.response_rules = {
+            "INFO": self._handle_info,
+            "MEDIUM": self._handle_medium,
+            "HIGH": self._handle_high,
+            "CRITICAL": self._handle_critical
+        }
+        
+        # Load custom rules if available
+        self._load_custom_rules()
+        
+    def _load_custom_rules(self):
+        """Load custom auto-response rules from JSON file"""
+        rules_file = "auto_response_rules.json"
+        if os.path.exists(rules_file):
+            try:
+                with open(rules_file, 'r') as f:
+                    custom_rules = json.load(f)
+                    # Merge with default rules
+                    for severity, action in custom_rules.items():
+                        if severity in self.response_rules:
+                            # Convert string action to function call
+                            action_map = {
+                                "log_only": self._handle_info,
+                                "alert_and_log": self._handle_medium,
+                                "alert_and_snapshot": self._handle_high,
+                                "safe_mode": self._handle_critical
+                            }
+                            if action in action_map:
+                                self.response_rules[severity] = action_map[action]
+            except Exception as e:
+                print(f"Error loading custom rules: {e}")
+    
+    def execute_response(self, severity, event_type, message, file_path=None, data=None):
+        """
+        Execute auto-response based on severity
+        
+        Args:
+            severity: INFO/MEDIUM/HIGH/CRITICAL
+            event_type: Type of event (TAMPERED_RECORDS, etc.)
+            message: Description of event
+            file_path: Related file path (optional)
+            data: Additional data (optional)
+        """
+        try:
+            handler = self.response_rules.get(severity, self._handle_info)
+            return handler(event_type, message, file_path, data)
+        except Exception as e:
+            print(f"Auto-response error: {e}")
+            traceback.print_exc()
+            return False
+    
+    def _handle_info(self, event_type, message, file_path=None, data=None):
+        """INFO: Just log the event"""
+        try:
+            from integrity_core import append_log_line
+            append_log_line(f"AUTO_RESPONSE_INFO: {message}", 
+                          event_type=f"INFO_{event_type}", 
+                          severity="INFO")
+            return True
+        except:
+            return False
+    
+    def _handle_medium(self, event_type, message, file_path=None, data=None):
+        """MEDIUM: Alert + log"""
+        try:
+            from integrity_core import append_log_line, send_webhook_safe
+            
+            # Log the event
+            append_log_line(f"AUTO_RESPONSE_MEDIUM: {message}", 
+                          event_type=f"ALERT_{event_type}", 
+                          severity="MEDIUM")
+            
+            # Send webhook alert (if configured)
+            if 'webhook_url' in self.config and self.config['webhook_url']:
+                send_webhook_safe(f"ALERT_{event_type}", 
+                                f"MEDIUM Alert: {message}", 
+                                file_path)
+            
+            # Could trigger GUI alert here if needed
+            return True
+        except:
+            return False
+    
+    def _handle_high(self, event_type, message, file_path=None, data=None):
+        """HIGH: Alert + report snapshot"""
+        try:
+            from integrity_core import append_log_line, send_webhook_safe
+            
+            # Log the event
+            append_log_line(f"AUTO_RESPONSE_HIGH: {message}", 
+                          event_type=f"HIGH_ALERT_{event_type}", 
+                          severity="HIGH")
+            
+            # Send webhook alert
+            if 'webhook_url' in self.config and self.config['webhook_url']:
+                send_webhook_safe(f"HIGH_ALERT_{event_type}", 
+                                f"HIGH Alert: {message}", 
+                                file_path)
+            
+            # Generate incident snapshot
+            if incident_snapshot:
+                snapshot_file = incident_snapshot.generate_incident_snapshot(
+                    event_type=event_type,
+                    severity="HIGH",
+                    message=message,
+                    affected_file=file_path,
+                    additional_data=data
+                )
+                
+                append_log_line(f"Incident snapshot created: {snapshot_file}", 
+                              event_type="INCIDENT_SNAPSHOT",
+                              severity="INFO")
+            
+            return True
+        except:
+            return False
+    
+    def _handle_critical(self, event_type, message, file_path=None, data=None):
+        """CRITICAL: Trigger Safe Mode + monitoring freeze"""
+        try:
+            from integrity_core import append_log_line, send_webhook_safe
+            
+            # Log CRITICAL event
+            append_log_line(f"AUTO_RESPONSE_CRITICAL: {message} - ACTIVATING SAFE MODE", 
+                          event_type=f"CRITICAL_{event_type}", 
+                          severity="CRITICAL")
+            
+            # Send emergency webhook
+            if 'webhook_url' in self.config and self.config['webhook_url']:
+                send_webhook_safe(f"CRITICAL_ALERT_{event_type}", 
+                                f"🚨 CRITICAL ALERT - SAFE MODE ACTIVATED: {message}", 
+                                file_path)
+            
+            # Activate Safe Mode
+            if safe_mode:
+                safe_mode.enable_safe_mode(
+                    reason=f"{event_type}: {message}",
+                    file_path=file_path
+                )
+            
+            # Generate detailed incident snapshot
+            if incident_snapshot:
+                # Include recent events in snapshot
+                recent_events = self._get_recent_events(10)
+                snapshot_data = {
+                    "event_type": event_type,
+                    "severity": "CRITICAL",
+                    "message": message,
+                    "file_path": file_path,
+                    "safe_mode_activated": True,
+                    "timestamp": datetime.now().isoformat(),
+                    "recent_events": recent_events
+                }
+                
+                snapshot_file = incident_snapshot.generate_incident_snapshot(
+                    event_type=event_type,
+                    severity="CRITICAL",
+                    message=message,
+                    affected_file=file_path,
+                    additional_data=snapshot_data
+                )
+                
+                append_log_line(f"CRITICAL incident snapshot created: {snapshot_file}", 
+                              event_type="CRITICAL_SNAPSHOT",
+                              severity="INFO")
+            
+            return True
+        except:
+            return False
+    
+    def _get_recent_events(self, count=10):
+        """Get recent events from log file"""
+        recent_events = []
+        try:
+            if os.path.exists(LOG_FILE):
+                with open(LOG_FILE, 'r') as f:
+                    lines = f.readlines()[-count:]  # Last 'count' lines
+                    for line in lines:
+                        recent_events.append(line.strip())
+        except:
+            pass
+        return recent_events
+
+# Global instance
+_auto_response = None
+
+def get_auto_response_engine(config=None):
+    """Get or create auto-response engine singleton"""
+    global _auto_response
+    if _auto_response is None:
+        _auto_response = AutoResponseEngine(config)
+    return _auto_response
+
+def trigger_auto_response(severity, event_type, message, file_path=None, data=None):
+    """Convenience function to trigger auto-response"""
+    try:
+        from integrity_core import CONFIG
+        engine = get_auto_response_engine(CONFIG)
+        return engine.execute_response(severity, event_type, message, file_path, data)
+    except Exception as e:
+        print(f"Error triggering auto-response: {e}")
+        return False
+
+# Export common severity triggers
+def handle_tamper_event(tamper_type, file_path):
+    """Handle tampering events with auto-response"""
+    messages = {
+        "records": f"Hash records tampered: {file_path}",
+        "logs": f"Log files tampered: {file_path}",
+        "signature": f"Signature mismatch: {file_path}"
+    }
+    
+    message = messages.get(tamper_type, f"Tampering detected: {file_path}")
+    
+    return trigger_auto_response(
+        severity="CRITICAL",
+        event_type=f"TAMPERED_{tamper_type.upper()}",
+        message=message,
+        file_path=file_path
+    )
+
+if __name__ == "__main__":
+    # Test the auto-response system
+    print("Testing Auto-Response System...")
+    
+    # Test different severity levels
+    test_cases = [
+        ("INFO", "TEST_INFO", "This is an INFO level test"),
+        ("MEDIUM", "TEST_MEDIUM", "This is a MEDIUM level test"),
+        ("HIGH", "TEST_HIGH", "This is a HIGH level test"),
+        ("CRITICAL", "TEST_CRITICAL", "This is a CRITICAL level test")
+    ]
+    
+    for severity, event_type, message in test_cases:
+        print(f"\nTesting {severity} severity...")
+        result = trigger_auto_response(severity, event_type, message)
+        print(f"Result: {'Success' if result else 'Failed'}")
+        time.sleep(1)
+    
+    print("\nAuto-response test completed!")

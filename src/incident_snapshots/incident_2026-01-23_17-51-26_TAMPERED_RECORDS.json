@@ -1,0 +1,92 @@
+{
+  "incident": {
+    "event_type": "TAMPERED_RECORDS",
+    "severity": "CRITICAL",
+    "message": "Hash records tampered: /test/hash_records.json",
+    "affected_file": "/test/hash_records.json",
+    "timestamp": "2026-01-23T17:51:26.664625",
+    "human_timestamp": "2026-01-23 17:51:26"
+  },
+  "system_state": {
+    "time": "2026-01-23T17:51:26.664633",
+    "safe_mode": true,
+    "monitoring_active": {
+      "status": "unknown",
+      "details": "Monitoring status check not implemented"
+    },
+    "config": {
+      "watch_folder": "Not set",
+      "verify_interval": "Not set",
+      "hash_algo": "Not set",
+      "secret_key_set": false
+    },
+    "disk_usage": {
+      "total_gb": 294.15,
+      "used_gb": 256.38,
+      "free_gb": 37.77,
+      "free_percent": 12.84
+    },
+    "critical_files": {
+      "integrity_log.txt": {
+        "exists": true,
+        "size": 1090,
+        "modified": "2026-01-23T17:51:26.647066"
+      },
+      "hash_records.json": {
+        "exists": true,
+        "size": 0,
+        "modified": "2026-01-23T14:09:22.924090"
+      },
+      "config.json": {
+        "exists": true,
+        "size": 427,
+        "modified": "2025-12-01T15:39:47.420685"
+      },
+      "severity_counters.json": {
+        "exists": true,
+        "size": 68,
+        "modified": "2026-01-23T17:51:26.648061"
+      }
+    }
+  },
+  "recent_events": [
+    "2026-01-23 17:51:24 - [\ud83d\udfe2 INFO] AUTO_RESPONSE_INFO: Information level test event",
+    "2026-01-23 17:51:25 - [\ud83d\udfe1 MEDIUM] AUTO_RESPONSE_MEDIUM: Medium severity test",
+    "2026-01-23 17:51:25 - [\ud83d\udfe0 HIGH] AUTO_RESPONSE_HIGH: High severity test",
+    "2026-01-23 17:51:25 - [\ud83d\udfe2 INFO] Incident snapshot created: incident_2026-01-23_17-51-25_TEST_HIGH.txt for TEST_HIGH",
+    "2026-01-23 17:51:25 - [\ud83d\udfe2 INFO] Incident snapshot created: incident_snapshots\\incident_2026-01-23_17-51-25_TEST_HIGH.txt",
+    "2026-01-23 17:51:26 - [\ud83d\udd34 CRITICAL] AUTO_RESPONSE_CRITICAL: Critical severity test - ACTIVATING SAFE MODE",
+    "2026-01-23 17:51:26 - [\ud83d\udd34 CRITICAL] \ud83d\udea8 SAFE MODE ACTIVATED: TEST_CRITICAL: Critical severity test",
+    "2026-01-23 17:51:26 - [\ud83d\udfe2 INFO] Incident snapshot created: incident_2026-01-23_17-51-26_TEST_CRITICAL.txt for TEST_CRITICAL",
+    "2026-01-23 17:51:26 - [\ud83d\udfe2 INFO] CRITICAL incident snapshot created: incident_snapshots\\incident_2026-01-23_17-51-26_TEST_CRITICAL.txt",
+    "2026-01-23 17:51:26 - [\ud83d\udd34 CRITICAL] AUTO_RESPONSE_CRITICAL: Hash records tampered: /test/hash_records.json - ACTIVATING SAFE MODE"
+  ],
+  "file_hashes": {
+    "integrity_log.txt": "8dae47e88599c510",
+    "hash_records.json": "e3b0c44298fc1c14",
+    "config.json": "afd3bc3ec4d6a89d"
+  },
+  "process_info": {
+    "error": "psutil not installed"
+  },
+  "additional_data": {
+    "event_type": "TAMPERED_RECORDS",
+    "severity": "CRITICAL",
+    "message": "Hash records tampered: /test/hash_records.json",
+    "file_path": "/test/hash_records.json",
+    "safe_mode_activated": true,
+    "timestamp": "2026-01-23T17:51:26.664562",
+    "recent_events": [
+      "2026-01-23 17:51:24 - [\u00f0\u0178\u0178\u00a2 INFO] AUTO_RESPONSE_INFO: Information level test event",
+      "2026-01-23 17:51:25 - [\u00f0\u0178\u0178\u00a1 MEDIUM] AUTO_RESPONSE_MEDIUM: Medium severity test",
+      "2026-01-23 17:51:25 - [\u00f0\u0178\u0178\u00a0 HIGH] AUTO_RESPONSE_HIGH: High severity test",
+      "2026-01-23 17:51:25 - [\u00f0\u0178\u0178\u00a2 INFO] Incident snapshot created: incident_2026-01-23_17-51-25_TEST_HIGH.txt for TEST_HIGH",
+      "2026-01-23 17:51:25 - [\u00f0\u0178\u0178\u00a2 INFO] Incident snapshot created: incident_snapshots\\incident_2026-01-23_17-51-25_TEST_HIGH.txt",
+      "2026-01-23 17:51:26 - [\u00f0\u0178\u201d\u00b4 CRITICAL] AUTO_RESPONSE_CRITICAL: Critical severity test - ACTIVATING SAFE MODE",
+      "2026-01-23 17:51:26 - [\u00f0\u0178\u201d\u00b4 CRITICAL] \u00f0\u0178\u0161\u00a8 SAFE MODE ACTIVATED: TEST_CRITICAL: Critical severity test",
+      "2026-01-23 17:51:26 - [\u00f0\u0178\u0178\u00a2 INFO] Incident snapshot created: incident_2026-01-23_17-51-26_TEST_CRITICAL.txt for TEST_CRITICAL",
+      "2026-01-23 17:51:26 - [\u00f0\u0178\u0178\u00a2 INFO] CRITICAL incident snapshot created: incident_snapshots\\incident_2026-01-23_17-51-26_TEST_CRITICAL.txt",
+      "2026-01-23 17:51:26 - [\u00f0\u0178\u201d\u00b4 CRITICAL] AUTO_RESPONSE_CRITICAL: Hash records tampered: /test/hash_records.json - ACTIVATING SAFE MODE"
+    ]
+  }
+}

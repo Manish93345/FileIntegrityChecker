@@ -228,4 +228,45 @@
         -Wrong password detection
         -Real enterprise-style behavior
 
-        - RUN login_gui.py   -> IMP  main file is integrity_gui.py
+        
+### 23 January 2026 - PHASE 8.2
+    Severity Intelligence
+    🔥 CRITICAL — Hash DB tampered
+    🟡 MEDIUM — File modified
+    🟢 INFO — File created
+
+MAIN FILE FOR NOW -> RUN login_gui.py 
+credentials are: username: admin, pass: lisajaanu
+imp files -> login_gui.py, integrity_core.py, integrity_gui.py, auth_manager.py, severity_init.py
+
+### -- January 2026 - PHASE 8.3
+        1: AUTO RESPONSE & SAFE MODE
+            -AUTO RESPONSE RULES
+            -Severity	Auto Action
+                INFO	Sirf log
+                MEDIUM	Alert + log
+                HIGH	Alert + report snapshot
+                CRITICAL	🔒 Safe Mode + monitoring freeze
+
+                New files created -> auto_reponse.py (production), safe_mode.py (production),incident_snapshot.py (production), integration_patch.py (one time only, not the core file), test_security_features.py(only to test the features optional)
+                Run the python integration_patch.py
+
+        2: SAFE MODE
+            -Agar kuch bahut dangerous ho:
+                hash_records.json tampered
+                integrity_log.txt tampered
+                👉 system:
+                    Monitoring pause kar de
+                    Admin ko CRITICAL alert
+                Status bar:
+                    🚨 SAFE MODE ENABLED — SYSTEM COMPROMISED
+
+        3: INCIDENT SNAPSHOT
+            -CRITICAL event par:
+                Ek mini report auto-generate ho
+                Timestamp
+                File
+                Severity
+                Last 10 events
+            Saved as:
+                incident_2025-10-XX_22-41.txt

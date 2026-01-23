@@ -1,0 +1,77 @@
+{
+  "incident": {
+    "event_type": "TEST_SECURITY_BREACH",
+    "severity": "HIGH",
+    "message": "Test security breach detected",
+    "affected_file": "/test/sensitive_data.txt",
+    "timestamp": "2026-01-23T17:51:29.683210",
+    "human_timestamp": "2026-01-23 17:51:29"
+  },
+  "system_state": {
+    "time": "2026-01-23T17:51:29.683233",
+    "safe_mode": false,
+    "monitoring_active": {
+      "status": "unknown",
+      "details": "Monitoring status check not implemented"
+    },
+    "config": {
+      "watch_folder": "Not set",
+      "verify_interval": "Not set",
+      "hash_algo": "Not set",
+      "secret_key_set": false
+    },
+    "disk_usage": {
+      "total_gb": 294.15,
+      "used_gb": 256.38,
+      "free_gb": 37.77,
+      "free_percent": 12.84
+    },
+    "critical_files": {
+      "integrity_log.txt": {
+        "exists": true,
+        "size": 1433,
+        "modified": "2026-01-23T17:51:28.674932"
+      },
+      "hash_records.json": {
+        "exists": true,
+        "size": 0,
+        "modified": "2026-01-23T14:09:22.924090"
+      },
+      "config.json": {
+        "exists": true,
+        "size": 427,
+        "modified": "2025-12-01T15:39:47.420685"
+      },
+      "severity_counters.json": {
+        "exists": true,
+        "size": 68,
+        "modified": "2026-01-23T17:51:28.676940"
+      }
+    }
+  },
+  "recent_events": [
+    "2026-01-23 17:51:25 - [\ud83d\udfe2 INFO] Incident snapshot created: incident_2026-01-23_17-51-25_TEST_HIGH.txt for TEST_HIGH",
+    "2026-01-23 17:51:25 - [\ud83d\udfe2 INFO] Incident snapshot created: incident_snapshots\\incident_2026-01-23_17-51-25_TEST_HIGH.txt",
+    "2026-01-23 17:51:26 - [\ud83d\udd34 CRITICAL] AUTO_RESPONSE_CRITICAL: Critical severity test - ACTIVATING SAFE MODE",
+    "2026-01-23 17:51:26 - [\ud83d\udd34 CRITICAL] \ud83d\udea8 SAFE MODE ACTIVATED: TEST_CRITICAL: Critical severity test",
+    "2026-01-23 17:51:26 - [\ud83d\udfe2 INFO] Incident snapshot created: incident_2026-01-23_17-51-26_TEST_CRITICAL.txt for TEST_CRITICAL",
+    "2026-01-23 17:51:26 - [\ud83d\udfe2 INFO] CRITICAL incident snapshot created: incident_snapshots\\incident_2026-01-23_17-51-26_TEST_CRITICAL.txt",
+    "2026-01-23 17:51:26 - [\ud83d\udd34 CRITICAL] AUTO_RESPONSE_CRITICAL: Hash records tampered: /test/hash_records.json - ACTIVATING SAFE MODE",
+    "2026-01-23 17:51:26 - [\ud83d\udfe2 INFO] Incident snapshot created: incident_2026-01-23_17-51-26_TAMPERED_RECORDS.txt for TAMPERED_RECORDS",
+    "2026-01-23 17:51:26 - [\ud83d\udfe2 INFO] CRITICAL incident snapshot created: incident_snapshots\\incident_2026-01-23_17-51-26_TAMPERED_RECORDS.txt",
+    "2026-01-23 17:51:28 - [\ud83d\udfe2 INFO] SAFE MODE DISABLED: Test completed"
+  ],
+  "file_hashes": {
+    "integrity_log.txt": "cf17851c4094fc76",
+    "hash_records.json": "e3b0c44298fc1c14",
+    "config.json": "afd3bc3ec4d6a89d"
+  },
+  "process_info": {
+    "error": "psutil not installed"
+  },
+  "additional_data": {
+    "test_id": "TEST-001",
+    "user": "security_tester",
+    "action": "unauthorized_access"
+  }
+}

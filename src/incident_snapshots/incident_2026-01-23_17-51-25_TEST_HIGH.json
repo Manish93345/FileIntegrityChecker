@@ -1,0 +1,66 @@
+{
+  "incident": {
+    "event_type": "TEST_HIGH",
+    "severity": "HIGH",
+    "message": "High severity test",
+    "affected_file": "/test/critical.txt",
+    "timestamp": "2026-01-23T17:51:25.541200",
+    "human_timestamp": "2026-01-23 17:51:25"
+  },
+  "system_state": {
+    "time": "2026-01-23T17:51:25.541216",
+    "safe_mode": false,
+    "monitoring_active": {
+      "status": "unknown",
+      "details": "Monitoring status check not implemented"
+    },
+    "config": {
+      "watch_folder": "Not set",
+      "verify_interval": "Not set",
+      "hash_algo": "Not set",
+      "secret_key_set": false
+    },
+    "disk_usage": {
+      "total_gb": 294.15,
+      "used_gb": 256.38,
+      "free_gb": 37.77,
+      "free_percent": 12.84
+    },
+    "critical_files": {
+      "integrity_log.txt": {
+        "exists": true,
+        "size": 238,
+        "modified": "2026-01-23T17:51:25.538057"
+      },
+      "hash_records.json": {
+        "exists": true,
+        "size": 0,
+        "modified": "2026-01-23T14:09:22.924090"
+      },
+      "config.json": {
+        "exists": true,
+        "size": 427,
+        "modified": "2025-12-01T15:39:47.420685"
+      },
+      "severity_counters.json": {
+        "exists": true,
+        "size": 68,
+        "modified": "2026-01-23T17:51:25.540066"
+      }
+    }
+  },
+  "recent_events": [
+    "2026-01-23 17:51:24 - [\ud83d\udfe2 INFO] AUTO_RESPONSE_INFO: Information level test event",
+    "2026-01-23 17:51:25 - [\ud83d\udfe1 MEDIUM] AUTO_RESPONSE_MEDIUM: Medium severity test",
+    "2026-01-23 17:51:25 - [\ud83d\udfe0 HIGH] AUTO_RESPONSE_HIGH: High severity test"
+  ],
+  "file_hashes": {
+    "integrity_log.txt": "97ffd9bd9f746c25",
+    "hash_records.json": "e3b0c44298fc1c14",
+    "config.json": "afd3bc3ec4d6a89d"
+  },
+  "process_info": {
+    "error": "psutil not installed"
+  },
+  "additional_data": {}
+}

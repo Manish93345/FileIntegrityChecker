@@ -1,0 +1,11 @@
+{
+  "INFO": "log_only",
+  "MEDIUM": "alert_and_log",
+  "HIGH": "alert_and_snapshot",
+  "CRITICAL": "safe_mode",
+  "TAMPERED_RECORDS": "safe_mode",
+  "TAMPERED_LOGS": "safe_mode",
+  "SIGNATURE_MISMATCH": "safe_mode",
+  "MULTIPLE_DELETES": "alert_and_snapshot",
+  "BURST_OPERATION": "alert_and_snapshot"
+}

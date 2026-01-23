@@ -1,0 +1,6 @@
+Forensic files copied at: 2026-01-23T17:51:32.849214
+Files copied:
+- integrity_log.txt
+- hash_records.json
+- config.json
+- severity_counters.json
