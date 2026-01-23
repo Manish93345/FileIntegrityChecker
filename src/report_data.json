@@ -1,0 +1,18 @@
+{
+    "total": 13,
+    "created": [],
+    "modified": [],
+    "deleted": [
+        "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\Screenshot_20250721_120257_com.dts.freefiremax.jpg",
+        "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\Screenshot_20250922_081636_com.dts.freefiremax.jpg",
+        "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\Screenshot_20251108_134932_com.dts.freefiremax.jpg",
+        "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\Screenshot_20251116_235151_com.dts.freefiremax.jpg",
+        "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\Screenshot_20251221_115811_com.dts.freefiremax.jpg",
+        "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\Screenshot_20251221_115815_com.dts.freefiremax.jpg",
+        "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\tests\\yamuna.jpg"
+    ],
+    "skipped": [],
+    "tampered_records": false,
+    "tampered_logs": false,
+    "last_update": "2026-01-23 14:08:55"
+}

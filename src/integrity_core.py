@@ -276,54 +276,44 @@ def append_log_line(message, event_type=None, severity=None):
 
 def update_severity_counter(severity):
     """
-    Update severity counters safely using a file lock.
-    Prevents race conditions during burst operations.
+    Update severity counters reliably using Memory Cache + Disk Persistence.
+    This fixes the issue where counters reset to 0 during burst operations.
     """
-    counter_file = "severity_counters.json"
-    lock_file = counter_file + ".lock"
+    global _SEVERITY_CACHE
     
-    # Default structure in case file is missing
-    counters = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "INFO": 0}
+    # 1. Update Memory (Instant & Reliable)
+    # We use a thread lock to ensure safe updates in memory
+    with _COUNTER_LOCK:
+        if severity in _SEVERITY_CACHE:
+            _SEVERITY_CACHE[severity] += 1
+        else:
+            _SEVERITY_CACHE[severity] = 1
+        
+        # Create a copy to save to disk
+        data_to_save = _SEVERITY_CACHE.copy()
 
+    # 2. Persist to Disk (Best Effort)
+    # Even if this fails or collides with GUI reading, memory remains correct
     try:
-        # Use our new SimpleLock to force single-file access
-        with SimpleLock(lock_file):
-            
-            # 1. READ
-            if os.path.exists(counter_file):
-                try:
-                    with open(counter_file, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                        if data:
-                            counters = data
-                except (json.JSONDecodeError, OSError):
-                    # If file is corrupt, we stick to current 'counters' (reset? or keep memory?)
-                    # Ideally, we should not reset if read fails, but for now we assume 
-                    # corrupt file needs reset.
-                    pass
-
-            # 2. MODIFY
-            if severity in counters:
-                counters[severity] += 1
-            else:
-                counters[severity] = 1 # Handle unexpected keys
-
-            # DEBUG: Print what we're updating
-            print(f"DEBUG: Updating severity counter - {severity}: {counters[severity]}")
-
-            # 3. WRITE (Atomic-ish)
-            # Write to temp file first, then rename to ensure file never looks empty to GUI
-            temp_file = counter_file + ".tmp"
-            with open(temp_file, "w", encoding="utf-8") as f:
-                json.dump(counters, f, indent=2)
-            
-            # Rename is atomic on POSIX, mostly atomic on Windows
-            if os.path.exists(counter_file):
+        counter_file = "severity_counters.json"
+        temp_file = counter_file + ".tmp"
+        
+        with open(temp_file, "w", encoding="utf-8") as f:
+            json.dump(data_to_save, f, indent=2)
+        
+        if os.path.exists(counter_file):
+            try:
                 os.remove(counter_file)
+            except OSError:
+                pass # If locked by GUI, we skip this write cycle; memory is still truth
+        
+        try:
             os.rename(temp_file, counter_file)
+        except OSError:
+            pass
             
     except Exception as e:
-        print(f"Failed to update severity counters: {e}")
+        print(f"Background save error (harmless): {e}")
 
 
 def append_log_signature(line):

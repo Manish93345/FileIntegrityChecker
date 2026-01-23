@@ -31,6 +31,32 @@ from datetime import datetime
 import tempfile
 import subprocess
 import sys
+REPORT_DATA_JSON = "report_data.json"
+# --- IMPORT BACKEND SAFELY ---
+# We define these globally first to prevent "NameError" if import fails
+integrity_core = None 
+BACKEND_AVAILABLE = False
+FileIntegrityMonitor = None
+try:
+    import integrity_core as ic_module
+    integrity_core = ic_module  # Assign to global variable explicitly
+    
+    from integrity_core import (
+        load_config,
+        FileIntegrityMonitor,
+        CONFIG,
+        LOG_FILE,
+        REPORT_SUMMARY_FILE,
+        SEVERITY_LEVELS
+    )
+    BACKEND_AVAILABLE = True
+    print("✅ Backend imported successfully")
+except ImportError as e:
+    print(f"⚠️ Backend import failed: {e}")
+    BACKEND_AVAILABLE = False
+except Exception as e:
+    print(f"⚠️ Unexpected backend error: {e}")
+    BACKEND_AVAILABLE = False
 
 # Import Auth for password changing
 try:
@@ -369,24 +395,34 @@ class ProIntegrityGUI:
 
 
     def _update_severity_counters(self):
-        """Update severity counters from file"""
+        """Update severity counters without crashing if backend is missing"""
         try:
-            counter_file = "severity_counters.json"
-            if os.path.exists(counter_file):
-                with open(counter_file, "r", encoding="utf-8") as f:
-                    self.severity_counters = json.load(f)
-                    
-                # Update UI variables
-                self.critical_var.set(str(self.severity_counters.get('CRITICAL', 0)))
-                self.high_var.set(str(self.severity_counters.get('HIGH', 0)))
-                self.medium_var.set(str(self.severity_counters.get('MEDIUM', 0)))
-                self.info_var.set(str(self.severity_counters.get('INFO', 0)))
-                
+            # OPTION 1: Read from Memory (Fastest)
+            # We explicitly check the global integrity_core variable
+            if BACKEND_AVAILABLE and integrity_core and hasattr(integrity_core, '_SEVERITY_CACHE'):
+                self.severity_counters = integrity_core._SEVERITY_CACHE.copy()
+            
+            # OPTION 2: Fallback to Disk
+            elif os.path.exists("severity_counters.json"):
+                try:
+                    with open("severity_counters.json", "r", encoding="utf-8") as f:
+                        self.severity_counters = json.load(f)
+                except:
+                    pass # Ignore read errors (likely locked)
+
+            # Update UI Variables safely
+            self.critical_var.set(str(self.severity_counters.get('CRITICAL', 0)))
+            self.high_var.set(str(self.severity_counters.get('HIGH', 0)))
+            self.medium_var.set(str(self.severity_counters.get('MEDIUM', 0)))
+            self.info_var.set(str(self.severity_counters.get('INFO', 0)))
+            
         except Exception as e:
-            print(f"Error updating severity counters: {e}")
-        
-        # Schedule next update
-        self.root.after(5000, self._update_severity_counters)
+            # We print once per second to avoid spamming if it fails
+            if int(time.time()) % 2 == 0:
+                print(f"Counter update suppressed error: {e}")
+
+        # Schedule next update (500ms)
+        self.root.after(500, self._update_severity_counters)
 
 
     def _configure_styles(self):
