@@ -239,7 +239,7 @@ MAIN FILE FOR NOW -> RUN login_gui.py
 credentials are: username: admin, pass: lisajaanu
 imp files -> login_gui.py, integrity_core.py, integrity_gui.py, auth_manager.py, severity_init.py
 
-### -- January 2026 - PHASE 8.3
+### 24 January 2026 - PHASE 8.3
         1: AUTO RESPONSE & SAFE MODE
             -AUTO RESPONSE RULES
             -Severity	Auto Action
@@ -270,3 +270,96 @@ imp files -> login_gui.py, integrity_core.py, integrity_gui.py, auth_manager.py,
                 Last 10 events
             Saved as:
                 incident_2025-10-XX_22-41.txt
+
+
+### 25 January 2026 - PHASE 9
+    Cleanup & Structure
+        Folder structure clean
+        Internal files hide (logs, hash db)
+        README.md final version
+        requirements.txt
+
+        ok i have to structure it like this 
+        FileIntegritySecurity/
+
+        │
+
+        ├── core/
+
+        │   ├── integrity_core.py
+
+        │   ├── auto_response.py
+
+        │   ├── severity_init.py
+
+        │   ├── verifier.py
+
+        │
+
+        ├── gui/
+
+        │   ├── integrity_gui.py
+
+        │
+
+        ├── config/
+
+        │   └── config.json
+
+        │
+
+        ├── reports/
+
+        │   ├── report_summary.txt
+
+        │   ├── detailed_reports.txt
+
+        │   └── incidents/
+
+        │       └── incident_2025-xx-xx.txt
+
+        │
+
+        ├── logs/
+
+        │   └── integrity_log.txt
+
+        │
+
+        ├── assets/
+
+        │   └── icons/
+
+        │
+
+        ├── requirements.txt
+
+        ├── README.md
+
+        └── run.py
+
+
+
+    Demo Mode
+        Button: “Run Demo Simulation”
+        Fake events generate:
+        File modified
+        Critical tamper
+        Safe mode
+        Interviewer ke saamne live demo 🔥
+
+
+    FILES REQUIRED -> 
+        integrity_cli.py
+        auth_manager.py
+        login_gui.py
+        severity_init.py
+        auto_response.py
+        integrity_gui.py
+        incident_snapshot.py
+        integrity_core.py
+        safe_mode.py
+        security_imports.py
+
+        config.json
+        requirements.txt
