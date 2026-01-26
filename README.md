@@ -1,30 +1,129 @@
-# 🛡️ File Integrity Checker
+# 🛡️ File Integrity Security Monitor
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-lightgrey)]()
-[![License](https://img.shields.io/badge/License-MIT-green)]()
-[![Status](https://img.shields.io/badge/Status-Active-brightgreen)]()
+[![Status](https://img.shields.io/badge/Status-Production--Ready-brightgreen)]()
+[![Security](https://img.shields.io/badge/Security-Cryptographic%20Integrity-red)]()
 [![Made with Love](https://img.shields.io/badge/Made%20with-💖%20by%20Manish%20%26%20Lisa-pink)]()
 
+---
 
-FILE INTEGRITY CHECKER 
+## 🔐 Overview
 
-A lightweight app which verify the hash of files and detect wheteher the file is modified / tampered or not. 
+**File Integrity Security Monitor** is a professional-grade desktop security tool that continuously monitors files and folders to detect **unauthorized changes, deletions, or tampering** using cryptographic verification.
 
-JUST RUN integrity_gui.py and choose the folder to be monitored.
+The system is designed to behave like a **real-world security product**, not just a script — featuring severity-based alerts, auto-response, safe mode, demo simulation, and a modern GUI.
 
-📂 Folder Structure
+---
+
+## 🎯 Key Use Cases
+
+- Detect ransomware-style file modifications
+- Monitor sensitive personal or enterprise folders
+- Maintain audit trails for digital forensics
+- Demonstrate real-time security monitoring in interviews
+- Safe demo simulation without touching real files
+
+---
+
+## ⚙️ Core Features
+
+### 🔍 File Integrity Monitoring
+- Cryptographic hashing (SHA-256)
+- Detects **Created / Modified / Deleted** files
+- Real-time monitoring using watchdog
+
+### 🚨 Severity Intelligence
+- INFO — File created  
+- MEDIUM — File modified  
+- HIGH — Multiple deletions  
+- CRITICAL — Hash database or log tampering  
+
+### 🧠 Auto Response & Safe Mode
+- Automated reactions based on severity
+- Monitoring freeze on CRITICAL incidents
+- Visual SAFE MODE alerts in GUI
+
+### 🔐 Tamper-Proof Design
+- HMAC signatures for:
+  - `hash_records.json`
+  - `integrity_log.txt`
+- Detects if attacker edits logs or hash database
+
+### 👤 Authentication & Access Control
+- User Mode (read-only, safe)
+- Admin Mode (full control)
+- Admin login alerts
+- Password change logging
+
+### 📊 Reporting & Visualization
+- Summary & detailed reports
+- PDF export with charts
+- Incident snapshot generation
+- Log archive & history system
+
+### 🎬 Demo Mode (Interview Friendly)
+- Simulated security incidents
+- No real files touched
+- One-click live demonstration
+
+---
+
+## 🖥️ GUI Highlights
+
+- Modern Tkinter-based dashboard
+- Dark / Light theme toggle
+- Live log feed
+- Status banners & sliding alerts
+- Menu-based extensibility
+
+---
+
+## 📂 Final Project Structure
+
 .
-├── src/
-│   ├── file_checker.py          # Checks integrity of a single file
-│   ├── folder_monitor.py        # Monitors folder for changes (polling based)
-│   ├── hash_generator.py        # Simple hash generation test
-│   ├── hash_records.json        # Stores hash values of monitored files
-│   └── integrity_log.txt        # Log of integrity check events
+├── core/
+│   ├── auth_manager.py          
+│   ├── auto_response.py        
+│   ├── demo_simulator.py        
+│   ├── incident_snapshot.py        
+│   ├── integrity_core.py 
+│   ├── safe_mode.py
+│   ├── security_imports.py
+│   └── severity_init.py      
+├── assets/
+│   └──icons/
+│       └──All icons file here
+├── cli/
+│   └── integrity_cli.py
+├── config/
+│   └── config.json
+├── gui/
+│   ├── login_gui.py
+│   └── integrity_gui.py
 ├── tests/                       # Sample test files (for monitoring)
 ├── DEVELOPMENT_LOG.md            # Development progress
-└── README.md                     # Project documentation
+├── README.md                     
+└── run.py
 
+
+▶️ How to Run
+
+### GUI Mode
+
+    python run.py
+# or
+    python run.py --gui
+
+### GUI Mode
+    python run.py --cli
+    python run.py --cli --verify
+    python run.py --cli --watch /path/to/folder
+
+
+### LOGIN CREDENTIALS
+    username: "admin"
+    password: "admin123" or "lisajaanu"
 
 
 
@@ -35,21 +134,14 @@ It ensures that a file has not been tampered with or modified — useful for dig
 
 
 
+🧰 Tech Stack
 
-
-⚙️ Features
-
-    Generate SHA256 or SHA512 hash of files
-
-    Compare current file hash with previously saved hash
-
-    Detect modifications or tampering
-
-    Maintain a log of file integrity checks
-
-    Optional: Real-time folder monitoring (advanced)
-
-    Optional: Simple GUI or web dashboard for reports
+    Language: Python 3.11+
+    GUI: Tkinter
+    Security: hashlib, hmac
+    Monitoring: watchdog
+    Reports: reportlab, matplotlib
+    Packaging: PyInstaller (Phase 10)
 
 
 🧩 How It Works
@@ -58,22 +150,6 @@ It ensures that a file has not been tampered with or modified — useful for dig
 2. Periodically (polling-based), it re-checks their hashes.
 3. If a mismatch, deletion, or new file is detected, it logs the event in `integrity_log.txt`.
 4. `hash_records.json` is updated accordingly.
-
-
-
-
-🧰 Tech Stack
-
-    Language: Python 🐍
-
-    Libraries: hashlib, os, json, time, (optional: tkinter or flask for GUI/web)
-
-    Platform: Cross-platform (Windows/Linux)
-
-    Version Control: Git
-
-
-
 
 
 
