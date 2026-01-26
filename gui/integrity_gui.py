@@ -86,7 +86,13 @@ SEVERITY_EMOJIS = {
     "CRITICAL": "🔴",
 }
 
-
+# Add this import
+try:
+    from core.demo_simulator import DemoSimulator
+except ImportError:
+    # Fallback if running from inside gui folder
+    sys.path.append('../core')
+    from demo_simulator import DemoSimulator
 
 # Mock backend classes if import fails
 class MockFileIntegrityMonitor:
@@ -512,6 +518,72 @@ class ProIntegrityGUI:
         self.colors = self.dark_theme if self.dark_mode else self.light_theme
         self._apply_theme()
 
+    # ---------------------------------------------------------
+    # SLIDING MENU LOGIC
+    # ---------------------------------------------------------
+    def toggle_menu(self):
+        """Animate the side menu in or out"""
+        if not self.menu_visible:
+            # Show Menu
+            self.side_menu.lift() # Bring to front
+            self._animate_menu(target_x=0)
+            self.menu_visible = True
+        else:
+            # Hide Menu
+            self._animate_menu(target_x=-self.menu_width)
+            self.menu_visible = False
+
+    def _animate_menu(self, target_x):
+        """Smooth sliding animation"""
+        current_x = self.side_menu.winfo_x()
+        
+        # Determine step direction
+        if current_x < target_x:
+            step = 30 # Slide Right
+        else:
+            step = -30 # Slide Left
+            
+        if current_x == target_x:
+            return
+
+        # Check if we are close enough to snap to target
+        if abs(target_x - current_x) < abs(step):
+            self.side_menu.place(x=target_x, y=0, height=self.root.winfo_height())
+            return
+
+        new_x = current_x + step
+        self.side_menu.place(x=new_x, y=0, height=self.root.winfo_height())
+        self.root.after(10, lambda: self._animate_menu(target_x))
+
+    # ---------------------------------------------------------
+    # DEMO MODE LOGIC
+    # ---------------------------------------------------------
+    def run_demo_mode(self):
+        """Execute the demonstration sequence"""
+        # Close menu
+        self.toggle_menu()
+        
+        if messagebox.askyesno("Run Demo", "⚠️ Start Demo Simulation?\n\nThis will trigger fake alerts, modify logs, and activate Safe Mode. Real monitoring will continue in background."):
+            
+            # Reset counters for clean visual
+            self.reset_severity_counters()
+            self._append_log("--- STARTING DEMO SIMULATION ---")
+            
+            # Disable buttons to prevent interference
+            self.status_var.set("🎬 DEMO RUNNING...")
+            
+            # Initialize Simulator
+            simulator = DemoSimulator(alert_callback=self._show_alert_from_demo)
+            
+            # Run in Thread
+            threading.Thread(target=simulator.run_simulation, daemon=True).start()
+
+    def _show_alert_from_demo(self, title, message, severity):
+        """Bridge function to allow Demo thread to trigger UI alerts"""
+        # Schedule the UI update on the main thread
+        self.root.after(0, lambda: self._show_alert(title, message, severity))
+
+
     def _apply_permissions(self):
         """Disable controls based on user role"""
         if self.user_role == 'admin':
@@ -604,10 +676,45 @@ class ProIntegrityGUI:
         # Main container with padding
         main_container = ttk.Frame(self.root, padding="10")
         main_container.pack(fill=tk.BOTH, expand=True)
+
+        # --- SLIDING MENU SETUP (Create this FIRST so it sits on top if needed, or lift it later) ---
+        self.menu_visible = False
+        self.menu_width = 250
+
+        # The Sliding Menu Frame (Initially placed off-screen)
+        self.side_menu = tk.Frame(self.root, bg='#2d2d2d', width=self.menu_width)
+        self.side_menu.place(x=-self.menu_width, y=0, height=900)
+
+        # Menu Title
+        tk.Label(self.side_menu, text="MENU", font=('Segoe UI', 14, 'bold'), 
+                 bg='#2d2d2d', fg='white').pack(pady=20)
+
+        # ---------------------------------------------------------
+        # NEW DEMO BUTTON IN MENU
+        # ---------------------------------------------------------
+        demo_btn = tk.Button(self.side_menu, text="🎬 Run Demo Simulation", 
+                             command=self.run_demo_mode,
+                             font=('Segoe UI', 11), bg='#6610f2', fg='white', 
+                             bd=0, padx=20, pady=10, activebackground='#520dc2')
+        demo_btn.pack(fill=tk.X, pady=10)
+
+        # Close Menu Button
+        close_menu_btn = tk.Button(self.side_menu, text="✕ Close Menu", 
+                                   command=self.toggle_menu,
+                                   font=('Segoe UI', 10), bg='#2d2d2d', fg='#adb5bd', bd=0)
+        close_menu_btn.pack(side=tk.BOTTOM, pady=20)
+        
+        # ---------------------------------------------------------
         
         # Header Section
         header_frame = ttk.Frame(main_container)
         header_frame.pack(fill=tk.X, pady=(0, 10))
+
+        # --- MENU BUTTON (Hamburger) ---
+        self.menu_btn = tk.Button(header_frame, text="☰", command=self.toggle_menu,
+                                font=('Segoe UI', 14), bg=self.colors['bg'], fg=self.colors['fg'],
+                                bd=0, activebackground=self.colors['bg'])
+        self.menu_btn.pack(side=tk.LEFT, padx=(0, 10))
         
         # Title with security icon
         title_frame = ttk.Frame(header_frame)

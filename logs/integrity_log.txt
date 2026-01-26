@@ -106,3 +106,10 @@
 2026-01-26 11:43:03 - [🟢 INFO] MANUAL_VERIFICATION_STARTED
 2026-01-26 11:43:03 - [🟢 INFO] Reports generated: reports/report_summary.txt, logs\detailed_reports.txt
 2026-01-26 11:43:12 - [🟢 INFO] MONITOR_STOPPED
+2026-01-26 12:02:51 - [🟢 INFO] [DEMO] New file created in monitored directory (SIMULATED)
+2026-01-26 12:02:53 - [🟡 MEDIUM] [DEMO] Configuration file modified externally (SIMULATED)
+2026-01-26 12:02:55 - [🟠 HIGH] [DEMO] Burst deletion detected: 5 files removed in 1s (SIMULATED)
+2026-01-26 12:02:57 - [🔴 CRITICAL] [DEMO] Cryptographic signature mismatch in hash database (SIMULATED)
+2026-01-26 12:02:58 - [🔴 CRITICAL] 🚨 SAFE MODE ACTIVATED: [DEMO] Critical Tampering Simulation
+2026-01-26 12:02:58 - [🔴 CRITICAL] [DEMO] ⛔ SAFE MODE ENABLED: [DEMO] Critical Tampering Simulation
+2026-01-26 12:03:10 - [🟢 INFO] SAFE MODE DISABLED: Admin Override via GUI

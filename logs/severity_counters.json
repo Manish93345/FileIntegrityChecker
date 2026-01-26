@@ -1,6 +1,6 @@
 {
-  "CRITICAL": 0,
-  "HIGH": 0,
-  "MEDIUM": 0,
-  "INFO": 43
+  "CRITICAL": 2,
+  "HIGH": 1,
+  "MEDIUM": 1,
+  "INFO": 44
 }
