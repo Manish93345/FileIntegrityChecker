@@ -13,6 +13,7 @@ import hashlib
 import hmac
 import threading
 import traceback
+import shutil
 from datetime import datetime
 
 SEVERITY_COUNTER_FILE = os.path.join("logs", "severity_counters.json")
@@ -973,3 +974,72 @@ class FileIntegrityMonitor:
                 return "No report summary file found. Run a verification first."
         except Exception as e:
             return f"Error reading summary file: {e}"
+
+
+# Add 'import shutil' at the top of the file if not present
+
+def archive_session():
+    """
+    1. Create a timestamped folder in config/history.
+    2. Move current logs/reports there (EXCEPT users.json).
+    3. Re-initialize empty files for the new session.
+    """
+    try:
+        # 1. Setup paths
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        # Ensure config/history exists
+        history_base = os.path.join("config", "history")
+        if not os.path.exists(history_base):
+            os.makedirs(history_base)
+            
+        session_folder = os.path.join(history_base, f"Session_{timestamp}")
+        if not os.path.exists(session_folder):
+            os.makedirs(session_folder)
+
+        # Files to move
+        # REMOVED "users.json" from this list so passwords stay safe
+        files_to_archive = [
+            "integrity_log.txt",
+            "integrity_log.sig",
+            "hash_records.json",
+            "hash_records.sig",
+            "detailed_reports.txt",
+            "report_data.json",
+            "severity_counters.json"
+        ]
+
+        # 2. Move files
+        for filename in files_to_archive:
+            src = os.path.join("logs", filename)
+            if os.path.exists(src):
+                dst = os.path.join(session_folder, filename)
+                shutil.move(src, dst)
+                print(f"Archived: {filename}")
+
+        # 3. Re-initialize essential files to prevent errors
+        
+        # Empty Log
+        with open(os.path.join("logs", "integrity_log.txt"), "w", encoding="utf-8") as f:
+            f.write(f"{now_pretty()} - [INFO] Log reset. New session started.\n")
+            
+        # Empty Log Signature
+        open(os.path.join("logs", "integrity_log.sig"), "w").close()
+
+        # Empty Hash Records
+        with open(os.path.join("logs", "hash_records.json"), "w", encoding="utf-8") as f:
+            json.dump({}, f)
+            
+        # Empty Severity Counters
+        empty_counters = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "INFO": 0}
+        with open(os.path.join("logs", "severity_counters.json"), "w", encoding="utf-8") as f:
+            json.dump(empty_counters, f)
+
+        # Reset Memory Counters (Global Variable)
+        global _SEVERITY_CACHE
+        _SEVERITY_CACHE = empty_counters.copy()
+        
+        return True, f"Session archived to {session_folder}"
+
+    except Exception as e:
+        traceback.print_exc()
+        return False, str(e)

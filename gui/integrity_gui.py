@@ -578,6 +578,55 @@ class ProIntegrityGUI:
             # Run in Thread
             threading.Thread(target=simulator.run_simulation, daemon=True).start()
 
+    def archive_and_reset(self):
+        """Archive current logs to config/history and reset UI"""
+        self.toggle_menu() # Close the menu
+        
+        # 1. Safety Check
+        if self.monitor_running:
+            messagebox.showwarning("Monitor Running", "Please Stop the Monitor before archiving.")
+            return
+
+        # 2. Confirmation
+        confirm = messagebox.askyesno(
+            "Confirm Archive & Reset", 
+            "Are you sure?\n\n"
+            "1. All current logs and reports will be moved to 'config/history'.\n"
+            "2. The current dashboard will be cleared.\n"
+            "3. You can start fresh with a new folder."
+        )
+        
+        if confirm:
+            # 3. Call Backend
+            success, msg = integrity_core.archive_session()
+            
+            if success:
+                # 4. Reset UI Elements
+                
+                # Clear Log Box
+                self.log_box.configure(state="normal")
+                self.log_box.delete("1.0", tk.END)
+                self.log_box.insert(tk.END, f"[{datetime.now().strftime('%H:%M:%S')}] Session archived.\n")
+                self.log_box.insert(tk.END, f"[{datetime.now().strftime('%H:%M:%S')}] Ready for new task.\n")
+                self.log_box.configure(state="disabled")
+                
+                # Reset Severity Counters in GUI
+                self.reset_severity_counters() # Re-use your existing reset function
+                
+                # Reset Session Stats
+                self.reset_session_counts()
+                self.total_files_var.set("0")
+                
+                # Reset Tamper Indicators
+                self.tamper_records_var.set("UNKNOWN")
+                self.tamper_logs_var.set("UNKNOWN")
+                self._update_tamper_indicators()
+                
+                messagebox.showinfo("Success", f"System Reset Complete.\n\nOld files saved in:\n{msg}")
+                self._append_log("System reset successfully.")
+            else:
+                messagebox.showerror("Error", f"Failed to archive: {msg}")
+
     def _show_alert_from_demo(self, title, message, severity):
         """Bridge function to allow Demo thread to trigger UI alerts"""
         # Schedule the UI update on the main thread
@@ -697,6 +746,13 @@ class ProIntegrityGUI:
                              font=('Segoe UI', 11), bg='#6610f2', fg='white', 
                              bd=0, padx=20, pady=10, activebackground='#520dc2')
         demo_btn.pack(fill=tk.X, pady=10)
+
+        # ARCHIVE & RESET BUTTON
+        reset_btn = tk.Button(self.side_menu, text="🗄️ Archive Logs & Reset", 
+                             command=self.archive_and_reset,
+                             font=('Segoe UI', 11), bg='#dc3545', fg='white', 
+                             bd=0, padx=20, pady=10, activebackground='#a71d2a')
+        reset_btn.pack(fill=tk.X, pady=10)
 
         # Close Menu Button
         close_menu_btn = tk.Button(self.side_menu, text="✕ Close Menu", 
