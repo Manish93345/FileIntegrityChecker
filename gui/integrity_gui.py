@@ -33,7 +33,8 @@ import subprocess
 import sys
 
 import safe_mode
-REPORT_DATA_JSON = "report_data.json"
+REPORT_DATA_JSON = os.path.join("logs", "report_data.json")
+SEVERITY_COUNTER_FILE = os.path.join("logs", "severity_counters.json")
 # --- IMPORT BACKEND SAFELY ---
 # We define these globally first to prevent "NameError" if import fails
 integrity_core = None 
@@ -409,9 +410,9 @@ class ProIntegrityGUI:
                 self.severity_counters = integrity_core._SEVERITY_CACHE.copy()
             
             # OPTION 2: Fallback to Disk
-            elif os.path.exists("severity_counters.json"):
+            elif os.path.exists(SEVERITY_COUNTER_FILE):
                 try:
-                    with open("severity_counters.json", "r", encoding="utf-8") as f:
+                    with open(SEVERITY_COUNTER_FILE, "r", encoding="utf-8") as f:
                         self.severity_counters = json.load(f)
                 except:
                     pass # Ignore read errors (likely locked)
@@ -2159,7 +2160,11 @@ class ProIntegrityGUI:
     # ---------- Other Methods ----------
     def view_report(self):
         """View reports"""
-        report_files = ["report_summary.txt", "activity_reports.txt", "detailed_reports.txt"]
+        report_files = [
+            "reports/report_summary.txt", # Adjust if needed
+            os.path.join("logs", "activity_reports.txt"),
+            os.path.join("logs", "detailed_reports.txt")
+        ]
         combined_content = ""
 
         
@@ -2203,7 +2208,7 @@ class ProIntegrityGUI:
             
             # Save to file
             try:
-                with open("severity_counters.json", "w", encoding="utf-8") as f:
+                with open(SEVERITY_COUNTER_FILE, "w", encoding="utf-8") as f:
                     json.dump(self.severity_counters, f, indent=2)
                 self._append_log("Severity counters reset to zero")
                 self._show_alert("Counters Reset", "All severity counters have been reset to zero.", "info")

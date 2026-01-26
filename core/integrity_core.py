@@ -15,6 +15,8 @@ import threading
 import traceback
 from datetime import datetime
 
+SEVERITY_COUNTER_FILE = os.path.join("logs", "severity_counters.json")
+
 # Import security features (silent imports)
 try:
     from security_imports import (
@@ -65,9 +67,9 @@ _SEVERITY_CACHE = {
 }
 
 # Attempt to load existing counts from disk on startup
-if os.path.exists("severity_counters.json"):
+if os.path.exists(SEVERITY_COUNTER_FILE):
     try:
-        with open("severity_counters.json", "r", encoding="utf-8") as f:
+        with open(SEVERITY_COUNTER_FILE, "r", encoding="utf-8") as f:
             loaded = json.load(f)
             # Merge loaded data into cache safely
             for k, v in loaded.items():
@@ -320,7 +322,7 @@ def update_severity_counter(severity):
     # 2. Persist to Disk (Best Effort)
     # Even if this fails or collides with GUI reading, memory remains correct
     try:
-        counter_file = "severity_counters.json"
+        counter_file = SEVERITY_COUNTER_FILE
         temp_file = counter_file + ".tmp"
         
         with open(temp_file, "w", encoding="utf-8") as f:
@@ -699,7 +701,7 @@ def write_report_summary(summary):
             f.write(text + "\n")
 
         # 2. Write Detailed Report (NEW LOGIC)
-        detailed_file = "detailed_reports.txt"
+        detailed_file = os.path.join("logs", "detailed_reports.txt")
         with open(detailed_file, "w", encoding="utf-8") as df:
             df.write(f"DETAILED INTEGRITY REPORT\n")
             df.write(f"Generated: {now_pretty()}\n")

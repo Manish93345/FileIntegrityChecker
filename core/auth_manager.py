@@ -10,7 +10,7 @@ import os
 import hashlib
 import uuid
 
-USERS_DB_FILE = "users.json"
+USERS_DB_FILE = os.path.join("logs", "users.json")
 
 # Default credentials (created on first run)
 DEFAULT_USERS = {

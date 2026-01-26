@@ -7,6 +7,7 @@ Initialize severity counters and ensure proper event mapping
 import json
 import os
 
+
 # Initialize severity counters
 def init_severity_counters():
     counters = {
@@ -15,8 +16,12 @@ def init_severity_counters():
         "MEDIUM": 0,
         "INFO": 0
     }
+    target_file = os.path.join("logs", "severity_counters.json")
+    # Ensure logs dir exists (just in case)
+    if not os.path.exists("logs"):
+        os.makedirs("logs")
     
-    with open("severity_counters.json", "w", encoding="utf-8") as f:
+    with open(target_file, "w", encoding="utf-8") as f:
         json.dump(counters, f, indent=2)
     
     print("✅ Severity counters initialized")

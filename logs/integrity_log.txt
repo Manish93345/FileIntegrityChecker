@@ -63,3 +63,46 @@
 2026-01-26 10:27:50 - [🟢 INFO] Reports generated: reports/report_summary.txt, detailed_reports.txt
 2026-01-26 10:28:28 - [🟢 INFO] MANUAL_VERIFICATION_STARTED
 2026-01-26 10:28:28 - [🟢 INFO] Reports generated: reports/report_summary.txt, detailed_reports.txt
+2026-01-26 11:43:00 - [🟢 INFO] Startup: records signature OK
+2026-01-26 11:43:00 - [🟢 INFO] Startup: log signature OK
+2026-01-26 11:43:00 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\8 November 2025_manish&Yamuna.jpg
+2026-01-26 11:43:00 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\downloaded-yamuna.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\FreeFire_09_01_2025 17_28_59.png
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\FreeFire_09_01_2025 17_29_04.png
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\FreeFire_09_01_2025 17_29_39.png
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\FreeFire_09_01_2025 17_29_56.png
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\FreeFire_10_10_2025 18_47_39.png
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\FreeFire_10_10_2025 18_47_47.png
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\FreeFire_10_10_2025 18_48_12.png
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\FreeFire_10_10_2025 18_48_40.png
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\IMG_20251223_181839.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\IMG_20251223_181902.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\payel.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20250721_120246_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20250721_120257_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20250922_081636_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20250928_151351_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20250928_151423_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20250930_181746_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20251108_134932_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20251116_235151_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20251221_115811_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20251221_115815_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20251223_181757_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20251226_222325_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20251230_220933_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20260105_224626_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20260105_224627_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20260105_232157_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20260105_232252_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20260105_232553_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20260107_233117_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20260108_024802_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20260111_202954_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\Screenshot_20260111_202959_com.dts.freefiremax.jpg
+2026-01-26 11:43:01 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\yamuna.jpg
+2026-01-26 11:43:01 - [🟢 INFO] Initial scan added missing records and saved signature.
+2026-01-26 11:43:01 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/Photos
+2026-01-26 11:43:03 - [🟢 INFO] MANUAL_VERIFICATION_STARTED
+2026-01-26 11:43:03 - [🟢 INFO] Reports generated: reports/report_summary.txt, logs\detailed_reports.txt
+2026-01-26 11:43:12 - [🟢 INFO] MONITOR_STOPPED

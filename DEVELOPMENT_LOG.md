@@ -383,7 +383,7 @@ Structure finalized
     TODO
         next phase
         menu button jisme ki reports and logs ko reset kiya jaa sake
-        report_data.json, users.json, severity_counters.json, detailed_reports.txt
+        report_data.json, users.json, severity_counters.json, detailed_reports.txt  DONE ✅
         demo video and screenshots in demo folder
 
     
