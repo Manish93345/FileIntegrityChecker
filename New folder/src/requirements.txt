@@ -1,0 +1,10 @@
+# Minimal working setup
+watchdog
+requests
+Pillow>=9.0.0,<11.0.0
+
+reportlab==4.0.4
+
+pip install matplotlib pillow reportlab
+
+pip install seaborn

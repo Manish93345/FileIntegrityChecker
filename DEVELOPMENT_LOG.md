@@ -272,7 +272,7 @@ imp files -> login_gui.py, integrity_core.py, integrity_gui.py, auth_manager.py,
                 incident_2025-10-XX_22-41.txt
 
 
-### 25 January 2026 - PHASE 9
+### 25-26 January 2026 - PHASE 9
     Cleanup & Structure
         Folder structure clean
         Internal files hide (logs, hash db)
@@ -363,3 +363,29 @@ imp files -> login_gui.py, integrity_core.py, integrity_gui.py, auth_manager.py,
 
         config.json
         requirements.txt
+
+
+# GUI MODE
+bash
+python run.py  or  python run.py --gui
+
+# CLI Mode
+bash
+python run.py --cli
+python run.py --cli --verify
+python run.py --cli --watch /path/to/folder
+
+
+Structure finalized
+
+
+### 25-26 January 2026 - PHASE 9
+    TODO
+        next phase
+        menu button jisme ki reports and logs ko reset kiya jaa sake
+        report_data.json, users.json, severity_counters.json, detailed_reports.txt
+        demo video and screenshots in demo folder
+
+    
+
+    
