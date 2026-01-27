@@ -1,0 +1,38 @@
+2026-01-27 14:27:05 - [INFO] Log reset. New session started.
+2026-01-27 14:28:16 - [🟢 INFO] INFO: No hash signature found; created new signature.
+2026-01-27 14:28:16 - [🟢 INFO] Startup: records signature OK
+2026-01-27 14:28:16 - [🟢 INFO] Startup: log signature OK
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\8 November 2025_manish&Yamuna.jpg
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\downloaded-yamuna.jpg
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\FreeFire_09_01_2025 17_28_59.png
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\FreeFire_09_01_2025 17_29_04.png
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\FreeFire_09_01_2025 17_29_39.png
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\FreeFire_09_01_2025 17_29_56.png
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\FreeFire_10_10_2025 18_47_39.png
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\FreeFire_10_10_2025 18_47_47.png
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\FreeFire_10_10_2025 18_48_12.png
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\FreeFire_10_10_2025 18_48_40.png
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\IMG_20251223_181839.jpg
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\IMG_20251223_181902.jpg
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\payel.jpg
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\Screenshot_20250721_120246_com.dts.freefiremax.jpg
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\Screenshot_20250721_120257_com.dts.freefiremax.jpg
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\Screenshot_20250922_081636_com.dts.freefiremax.jpg
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\Screenshot_20250928_151351_com.dts.freefiremax.jpg
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\Screenshot_20250928_151423_com.dts.freefiremax.jpg
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\Screenshot_20250930_181746_com.dts.freefiremax.jpg
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\Screenshot_20251108_134932_com.dts.freefiremax.jpg
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\Screenshot_20251116_235151_com.dts.freefiremax.jpg
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\Screenshot_20251221_115811_com.dts.freefiremax.jpg
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\Screenshot_20251221_115815_com.dts.freefiremax.jpg
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\Screenshot_20251223_181757_com.dts.freefiremax.jpg
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\Screenshot_20251226_222325_com.dts.freefiremax.jpg
+2026-01-27 14:28:16 - [🟢 INFO] INITIALIZED: D:\Free_fire\Photos\New folder\yamuna.jpg
+2026-01-27 14:28:16 - [🟢 INFO] Initial scan added missing records and saved signature.
+2026-01-27 14:28:16 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/Photos/New folder
+2026-01-27 14:28:20 - [🟢 INFO] MONITOR_STOPPED
+2026-01-27 14:28:22 - [🟢 INFO] MANUAL_VERIFICATION_STARTED
+2026-01-27 14:28:22 - [🔴 CRITICAL] AUTO_RESPONSE_CRITICAL: Signature mismatch: logs/integrity_log.txt - ACTIVATING SAFE MODE
+2026-01-27 14:28:22 - [🔴 CRITICAL] 🚨 SAFE MODE ACTIVATED: TAMPERED_SIGNATURE: Signature mismatch: logs/integrity_log.txt
+2026-01-27 14:28:22 - [🟢 INFO] Incident snapshot created: incident_2026-01-27_14-28-22_TAMPERED_SIGNATURE.txt
+2026-01-27 14:28:22 - [🟢 INFO] Reports generated: reports/report_summary.txt, logs\detailed_reports.txt

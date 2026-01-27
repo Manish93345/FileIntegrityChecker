@@ -162,17 +162,38 @@ EVENT_SEVERITY = {
 }
 
 
+# --- IMPORT THE UTILITY ---
+try:
+    from core.utils import get_app_data_dir, get_base_path
+except ImportError:
+    # Fallback if running directly
+    import sys
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from core.utils import get_app_data_dir, get_base_path
+
+# --- SETUP PATHS CORRECTLY ---
+DATA_ROOT = get_app_data_dir()
+log_dir = os.path.join(DATA_ROOT, "logs")
+
+# 1. FORCE CREATE THE LOGS DIRECTORY
+if not os.path.exists(log_dir):
+    try:
+        os.makedirs(log_dir)
+        print(f"✅ Created log directory at: {log_dir}")
+    except Exception as e:
+        print(f"❌ Error creating log dir: {e}")
 
 # ------------------ Defaults & Config ------------------
 # Default configuration will be loaded from config.json
 DEFAULT_CONFIG = {}
 
-# Filenames (can be overridden if you extend config to change names)
-HASH_RECORD_FILE = "logs/hash_records.json"
-HASH_SIGNATURE_FILE = "logs/hash_records.sig"
-LOG_FILE = "logs/integrity_log.txt"
-LOG_SIG_FILE = "logs/integrity_log.sig"
-REPORT_SUMMARY_FILE = "reports/report_summary.txt"
+# 2. UPDATE ALL FILE PATHS TO USE 'log_dir'
+HASH_RECORD_FILE = os.path.join(log_dir, "hash_records.json")
+HASH_SIGNATURE_FILE = os.path.join(log_dir, "hash_records.sig")
+LOG_FILE = os.path.join(log_dir, "integrity_log.txt")
+LOG_SIG_FILE = os.path.join(log_dir, "integrity_log.sig")
+REPORT_SUMMARY_FILE = os.path.join(log_dir, "report_summary.txt")
+SEVERITY_COUNTER_FILE = os.path.join(log_dir, "severity_counters.json")
 
 # in-memory config will be loaded on startup
 CONFIG = dict(DEFAULT_CONFIG)
@@ -226,24 +247,11 @@ def atomic_write_json(path, obj):
 
 def load_config(path=None):
     global CONFIG
-    # First try to load from config.json in the same folder
-    config_path = path or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config", "config.json")
     
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                CONFIG = json.load(f)
-                print(f"[CONFIG] Loaded config from {config_path}")
-        except Exception as e:
-            print(f"[CONFIG] Failed to load config {config_path}: {e}")
-            return False
-    else:
-        print(f"[CONFIG] config.json not found at {config_path}")
-        return False
-
-    # Set default values for required fields if not present in config
-    required_fields = {
-        "watch_folder": r"D:\Study\LISA_PROJECT\FileIntegrityChecker\tests",
+    # 1. Initialize with ROBUST DEFAULTS immediately
+    # This ensures "hash_chunk_size" always exists, preventing crashes
+    defaults = {
+        "watch_folder": os.path.join(os.path.expanduser("~"), "Documents"),
         "verify_interval": 60,
         "webhook_url": None,
         "secret_key": "Lisacutie",
@@ -255,20 +263,40 @@ def load_config(path=None):
         "hash_retry_delay": 0.5,
         "ignore_filenames": ["hash_records.json", "integrity_log.txt", "integrity_log.sig", "hash_records.sig", "report_summary.txt"]
     }
-    
-    for field, default_value in required_fields.items():
-        if field not in CONFIG:
-            CONFIG[field] = default_value
-            print(f"[CONFIG] Using default value for {field}: {default_value}")
+    CONFIG.update(defaults)
 
-    # normalize types
-    CONFIG["verify_interval"] = int(CONFIG.get("verify_interval", 60))
-    CONFIG["max_log_size_mb"] = int(CONFIG.get("max_log_size_mb", 10))
-    CONFIG["max_log_backups"] = int(CONFIG.get("max_log_backups", 5))
-    CONFIG["hash_chunk_size"] = int(CONFIG.get("hash_chunk_size", 65536))
-    CONFIG["hash_retries"] = int(CONFIG.get("hash_retries", 3))
-    CONFIG["hash_retry_delay"] = float(CONFIG.get("hash_retry_delay", 0.5))
+    # 2. Determine Paths
+    # External: Next to the EXE (Users can edit this)
+    external_config = os.path.join(get_app_data_dir(), "config", "config.json")
+    # Internal: Bundled inside EXE (Fallback)
+    internal_config = os.path.join(get_base_path(), "config", "config.json")
     
+    target_path = path or external_config
+    
+    # 3. Try to load External Config
+    if os.path.exists(target_path):
+        try:
+            with open(target_path, "r", encoding="utf-8") as f:
+                user_config = json.load(f)
+                CONFIG.update(user_config) # Merge user settings over defaults
+                print(f"[CONFIG] Loaded from {target_path}")
+                return True
+        except Exception as e:
+            print(f"[CONFIG] Error loading external {target_path}: {e}")
+
+    # 4. Try to load Internal Config (if external missing)
+    elif os.path.exists(internal_config):
+        try:
+            with open(internal_config, "r", encoding="utf-8") as f:
+                user_config = json.load(f)
+                CONFIG.update(user_config)
+                print(f"[CONFIG] Loaded from bundled defaults")
+                return True
+        except Exception as e:
+            print(f"[CONFIG] Error loading internal: {e}")
+            
+    # 5. Fallback
+    print("[CONFIG] Using hardcoded defaults")
     return True
 
 # ------------------ Logging & Log HMAC (per-line) ------------------
@@ -478,7 +506,9 @@ def verify_log_signatures():
                 append_log_signature(f"{line}|UNKNOWN|INFO")
             print(f"DEBUG: Auto-healed {missing} signatures")
             return True, f"Auto-healed {missing}"
-        except: return False, "Heal failed"
+        except Exception as e: 
+            print(f"❌ Auto-Heal Failed: {e}") # Print the error!
+            return False, f"Heal failed: {e}"
 
     # TAMPER (Deletion)
     if len(log_lines) < len(sig_lines):
@@ -738,138 +768,137 @@ def write_report_summary(summary):
 
 # ------------------ Watchdog event handler ------------------
 class IntegrityHandler(FileSystemEventHandler):
-    def __init__(self, watch_folder=None):
+    def __init__(self, watch_folder=None, callback=None):  # <--- FIXED: Added callback support
         super().__init__()
         self.watch_folder = watch_folder or CONFIG["watch_folder"]
+        self.callback = callback  # <--- Store the GUI callback
         self.records = load_hash_records()
+        
+        # Verify signatures on startup
         ok_records = verify_records_signature_on_disk()
         append_log_line("Startup: records signature OK" if ok_records else "Startup: records signature FAILED")
         ok_logs, detail = verify_log_signatures()
         append_log_line("Startup: log signature OK" if ok_logs else f"Startup: log signature FAILED ({detail})")
-        # ensure log files exist
+        
+        # Ensure log files exist
         if not os.path.exists(LOG_FILE):
             atomic_write_text(LOG_FILE, f"{now_pretty()} - Log started\n")
         if not os.path.exists(LOG_SIG_FILE):
             atomic_write_text(LOG_SIG_FILE, "")
-        # initial scan to populate missing files if any
+
+        # Initial scan to populate missing files
         initial_added = False
         for root, _, files in os.walk(self.watch_folder):
             for fn in files:
-                if is_ignored_filename(fn):
-                    continue
+                if is_ignored_filename(fn): continue
                 path = os.path.abspath(os.path.join(root, fn))
                 if path not in self.records:
                     h = generate_file_hash(path)
                     if h:
                         self.records[path] = {"hash": h, "last_checked": now_pretty()}
-                        append_log_line(f"INITIALIZED: {path}")
                         initial_added = True
         if initial_added:
             save_hash_records(self.records)
-            append_log_line("Initial scan added missing records and saved signature.")
 
-        # Track recent events for burst detection
+        # Burst detection variables
         self.recent_deletes = []
         self.recent_events = []
-        self.burst_threshold = 5  # Number of events in short time to trigger HIGH
-        self.burst_time_window = 10  # Seconds
+        self.burst_threshold = 5
+        self.burst_time_window = 10
 
+    def _notify_gui(self, event_type, path, severity):
+        """Helper to send event to GUI if callback exists"""
+        if self.callback:
+            try:
+                self.callback(event_type, path, severity)
+            except Exception as e:
+                print(f"Callback error: {e}")
 
     def _check_burst_operations(self, event_type):
         """Check for burst operations"""
         current_time = time.time()
-        
         # Clean old events
-        self.recent_events = [t for t in self.recent_events 
-                            if current_time - t < self.burst_time_window]
-        
-        # Add current event
+        self.recent_events = [t for t in self.recent_events if current_time - t < self.burst_time_window]
         self.recent_events.append(current_time)
         
         # Check for burst
         if len(self.recent_events) >= self.burst_threshold:
-            # Trigger burst alert
             severity = "HIGH"
             message = f"Burst operation detected: {len(self.recent_events)} events in {self.burst_time_window} seconds"
             append_log_line(message, event_type="BURST_OPERATION", severity=severity)
             send_webhook_safe("BURST_OPERATION", message, None)
             
-            # Clear recent events to avoid repeated alerts
+            self._notify_gui("BURST_OPERATION", "Multiple Files", severity) # <--- NOTIFY GUI
+            
             self.recent_events = []
             return True
-        
         return False
 
     def save_records(self):
         save_hash_records(self.records)
 
     def on_created(self, event):
-        if event.is_directory:
-            return
+        if event.is_directory: return
         path = os.path.abspath(event.src_path)
-        if is_ignored_filename(os.path.basename(path)):
-            return
+        if is_ignored_filename(os.path.basename(path)): return
+        
         h = generate_file_hash(path)
         if h:
             self.records[path] = {"hash": h, "last_checked": now_pretty()}
             self.save_records()
             append_log_line(f"CREATED: {path}", event_type="CREATED", severity="INFO")
             send_webhook_safe("CREATED", "New file created", path)
+            self._notify_gui("CREATED", path, "INFO") # <--- NOTIFY GUI
 
     def on_modified(self, event):
-        if event.is_directory:
-            return
+        if event.is_directory: return
         path = os.path.abspath(event.src_path)
-        if is_ignored_filename(os.path.basename(path)):
-            return
+        if is_ignored_filename(os.path.basename(path)): return
+        
         h = generate_file_hash(path)
-        if not h:
-            return
+        if not h: return
+        
         old_hash = self.records.get(path, {}).get("hash")
         if not old_hash:
             self.records[path] = {"hash": h, "last_checked": now_pretty()}
             self.save_records()
             append_log_line(f"CREATED_ON_MODIFY: {path}", event_type="CREATED_ON_MODIFY", severity="INFO")
-            send_webhook_safe("CREATED_ON_MODIFY", "Untracked file observed on modify", path)
+            self._notify_gui("CREATED", path, "INFO") # <--- NOTIFY GUI
         elif old_hash != h:
             self.records[path] = {"hash": h, "last_checked": now_pretty()}
             self.save_records()
             append_log_line(f"MODIFIED: {path}", event_type="MODIFIED", severity="MEDIUM")
             send_webhook_safe("MODIFIED", "File content changed", path)
+            self._notify_gui("MODIFIED", path, "MEDIUM") # <--- NOTIFY GUI
 
     def on_deleted(self, event):
-        if event.is_directory:
-            return
+        if event.is_directory: return
         path = os.path.abspath(event.src_path)
-        if is_ignored_filename(os.path.basename(path)):
-            return
+        if is_ignored_filename(os.path.basename(path)): return
         
-        # Track for burst detection
+        # Burst Logic
         current_time = time.time()
         self.recent_deletes.append(current_time)
+        self.recent_deletes = [t for t in self.recent_deletes if current_time - t < self.burst_time_window]
         
-        # Clean old deletes
-        self.recent_deletes = [t for t in self.recent_deletes 
-                            if current_time - t < self.burst_time_window]
-        
-        # Check for multiple deletes - IMPORTANT: This should trigger BEFORE individual delete logging
-        if len(self.recent_deletes) >= 3:  # 3 or more deletes in short time
+        if len(self.recent_deletes) >= 3:
             severity = "HIGH"
-            message = f"Multiple deletes detected: {len(self.recent_deletes)} files deleted in {self.burst_time_window} seconds"
+            message = f"Multiple deletes detected: {len(self.recent_deletes)} files"
             append_log_line(message, event_type="MULTIPLE_DELETES", severity=severity)
             send_webhook_safe("MULTIPLE_DELETES", message, None)
+            self._notify_gui("MULTIPLE_DELETES", "Multiple Files", severity) # <--- NOTIFY GUI
         
-        # Individual delete logging
+        # Individual Logic
         if path in self.records:
             self.records.pop(path, None)
             self.save_records()
             append_log_line(f"DELETED: {path}", event_type="DELETED", severity="MEDIUM")
             send_webhook_safe("DELETED", "File deleted", path)
+            self._notify_gui("DELETED", path, "MEDIUM") # <--- NOTIFY GUI
         else:
             append_log_line(f"DELETED_UNTRACKED: {path}", event_type="DELETED_UNTRACKED", severity="MEDIUM")
-            send_webhook_safe("DELETED_UNTRACKED", "Untracked file deleted", path)
+            self._notify_gui("DELETED", path, "MEDIUM") # <--- NOTIFY GUI
         
-        # Check for general burst operations
         self._check_burst_operations("DELETE")
 
 # ------------------ Monitor Controller ------------------
@@ -881,7 +910,7 @@ class FileIntegrityMonitor:
         self.running = False
         self.current_watch_folder = None
 
-    def start_monitoring(self, watch_folder=None):
+    def start_monitoring(self, watch_folder=None, event_callback=None):
         """Start the file integrity monitoring"""
         if not load_config():
             return False
@@ -900,8 +929,9 @@ class FileIntegrityMonitor:
         if not os.path.exists(LOG_SIG_FILE):
             atomic_write_text(LOG_SIG_FILE, "")
 
-        # Create handler with the specific watch folder
-        self.handler = IntegrityHandler(watch_folder=wf)
+        # --- FIX IS HERE: Pass 'event_callback' to the Handler ---
+        self.handler = IntegrityHandler(watch_folder=wf, callback=event_callback)
+        
         self.observer = Observer()
         self.observer.schedule(self.handler, wf, recursive=True)
         self.observer.start()
@@ -980,15 +1010,12 @@ class FileIntegrityMonitor:
 
 def archive_session():
     """
-    1. Create a timestamped folder in config/history.
-    2. Move current logs/reports there (EXCEPT users.json).
-    3. Re-initialize empty files for the new session.
+    Archive logs and reset safely with SIGNATURES.
     """
     try:
         # 1. Setup paths
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        # Ensure config/history exists
-        history_base = os.path.join("config", "history")
+        history_base = os.path.join(DATA_ROOT, "config", "history") # Use DATA_ROOT
         if not os.path.exists(history_base):
             os.makedirs(history_base)
             
@@ -997,7 +1024,6 @@ def archive_session():
             os.makedirs(session_folder)
 
         # Files to move
-        # REMOVED "users.json" from this list so passwords stay safe
         files_to_archive = [
             "integrity_log.txt",
             "integrity_log.sig",
@@ -1010,33 +1036,35 @@ def archive_session():
 
         # 2. Move files
         for filename in files_to_archive:
-            src = os.path.join("logs", filename)
+            src = os.path.join(log_dir, filename) # Use log_dir variable
             if os.path.exists(src):
                 dst = os.path.join(session_folder, filename)
                 shutil.move(src, dst)
                 print(f"Archived: {filename}")
 
-        # 3. Re-initialize essential files to prevent errors
+        # 3. RE-INITIALIZE SAFELY (The Fix)
         
-        # Empty Log
-        with open(os.path.join("logs", "integrity_log.txt"), "w", encoding="utf-8") as f:
-            f.write(f"{now_pretty()} - [INFO] Log reset. New session started.\n")
-            
-        # Empty Log Signature
-        open(os.path.join("logs", "integrity_log.sig"), "w").close()
+        # Clear files first
+        open(LOG_FILE, "w").close() 
+        open(LOG_SIG_FILE, "w").close()
+        open(HASH_RECORD_FILE, "w").close()
+        open(HASH_SIGNATURE_FILE, "w").close()
 
-        # Empty Hash Records
-        with open(os.path.join("logs", "hash_records.json"), "w", encoding="utf-8") as f:
+        # Reset JSONs
+        with open(HASH_RECORD_FILE, "w", encoding="utf-8") as f:
             json.dump({}, f)
-            
-        # Empty Severity Counters
+        
         empty_counters = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "INFO": 0}
-        with open(os.path.join("logs", "severity_counters.json"), "w", encoding="utf-8") as f:
+        with open(SEVERITY_COUNTER_FILE, "w", encoding="utf-8") as f:
             json.dump(empty_counters, f)
-
-        # Reset Memory Counters (Global Variable)
+        
+        # Reset Memory Counters
         global _SEVERITY_CACHE
         _SEVERITY_CACHE = empty_counters.copy()
+
+        # CRITICAL: Use append_log_line to write the first line. 
+        # This automatically generates the signature!
+        append_log_line("Log reset. New session started.", severity="INFO")
         
         return True, f"Session archived to {session_folder}"
 

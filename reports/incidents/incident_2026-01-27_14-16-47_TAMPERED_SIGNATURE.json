@@ -1,0 +1,70 @@
+{
+  "incident": {
+    "event_type": "TAMPERED_SIGNATURE",
+    "severity": "CRITICAL",
+    "message": "Signature mismatch: D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\logs\\integrity_log.txt",
+    "affected_file": "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\logs\\integrity_log.txt",
+    "timestamp": "2026-01-27T14:16:47.970377",
+    "human_timestamp": "2026-01-27T14:16:47.970377"
+  },
+  "system_state": {
+    "time": "2026-01-27T14:16:47.970578",
+    "safe_mode": true,
+    "monitoring_active": {
+      "status": "unknown",
+      "details": "Monitoring status check not implemented"
+    },
+    "config": {
+      "error": "Config not available"
+    },
+    "disk_usage": {
+      "total_gb": 294.15,
+      "used_gb": 259.97,
+      "free_gb": 34.18,
+      "free_percent": 11.62
+    },
+    "critical_files": {
+      "logs/integrity_log.txt": {
+        "exists": true,
+        "size": 5911,
+        "modified": "2026-01-27T14:16:47.961057"
+      },
+      "hash_records.json": {
+        "exists": false,
+        "size": 0,
+        "modified": null
+      },
+      "config.json": {
+        "exists": false,
+        "size": 0,
+        "modified": null
+      },
+      "severity_counters.json": {
+        "exists": false,
+        "size": 0,
+        "modified": null
+      }
+    }
+  },
+  "recent_events": [
+    "2026-01-27 14:16:47 - [\ud83d\udfe0 HIGH] Multiple deletes detected: 3 files deleted in 10 seconds",
+    "2026-01-27 14:16:47 - [\ud83d\udfe1 MEDIUM] DELETED: D:\\Free_fire\\Photos\\Screenshot_20250922_081636_com.dts.freefiremax.jpg",
+    "2026-01-27 14:16:47 - [\ud83d\udfe1 MEDIUM] DELETED: D:\\Free_fire\\Photos\\Screenshot_20250922_081636_com.dts.freefiremax.jpg",
+    "2026-01-27 14:16:47 - [\ud83d\udfe0 HIGH] Multiple deletes detected: 4 files deleted in 10 seconds",
+    "2026-01-27 14:16:47 - [\ud83d\udfe0 HIGH] Multiple deletes detected: 4 files deleted in 10 seconds",
+    "2026-01-27 14:16:47 - [\ud83d\udfe1 MEDIUM] DELETED: D:\\Free_fire\\Photos\\FreeFire_09_01_2025 17_29_04.png",
+    "2026-01-27 14:16:47 - [\ud83d\udfe1 MEDIUM] DELETED: D:\\Free_fire\\Photos\\FreeFire_09_01_2025 17_29_04.png",
+    "2026-01-27 14:16:47 - [\ud83d\udfe2 INFO] PERIODIC_VERIFICATION_START",
+    "2026-01-27 14:16:47 - [\ud83d\udd34 CRITICAL] AUTO_RESPONSE_CRITICAL: Signature mismatch: D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\logs\\integrity_log.txt - ACTIVATING SAFE MODE",
+    "2026-01-27 14:16:47 - [\ud83d\udd34 CRITICAL] \ud83d\udea8 SAFE MODE ACTIVATED: TAMPERED_SIGNATURE: Signature mismatch: D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\logs\\integrity_log.txt"
+  ],
+  "file_hashes": {
+    "logs/integrity_log.txt": "7dfcd53fb793919f",
+    "hash_records.json": "File not found",
+    "config.json": "File not found"
+  },
+  "process_info": {
+    "error": "psutil not installed"
+  },
+  "additional_data": {}
+}

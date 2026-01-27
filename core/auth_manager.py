@@ -9,8 +9,11 @@ import json
 import os
 import hashlib
 import uuid
+from core.utils import get_app_data_dir
 
-USERS_DB_FILE = os.path.join("logs", "users.json")
+# Update this line to use the safe path
+USERS_DB_FILE = os.path.join(get_app_data_dir(), "logs", "users.json")
+
 
 # Default credentials (created on first run)
 DEFAULT_USERS = {
@@ -58,6 +61,7 @@ class AuthManager:
         self._save_db()
 
     def _save_db(self):
+        os.makedirs(os.path.dirname(USERS_DB_FILE), exist_ok=True)
         with open(USERS_DB_FILE, 'w') as f:
             json.dump(self.users, f, indent=4)
 

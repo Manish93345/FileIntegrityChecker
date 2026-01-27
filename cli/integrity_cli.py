@@ -55,11 +55,12 @@ def main():
     print(f"Webhook: {'enabled' if CONFIG.get('webhook_url') else 'disabled'}")
     print("========================================")
 
-    # Ensure log files exist
+    # Ensure log files exist via proper logging method
+    from core.integrity_core import append_log_line
+    
     if not os.path.exists(LOG_FILE):
-        atomic_write_text(LOG_FILE, f"{now_pretty()} - Log started\n")
-    if not os.path.exists(LOG_SIG_FILE):
-        atomic_write_text(LOG_SIG_FILE, "")
+        # This will create the file AND the signature correctly
+        append_log_line("CLI Monitor started", severity="INFO")
 
     if args.summary_only:
         monitor = FileIntegrityMonitor()

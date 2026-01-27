@@ -24,15 +24,28 @@ import tkinter as tk
 from tkinter import ttk, filedialog, scrolledtext, messagebox, simpledialog
 import threading
 import time
-import os
 import json
 import traceback
 from datetime import datetime
 import tempfile
-import subprocess
 import sys
+import subprocess
+import os
 
-import safe_mode
+try:
+    # Try importing as a package (standard for EXE)
+    from core import safe_mode
+except ImportError:
+    # Fallback: Add sibling directory to path (standard for Dev)
+    import sys
+    import os
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    core_dir = os.path.join(os.path.dirname(current_dir), 'core')
+    if core_dir not in sys.path:
+        sys.path.append(core_dir)
+    import safe_mode
+# ------------------------------------------
+
 REPORT_DATA_JSON = os.path.join("logs", "report_data.json")
 SEVERITY_COUNTER_FILE = os.path.join("logs", "severity_counters.json")
 # --- IMPORT BACKEND SAFELY ---
@@ -41,26 +54,35 @@ integrity_core = None
 BACKEND_AVAILABLE = False
 FileIntegrityMonitor = None
 try:
-    sys.path.append('../core')
-    import integrity_core as ic_module
-    integrity_core = ic_module  # Assign to global variable explicitly
+    # 1. Try importing as a standard package (Works in EXE)
+    from core import integrity_core as ic_module
+    integrity_core = ic_module
     
     from core.integrity_core import (
-        load_config,
-        FileIntegrityMonitor,
-        CONFIG,
-        LOG_FILE,
-        REPORT_SUMMARY_FILE,
-        SEVERITY_LEVELS
+        load_config, FileIntegrityMonitor, CONFIG, LOG_FILE,
+        REPORT_SUMMARY_FILE, SEVERITY_LEVELS, verify_records_signature_on_disk,
+        verify_log_signatures, send_webhook_safe, HASH_RECORD_FILE,
+        HASH_SIGNATURE_FILE, LOG_SIG_FILE
     )
     BACKEND_AVAILABLE = True
-    print("✅ Backend imported successfully")
-except ImportError as e:
-    print(f"⚠️ Backend import failed: {e}")
-    BACKEND_AVAILABLE = False
-except Exception as e:
-    print(f"⚠️ Unexpected backend error: {e}")
-    BACKEND_AVAILABLE = False
+    print("✅ Backend imported successfully (Package Mode)")
+
+except ImportError:
+    # 2. Fallback for Dev (Works when running script from gui folder)
+    try:
+        import sys
+        sys.path.append('../core')
+        import integrity_core as ic_module
+        integrity_core = ic_module
+        
+        from integrity_core import (
+            load_config, FileIntegrityMonitor, CONFIG, LOG_FILE,
+            REPORT_SUMMARY_FILE, SEVERITY_LEVELS
+        )
+        BACKEND_AVAILABLE = True
+        print("✅ Backend imported successfully (Dev Mode)")
+    except Exception as e:
+        print(f"⚠️ Backend import failed: {e}")
 
 # Import Auth for password changing
 try:
@@ -408,31 +430,37 @@ class ProIntegrityGUI:
 
 
     def _update_severity_counters(self):
-        """Update severity counters without crashing if backend is missing"""
+        """Update severity counters from disk (Source of Truth)"""
         try:
-            # OPTION 1: Read from Memory (Fastest)
-            # We explicitly check the global integrity_core variable
-            if BACKEND_AVAILABLE and integrity_core and hasattr(integrity_core, '_SEVERITY_CACHE'):
-                self.severity_counters = integrity_core._SEVERITY_CACHE.copy()
-            
-            # OPTION 2: Fallback to Disk
-            elif os.path.exists(SEVERITY_COUNTER_FILE):
-                try:
-                    with open(SEVERITY_COUNTER_FILE, "r", encoding="utf-8") as f:
-                        self.severity_counters = json.load(f)
-                except:
-                    pass # Ignore read errors (likely locked)
+            # 1. Define the path reliably (Use backend path if available, else local)
+            counter_path = SEVERITY_COUNTER_FILE
+            if integrity_core and hasattr(integrity_core, 'SEVERITY_COUNTER_FILE'):
+                counter_path = integrity_core.SEVERITY_COUNTER_FILE
 
-            # Update UI Variables safely
+            # 2. FORCE READ FROM DISK 
+            # We ignore the memory cache because of the double-import issue. 
+            # The file is the only reliable link between Backend and GUI.
+            if os.path.exists(counter_path):
+                try:
+                    with open(counter_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        # Only update if we got valid data
+                        if data and isinstance(data, dict):
+                            self.severity_counters = data
+                except Exception:
+                    # File might be locked by the backend writing to it. 
+                    # Just skip this update frame; we'll catch it in the next 500ms.
+                    pass 
+
+            # 3. Update UI Variables
             self.critical_var.set(str(self.severity_counters.get('CRITICAL', 0)))
             self.high_var.set(str(self.severity_counters.get('HIGH', 0)))
             self.medium_var.set(str(self.severity_counters.get('MEDIUM', 0)))
             self.info_var.set(str(self.severity_counters.get('INFO', 0)))
             
         except Exception as e:
-            # We print once per second to avoid spamming if it fails
-            if int(time.time()) % 2 == 0:
-                print(f"Counter update suppressed error: {e}")
+            # Silent fail to avoid console spam
+            pass
 
         # Schedule next update (500ms)
         self.root.after(500, self._update_severity_counters)
@@ -1998,7 +2026,15 @@ class ProIntegrityGUI:
 
         def _start():
             try:
-                ok = self.monitor.start_monitoring(watch_folder=folder)
+                # --- NEW: Define the callback wrapper ---
+                # We use root.after to ensure we update GUI from the main thread
+                # because the backend runs on a separate watchdog thread
+                def gui_callback(event_type, path, severity):
+                    self.root.after(0, lambda: self._handle_realtime_event(event_type, path, severity))
+                
+                # --- NEW: Pass the callback to the backend ---
+                ok = self.monitor.start_monitoring(watch_folder=folder, event_callback=gui_callback)
+                
                 if ok:
                     self.monitor_running = True
                     self.status_var.set(f"🟢 Running — {os.path.basename(folder)}")
@@ -2385,6 +2421,37 @@ class ProIntegrityGUI:
             os.startfile(folder)
         except Exception:
             messagebox.showinfo("Info", f"Open folder: {folder}")
+
+
+    # [Add this inside the ProIntegrityGUI class, maybe before start_monitor]
+    # [In integrity_gui.py inside ProIntegrityGUI class]
+    
+    def _handle_realtime_event(self, event_type, path, severity):
+        """Handle real-time events from the backend"""
+        filename = os.path.basename(path)
+        
+        # 1. Update Session Counters
+        if "CREATED" in event_type:
+            self.file_tracking['session_created'] += 1
+            self.created_var.set(str(self.file_tracking['session_created']))
+            # Increment total files
+            current_total = int(self.total_files_var.get())
+            self.total_files_var.set(str(current_total + 1))
+            
+        elif "MODIFIED" in event_type:
+            self.file_tracking['session_modified'] += 1
+            self.modified_var.set(str(self.file_tracking['session_modified']))
+            
+        elif "DELETED" in event_type:
+            self.file_tracking['session_deleted'] += 1
+            self.deleted_var.set(str(self.file_tracking['session_deleted']))
+            # Decrement total files
+            current_total = int(self.total_files_var.get())
+            self.total_files_var.set(str(max(0, current_total - 1)))
+
+        # 2. TRIGGER THE ALERT POPUP
+        msg = f"File: {filename}\nPath: {path}"
+        self._show_alert(f"{event_type} Detected", msg, severity.lower())
 
     def _show_text(self, title, content):
         """Show text in new window"""

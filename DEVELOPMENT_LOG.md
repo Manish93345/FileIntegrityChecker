@@ -110,3 +110,6 @@ from a simple hash checker to a production-ready security product.
 - Build standalone `.exe`
 - App icon
 - Final packaging & deployment
+
+
+## Run this to get the .exe file:-> pyinstaller --noconfirm --onefile --windowed --icon="assets/icons/app.ico" --name="SecureFIM" run.py
