@@ -1,26 +1,34 @@
 import sys
 import os
 
-def get_app_data_dir():
-    """
-    Get the path where the application should store data (logs, config).
-    
-    - If running as EXE: Returns the folder containing the .exe file.
-    - If running as script: Returns the project root folder.
-    """
-    if getattr(sys, 'frozen', False):
-        # We are running as a PyInstaller bundle (EXE)
-        # return the folder where the .exe is located
-        return os.path.dirname(sys.executable)
-    else:
-        # We are running as a normal Python script
-        # return the parent directory of 'core' (the project root)
-        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
 def get_base_path():
     """
-    Get the path for internal resources (like icons, default config).
+    Get the path for internal resources (READ-ONLY).
+    Used for defaults bundled inside the EXE (like icons, default config).
     """
     if getattr(sys, 'frozen', False):
+        # Running as PyInstaller EXE (Temp folder)
         return sys._MEIPASS
+    # Running as script
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+def get_app_data_dir():
+    """
+    Get the path for external storage (READ/WRITE).
+    Used for Logs, Database, User Config.
+    """
+    if getattr(sys, 'frozen', False):
+        # Running as EXE: Use User's AppData folder to avoid Permission Errors
+        # Path: C:\Users\Username\AppData\Local\SecureFIM
+        app_data = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "SecureFIM")
+        
+        # Ensure the directory exists
+        if not os.path.exists(app_data):
+            try:
+                os.makedirs(app_data)
+            except OSError:
+                pass
+        return app_data
+        
+    # Running as script: Keep using project root
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

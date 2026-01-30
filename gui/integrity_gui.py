@@ -31,7 +31,12 @@ import tempfile
 import sys
 import subprocess
 import os
-
+import pystray
+from PIL import Image as PILImage
+from pystray import MenuItem as item
+from core.utils import get_app_data_dir, get_base_path
+APP_DATA = get_app_data_dir()
+LOGS_DIR = os.path.join(APP_DATA, "logs")
 try:
     # Try importing as a package (standard for EXE)
     from core import safe_mode
@@ -45,9 +50,16 @@ except ImportError:
         sys.path.append(core_dir)
     import safe_mode
 # ------------------------------------------
+# Ensure logs dir exists
+if not os.path.exists(LOGS_DIR):
+    try:
+        os.makedirs(LOGS_DIR)
+    except OSError:
+        pass
 
-REPORT_DATA_JSON = os.path.join("logs", "report_data.json")
-SEVERITY_COUNTER_FILE = os.path.join("logs", "severity_counters.json")
+
+REPORT_DATA_JSON = os.path.join(LOGS_DIR, "report_data.json")
+SEVERITY_COUNTER_FILE = os.path.join(LOGS_DIR, "severity_counters.json")
 # --- IMPORT BACKEND SAFELY ---
 # We define these globally first to prevent "NameError" if import fails
 integrity_core = None 
@@ -428,6 +440,12 @@ class ProIntegrityGUI:
         # NEW: Start Safe Mode Watcher
         self._check_safe_mode_status()  # <--- ADD THIS LINE
 
+        # Initialize Tray
+        self._setup_tray_icon()
+        
+        # Intercept "X" button
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
 
     def _update_severity_counters(self):
         """Update severity counters from disk (Source of Truth)"""
@@ -660,6 +678,81 @@ class ProIntegrityGUI:
         # Schedule the UI update on the main thread
         self.root.after(0, lambda: self._show_alert(title, message, severity))
 
+
+    # [Add inside ProIntegrityGUI class]
+
+    def _setup_tray_icon(self):
+        """Create the system tray icon with robust fallback"""
+        try:
+            # 1. Try to locate the icon file
+            icon_path = "assets/icons/app_icon.ico" 
+            
+            # Check internal PyInstaller path first
+            if hasattr(sys, '_MEIPASS'):
+                icon_path = os.path.join(sys._MEIPASS, "assets", "icons", "app_icon.ico")
+            
+            image = None
+            if os.path.exists(icon_path):
+                try:
+                    image = PILImage.open(icon_path)
+                except Exception as e:
+                    print(f"Failed to load icon file: {e}")
+
+            # 2. Fallback: If file missing or load failed, create a simple generated icon
+            if image is None:
+                # Create a 64x64 blue box with a white center
+                image = PILImage.new('RGB', (64, 64), color=(13, 110, 253)) # Professional Blue
+                
+            # Define Menu Actions
+            menu = (
+                item('Show Dashboard', self.show_window),
+                item('Run Verification', self.run_verification),
+                item('Exit', self.quit_app)
+            )
+
+            self.tray_icon = pystray.Icon("SecureFIM", image, "Secure File Integrity Monitor", menu)
+            
+        except Exception as e:
+            print(f"CRITICAL TRAY ERROR: {e}")
+            # Ensure we don't crash the app init
+            self.tray_icon = None
+
+    def show_window(self, icon=None, item=None):
+        """Restore the window from tray"""
+        self.root.after(0, self.root.deiconify)
+
+    def hide_window(self):
+        """Hide window to tray instead of closing"""
+        if not self.tray_icon:
+            # If tray failed to load, just minimize normally or quit
+            self.root.iconify() 
+            return
+
+        self.root.withdraw()
+        if not self.tray_icon.visible:
+            threading.Thread(target=self.tray_icon.run, daemon=True).start()
+
+    def quit_app(self, icon=None, item=None):
+        """Really quit the application"""
+        self.tray_icon.stop()
+        self.root.after(0, self.root.quit)
+
+    def on_closing(self):
+        """Handle window close request"""
+        try:
+            # If monitor is running, ask to minimize
+            if self.monitor_running:
+                if messagebox.askyesno("Minimize to Tray", "Monitor is running.\n\nKeep monitoring in background?\n(No = Exit completely)"):
+                    self.hide_window()
+                else:
+                    self.quit_app()
+            else:
+                self.quit_app()
+        except Exception as e:
+            # If anything fails (like tray icon error), FORCE CLOSE
+            print(f"Close error: {e}")
+            self.root.destroy()
+            sys.exit(0)
 
     def _apply_permissions(self):
         """Disable controls based on user role"""
@@ -1104,42 +1197,47 @@ class ProIntegrityGUI:
 
     # Add this method to your ProIntegrityGUI class
     def _check_safe_mode_status(self):
-        """Constantly check if backend triggered Safe Mode"""
+        """Constantly check if backend triggered Safe Mode using File Flag"""
         try:
-            # Check if Safe Mode is active (backend state or file flag)
-            is_safe = safe_mode.is_safe_mode_enabled() or os.path.exists("lockdown.flag")
+            # 1. Check for physical lockdown file (Source of Truth)
+            # This works even if memory variables are out of sync
+            lockdown_file = "lockdown.flag"
+            is_locked = os.path.exists(lockdown_file)
             
-            if is_safe:
-                # 1. Update Status visually
+            # If file doesn't exist, check backend memory just in case
+            if not is_locked and safe_mode:
+                is_locked = safe_mode.is_safe_mode_enabled()
+
+            if is_locked:
+                # 1. Update Status visually (Force Red)
                 self.status_var.set("⛔ SAFE MODE ACTIVE")
                 self.status_label.configure(foreground="#dc3545") # Red text
                 
                 # 2. Disable Critical Buttons
-                # We iterate through the buttons we created
                 if hasattr(self, 'action_frame'):
                     for child in self.action_frame.winfo_children():
                         if isinstance(child, ttk.Button):
-                            text = str(child.cget('text'))
-                            # Disable Start, Verify, Settings
-                            if "Start" in text or "Verify" in text or "Settings" in text:
-                                child.configure(state='disabled')
-                            # Enable a "Unlock" button if you want (or keep it locked)
+                            child.configure(state='disabled')
                 
-                # 3. Force the monitor to stop (UI side) if it thinks it's running
+                # 3. Force Stop Monitor (UI side)
                 if self.monitor_running:
                     self.monitor_running = False
-                    self._append_log("UI: Recognized Safe Mode - Controls Locked")
-                    self._show_alert("SYSTEM LOCKDOWN", "Safe Mode detected. Controls disabled.", "critical")
+                    # Stop the backend if we have a handle to it
+                    if self.monitor:
+                        self.monitor.stop_monitoring()
+                    
+                    self._append_log("UI: Recognized Safe Mode - SYSTEM HALTED")
+                    self._show_alert("SYSTEM LOCKDOWN", "Safe Mode detected. Monitoring frozen.", "critical")
 
             # If NOT safe mode, ensure buttons are enabled (unless stopped normally)
-            elif not is_safe and not self.monitor_running:
-                 if hasattr(self, 'action_frame'):
+            elif not is_locked and not self.monitor_running:
+                 # Only re-enable if user is Admin (check your role logic)
+                 if self.user_role == 'admin' and hasattr(self, 'action_frame'):
                     for child in self.action_frame.winfo_children():
-                        if isinstance(child, ttk.Button):
-                            text = str(child.cget('text'))
-                            # Re-enable Start, Verify, Settings
-                            if "Start" in text or "Verify" in text or "Settings" in text:
-                                child.configure(state='normal')
+                        # Don't enable everything blindly, check logic
+                        text = str(child.cget('text'))
+                        if "Start" in text or "Verify" in text or "Settings" in text:
+                            child.configure(state='normal')
 
         except Exception as e:
             print(f"Safe Mode Check Error: {e}")
@@ -2218,12 +2316,24 @@ class ProIntegrityGUI:
                 messagebox.showerror("Error", "verify_interval must be integer seconds")
                 return
             new_cfg["webhook_url"] = web_var.get() or None
+            
             try:
-                with open("config.json", "w", encoding="utf-8") as f:
+                # --- FIX: Save to AppData/config/config.json ---
+                app_data = get_app_data_dir()
+                config_dir = os.path.join(app_data, "config")
+                if not os.path.exists(config_dir):
+                    os.makedirs(config_dir)
+                    
+                target_file = os.path.join(config_dir, "config.json")
+                
+                with open(target_file, "w", encoding="utf-8") as f:
                     json.dump(new_cfg, f, indent=4)
+                
+                # Reload config
                 if load_config:
-                    load_config("config.json")
-                messagebox.showinfo("Settings", "Security configuration saved to config.json")
+                    load_config(target_file)
+                    
+                messagebox.showinfo("Settings", f"Configuration saved to:\n{target_file}")
                 self._show_alert("Settings Updated", "Security configuration has been updated.", "info")
                 win.destroy()
             except Exception as ex:

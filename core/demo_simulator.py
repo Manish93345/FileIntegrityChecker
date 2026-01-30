@@ -62,6 +62,11 @@ class DemoSimulator:
         # 5. SAFE MODE TRIGGER
         if not self.running: return
         self._trigger_safe_mode()
+        
+        # --- FIX: STOP IMMEDIATELY ---
+        self.running = False 
+        # Wait a moment to ensure backend processes the lock
+        time.sleep(0.5)
 
     def _trigger_step(self, severity, event_type, file_path, message):
         """Log event, update counters, and trigger GUI alert"""
