@@ -14,7 +14,9 @@ import hashlib  # <--- CRITICAL FIX: Added missing import
 import hmac     # <--- CRITICAL FIX: Added missing import
 from datetime import datetime
 import traceback
+from core.utils import get_app_data_dir
 
+APP_DATA = get_app_data_dir()
 # Safe Mode state
 SAFE_MODE_ACTIVE = False
 SAFE_MODE_REASON = ""
@@ -22,9 +24,10 @@ SAFE_MODE_START_TIME = None
 SAFE_MODE_LOCK = threading.Lock()
 
 # State file
-SAFE_MODE_STATE_FILE = "logs/safe_mode_state.json"
-LOG_FILE = "logs/integrity_log.txt"
-LOG_SIG_FILE = "logs/integrity_log.sig"
+SAFE_MODE_STATE_FILE = os.path.join(APP_DATA, "logs", "safe_mode_state.json")
+LOG_FILE = os.path.join(APP_DATA, "logs", "integrity_log.txt")
+LOG_SIG_FILE = os.path.join(APP_DATA, "logs", "integrity_log.sig")
+LOCKDOWN_FLAG = os.path.join(APP_DATA, "lockdown.flag") # The critical flag
 
 def _log_direct(message, severity="INFO"):
     """
@@ -293,7 +296,7 @@ class SafeModeManager:
                 'message': "SYSTEM LOCKED - Safe Mode Active"
             }
             
-            with open("lockdown.flag", 'w') as f:
+            with open(LOCKDOWN_FLAG, 'w') as f:
                 json.dump(lockdown_data, f, indent=2)
             
             # Also create a simple .lockdown file for quick detection
@@ -306,10 +309,8 @@ class SafeModeManager:
     def _remove_lockdown_file(self):
         """Remove lockdown flag files"""
         try:
-            if os.path.exists("lockdown.flag"):
-                os.remove("lockdown.flag")
-            if os.path.exists(".lockdown"):
-                os.remove(".lockdown")
+            if os.path.exists(LOCKDOWN_FLAG):
+                os.remove(LOCKDOWN_FLAG)
         except:
             pass
 

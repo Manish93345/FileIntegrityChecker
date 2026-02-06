@@ -1,6 +1,6 @@
 {
-  "active": true,
-  "reason": "TAMPERED_SIGNATURE: Signature mismatch: D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\logs\\integrity_log.txt",
-  "start_time": "2026-01-27T14:18:21.640947",
-  "last_updated": "2026-01-27T14:18:21.641704"
+  "active": false,
+  "reason": "",
+  "start_time": null,
+  "last_updated": "2026-02-03T14:50:52.745508"
 }

@@ -1,10 +1,7 @@
-2026-01-27 14:17:51 - [INFO] Log reset. New session started.
-2026-01-27 14:18:08 - [🟢 INFO] INFO: No hash signature found; created new signature.
-2026-01-27 14:18:19 - [🟢 INFO] SAFE MODE DISABLED: Admin Override via GUI
-2026-01-27 14:18:21 - [🟢 INFO] PERIODIC_VERIFICATION_START
-2026-01-27 14:18:21 - [🔴 CRITICAL] AUTO_RESPONSE_CRITICAL: Signature mismatch: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\integrity_log.txt - ACTIVATING SAFE MODE
-2026-01-27 14:18:21 - [🔴 CRITICAL] 🚨 SAFE MODE ACTIVATED: TAMPERED_SIGNATURE: Signature mismatch: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\integrity_log.txt
-2026-01-27 14:18:21 - [🟢 INFO] Incident snapshot created: incident_2026-01-27_14-18-21_TAMPERED_SIGNATURE.txt
-2026-01-27 14:18:21 - [🟢 INFO] Reports generated: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\report_summary.txt, logs\detailed_reports.txt
-2026-01-27 14:18:26 - [🟢 INFO] PERIODIC_VERIFICATION_START
-2026-01-27 14:18:26 - [🟢 INFO] Reports generated: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\report_summary.txt, logs\detailed_reports.txt
+2026-02-03 14:50:42 - [🟢 INFO] Log reset. New session started.
+2026-02-03 14:50:52 - [🟢 INFO] SAFE MODE DISABLED: Admin Override via GUI
+2026-02-03 14:51:28 - [🟢 INFO] INFO: No hash signature found; created new signature.
+2026-02-03 14:51:28 - [🟢 INFO] Startup: records signature OK
+2026-02-03 14:51:28 - [🟢 INFO] Startup: log signature OK
+2026-02-03 14:51:28 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/Photos/New folder
+2026-02-03 14:51:35 - [🟢 INFO] MANUAL_VERIFICATION_STARTED
