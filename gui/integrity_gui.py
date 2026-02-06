@@ -3,7 +3,7 @@
 integrity_gui.py — Upgraded GUI for FileIntegrityChecker
 Professional Security Monitor with Premium UI Design
 """
-
+import random 
 import tkinter as tk
 from tkinter import ttk, filedialog, scrolledtext, messagebox, simpledialog
 import threading
@@ -19,6 +19,7 @@ import pystray
 from PIL import Image as PILImage
 from pystray import MenuItem as item
 from core.utils import get_app_data_dir, get_base_path
+
 
 APP_DATA = get_app_data_dir()
 LOGS_DIR = os.path.join(APP_DATA, "logs")
@@ -79,10 +80,30 @@ except ImportError:
         print(f"⚠️ Backend import failed: {e}")
 
 # Import Auth for password changing
+auth = None
 try:
-    from auth_manager import auth
-except ImportError:
-    auth = None
+    # Try multiple possible locations for auth_manager
+    try:
+        from auth_manager import auth
+    except ImportError:
+        # Try core.auth_manager if structured differently
+        from core.auth_manager import auth
+except ImportError as e:
+    print(f"⚠️ Auth Manager import failed: {e}")
+    # Try to find auth_manager in the parent directory
+    try:
+        import sys
+        import os
+        # Add parent directory to path
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        parent_dir = os.path.dirname(current_dir)
+        if parent_dir not in sys.path:
+            sys.path.append(parent_dir)
+        from auth_manager import auth
+        print("✅ Auth Manager loaded from parent directory")
+    except ImportError:
+        print("❌ Auth Manager not found in any location")
+        auth = None
 
 from pathlib import Path
 import re
@@ -202,6 +223,41 @@ except ImportError:
 
 
 class ProIntegrityGUI:
+    class ToolTip:
+        """Simple tooltip for widgets"""
+        def __init__(self, widget, text):
+            self.widget = widget
+            self.text = text
+            self.tooltip = None
+            self.widget.bind("<Enter>", self.show)
+            self.widget.bind("<Leave>", self.hide)
+        
+        def show(self, event=None):
+            """Show tooltip on hover"""
+            if self.tooltip or not self.text:
+                return
+            # Calculate position
+            x, y, _, _ = self.widget.bbox("insert")
+            x += self.widget.winfo_rootx() + 25
+            y += self.widget.winfo_rooty() + 25
+            
+            # Create tooltip window
+            self.tooltip = tk.Toplevel(self.widget)
+            self.tooltip.wm_overrideredirect(True)
+            self.tooltip.wm_geometry(f"+{x}+{y}")
+            
+            # Create label
+            label = tk.Label(self.tooltip, text=self.text, 
+                        background="#ffffe0", relief="solid", borderwidth=1,
+                        font=("Segoe UI", 9))
+            label.pack()
+            
+        def hide(self, event=None):
+            """Hide tooltip"""
+            if self.tooltip:
+                self.tooltip.destroy()
+                self.tooltip = None
+                
     def __init__(self, root, user_role='admin', username='admin'):
         self.root = root
         self.user_role = user_role
@@ -225,7 +281,7 @@ class ProIntegrityGUI:
         self.alert_visible = False
         self.alert_hide_after_id = None
         
-        # Report tracking
+        # Report tracking - ADDED FROM BACKUP
         self.report_data = {
             'total': 0,
             'created': [],
@@ -237,7 +293,7 @@ class ProIntegrityGUI:
             'last_update': None
         }
         
-        # Chart configuration
+        # Chart configuration - ADDED FROM BACKUP
         self.chart_colors = {
             'created': '#10b981',  # Green
             'modified': '#f59e0b',  # Amber
@@ -245,7 +301,7 @@ class ProIntegrityGUI:
             'total': '#3b82f6'      # Blue
         }
 
-        # Severity counters
+        # Severity counters - ADDED FROM BACKUP
         self.severity_counters = {
             'CRITICAL': 0,
             'HIGH': 0,
@@ -253,7 +309,7 @@ class ProIntegrityGUI:
             'INFO': 0
         }
 
-        # UI variables for severity counters
+        # UI variables for severity counters - ADDED FROM BACKUP
         self.critical_var = tk.StringVar(value="0")
         self.high_var = tk.StringVar(value="0")
         self.medium_var = tk.StringVar(value="0")
@@ -278,7 +334,7 @@ class ProIntegrityGUI:
         self.monitor_thread = None
         self.monitor_running = False
 
-        # UI variables
+        # UI variables - ADDED MISSING VARIABLES FROM BACKUP
         self.watch_folder_var = tk.StringVar(value=os.path.abspath(CONFIG.get("watch_folder", os.getcwd())))
         self.status_var = tk.StringVar(value="🔴 Stopped")
         self.total_files_var = tk.StringVar(value="0")
@@ -289,7 +345,7 @@ class ProIntegrityGUI:
         self.tamper_logs_var = tk.StringVar(value="UNKNOWN")
         self.webhook_var = tk.StringVar(value=str(CONFIG.get("webhook_url", "")))
 
-        # Initialize file tracking
+        # Initialize file tracking - ADDED FROM BACKUP
         self.file_tracking = {
             'last_total': 0,
             'session_created': 0,
@@ -309,10 +365,12 @@ class ProIntegrityGUI:
         # Create alert panel (initially hidden)
         self._create_alert_panel()
 
-        # Start background update loops
+        # Start background update loops - ADDED FROM BACKUP
         self._update_dashboard()
         self._update_severity_counters()
         self._tail_log_loop()
+
+        
 
         # Start Safe Mode Watcher
         self._check_safe_mode_status()
@@ -400,6 +458,8 @@ class ProIntegrityGUI:
         header_frame = tk.Frame(main_container, bg=self.colors['header_bg'], height=80)
         header_frame.pack(fill=tk.X, pady=(0, 20))
         header_frame.pack_propagate(False)
+        
+        # Menu Button
         self.menu_btn = tk.Button(header_frame, text="☰", 
                          command=self.toggle_menu,
                          font=('Segoe UI', 16), 
@@ -448,6 +508,7 @@ class ProIntegrityGUI:
                                   fg=self.colors['text_primary'], bd=0, padx=10,
                                   cursor="hand2")
         self.theme_btn.pack(side=tk.LEFT, padx=2)
+        self.ToolTip(self.theme_btn, "Toggle Theme")
         
         # Admin controls
         if self.user_role == 'admin':
@@ -457,6 +518,7 @@ class ProIntegrityGUI:
                                     fg=self.colors['text_primary'], bd=0, padx=10,
                                     cursor="hand2")
             self.pass_btn.pack(side=tk.LEFT, padx=2)
+            self.ToolTip(self.pass_btn, "Change Password")
             
             self.unlock_btn = tk.Button(btn_frame, text="🔓", 
                                       command=self.disable_lockdown,
@@ -464,6 +526,7 @@ class ProIntegrityGUI:
                                       fg=self.colors['text_primary'], bd=0, padx=10,
                                       cursor="hand2")
             self.unlock_btn.pack(side=tk.LEFT, padx=2)
+            self.ToolTip(self.unlock_btn, "Disable Lockdown")
         
         # Logout button
         self.logout_btn = tk.Button(btn_frame, text="🚪", 
@@ -472,12 +535,13 @@ class ProIntegrityGUI:
                                   fg=self.colors['text_primary'], bd=0, padx=10,
                                   cursor="hand2")
         self.logout_btn.pack(side=tk.LEFT, padx=2)
+        self.ToolTip(self.logout_btn, "Logout")
 
         # Main Content Area
         content_frame = tk.Frame(main_container, bg=self.colors['bg'])
         content_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Left Panel - Controls and Status
+        # ===== LEFT PANEL - Controls and Status =====
         left_panel = tk.Frame(content_frame, bg=self.colors['bg'], width=400)
         left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=False)
         left_panel.pack_propagate(False)
@@ -532,7 +596,7 @@ class ProIntegrityGUI:
         tk.Label(action_card, text="🎮 Control Panel", font=('Segoe UI', 12, 'bold'),
                 bg=self.colors['card_bg'], fg=self.colors['text_primary']).pack(anchor='w', padx=20, pady=(15, 10))
         
-        # Create button grid
+        # Create button grid - IMPORTED FROM BACKUP
         buttons = [
             ("▶ Start Monitor", self.start_monitor, self.colors['accent_success']),
             ("⏹ Stop Monitor", self.stop_monitor, self.colors['accent_danger']),
@@ -551,7 +615,7 @@ class ProIntegrityGUI:
             btn.bind("<Enter>", lambda e, b=btn: b.configure(bg=self._lighten_color(color)))
             btn.bind("<Leave>", lambda e, b=btn, c=color: b.configure(bg=c))
 
-        # Security Status Card
+        # Security Status Card - IMPORTED FROM BACKUP
         security_card = tk.Frame(left_panel, bg=self.colors['card_bg'],
                                 relief='flat', bd=1, highlightbackground=self.colors['card_border'],
                                 highlightthickness=1)
@@ -563,7 +627,7 @@ class ProIntegrityGUI:
         security_content = tk.Frame(security_card, bg=self.colors['card_bg'])
         security_content.pack(fill=tk.X, padx=20, pady=(0, 15))
         
-        # Security indicators
+        # Security indicators - IMPORTED FROM BACKUP
         indicators = [
             ("Hash Records:", self.tamper_records_var),
             ("Log Files:", self.tamper_logs_var),
@@ -586,15 +650,17 @@ class ProIntegrityGUI:
             else:
                 self._log_indicator = indicator
 
-        # Right Panel - Dashboard and Logs
+        # ===== RIGHT PANEL - Dashboard and Logs =====
         right_panel = tk.Frame(content_frame, bg=self.colors['bg'])
         right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(20, 0))
 
-        # Dashboard Cards Row
+        # Dashboard Cards Row - IMPORTED FROM BACKUP
         dashboard_frame = tk.Frame(right_panel, bg=self.colors['bg'])
-        dashboard_frame.pack(fill=tk.X, pady=(0, 20))
+        dashboard_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=False, pady=(0, 20))
+        dashboard_frame.pack_propagate(False)
+        dashboard_frame.configure(height=320)
 
-        # File Statistics Card
+        # File Statistics Card - IMPORTED FROM BACKUP
         stats_card = tk.Frame(dashboard_frame, bg=self.colors['card_bg'], width=300,
                              relief='flat', bd=1, highlightbackground=self.colors['card_border'],
                              highlightthickness=1)
@@ -625,7 +691,7 @@ class ProIntegrityGUI:
                                   bg=color, fg='white', padx=15, pady=6, relief='flat')
             value_label.pack(side=tk.RIGHT)
 
-        # Severity Dashboard Card
+        # Severity Dashboard Card - IMPORTED FROM BACKUP
         severity_card = tk.Frame(dashboard_frame, bg=self.colors['card_bg'], width=300,
                                 relief='flat', bd=1, highlightbackground=self.colors['card_border'],
                                 highlightthickness=1)
@@ -656,7 +722,7 @@ class ProIntegrityGUI:
                                   bg=color, fg='white', padx=15, pady=6, relief='flat')
             value_label.pack(side=tk.RIGHT)
 
-        # Report Tools Card
+        # Report Tools Card - IMPORTED FROM BACKUP
         report_card = tk.Frame(dashboard_frame, bg=self.colors['card_bg'], width=300,
                               relief='flat', bd=1, highlightbackground=self.colors['card_border'],
                               highlightthickness=1)
@@ -678,7 +744,7 @@ class ProIntegrityGUI:
             report_buttons.append(("📈 Generate Chart", self.generate_chart))
         
         report_buttons.append(("📊 View Reports", self.view_report))
-        report_buttons.append(("📁 Open Folder", self.open_reports_folder))
+        # report_buttons.append(("📁 Open Folder", self.open_reports_folder))
 
         for text, command in report_buttons:
             btn = tk.Button(report_content, text=text, command=command,
@@ -693,7 +759,9 @@ class ProIntegrityGUI:
         logs_card = tk.Frame(right_panel, bg=self.colors['card_bg'],
                             relief='flat', bd=1, highlightbackground=self.colors['card_border'],
                             highlightthickness=1)
-        logs_card.pack(fill=tk.BOTH, expand=True)
+        logs_card.pack(side=tk.BOTTOM, fill=tk.X)
+        logs_card.configure(height=300)
+        logs_card.pack_propagate(False)
         
         # Logs header with controls
         logs_header = tk.Frame(logs_card, bg=self.colors['card_bg'])
@@ -733,206 +801,38 @@ class ProIntegrityGUI:
                               bg=self.colors['bg'], fg=self.colors['text_muted'])
         footer_label.pack(pady=10)
 
-    def _clear_logs(self):
-        """Clear the log display"""
-        self.log_box.configure(state="normal")
-        self.log_box.delete("1.0", tk.END)
-        self.log_box.configure(state="disabled")
-        self._append_log("Log display cleared")
-
-    def toggle_theme(self):
-        """Toggle between light and dark themes"""
-        self.dark_mode = not self.dark_mode
-        self.colors = DARK_THEME if self.dark_mode else LIGHT_THEME
-        
-        # Update theme button
-        self.theme_btn.configure(text="🌙" if self.dark_mode else "☀️")
-        
-        # Reconfigure styles
-        self._configure_styles()
-        
-        # Update all widget colors
-        self._apply_theme()
-
-    def _apply_theme(self):
-        """Apply current theme to all widgets"""
-        # Update root window
-        self.root.configure(bg=self.colors['bg'])
-        
-        # Update all widgets with force refresh
-        self._update_widget_colors(self.root)
-        
-        # Force update button states (fix hover colors)
-        self._update_button_states()
-        
-        # Update menu button colors
-        if hasattr(self, 'menu_btn'):
-            self.menu_btn.configure(bg=self.colors['header_bg'], 
-                                fg=self.colors['text_primary'])
-        
-        # Update side menu colors if it exists
-        if hasattr(self, 'side_menu'):
-            self.side_menu.configure(bg=self.colors['sidebar_bg'])
-            for child in self.side_menu.winfo_children():
-                if isinstance(child, tk.Button):
-                    if "Demo" in child.cget('text'):
-                        child.configure(bg='#8b5cf6' if self.dark_mode else '#8b5cf6')
-                    elif "Archive" in child.cget('text'):
-                        child.configure(bg='#ef4444' if self.dark_mode else '#ef4444')
-                    elif "Close" in child.cget('text'):
-                        child.configure(bg=self.colors['sidebar_bg'], 
-                                    fg=self.colors['text_secondary'])
-
-    def _update_button_states(self):
-        """Force button colors to update by toggling state"""
-        # Get all buttons and force color update
-        def update_btn_colors(widget):
-            for child in widget.winfo_children():
-                if isinstance(child, tk.Button):
-                    # Skip theme and special buttons
-                    if child not in [self.theme_btn, self.menu_btn, self.pass_btn, 
-                                self.unlock_btn, self.logout_btn]:
-                        # Force color update by simulating state change
-                        current_bg = child.cget('bg')
-                        current_fg = child.cget('fg')
-                        
-                        # Set to new theme colors
-                        if "Start" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_success'])
-                        elif "Stop" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_danger'])
-                        elif "Verify" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_primary'])
-                        elif "Check" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_secondary'])
-                        elif "Settings" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_info'])
-                        elif "Reset" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_warning'])
-                        else:
-                            # For other buttons, use button_bg
-                            child.configure(bg=self.colors['button_bg'], 
-                                        fg=self.colors['text_primary'])
-                        
-                        # Re-bind hover events
-                        btn_text = child.cget('text')
-                        if "Start" in btn_text:
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self._lighten_color(self.colors['accent_success'])))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['accent_success']))
-                        elif "Stop" in btn_text:
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self._lighten_color(self.colors['accent_danger'])))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['accent_danger']))
-                        elif "Verify" in btn_text:
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self._lighten_color(self.colors['accent_primary'])))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['accent_primary']))
-                        elif "Check" in btn_text:
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self._lighten_color(self.colors['accent_secondary'])))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['accent_secondary']))
-                        elif "Settings" in btn_text:
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self._lighten_color(self.colors['accent_info'])))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['accent_info']))
-                        elif "Reset" in btn_text:
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self._lighten_color(self.colors['accent_warning'])))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['accent_warning']))
-                        else:
-                            # For report buttons
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self.colors['button_hover']))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['button_bg']))
-                
-                # Recursively update children
-                update_btn_colors(child)
-        
-        update_btn_colors(self.root)
-
-    def _update_widget_colors(self, widget):
-        """Recursively update widget colors"""
+    # ===== MISSING METHODS FROM BACKUP =====
+    
+    def _update_dashboard(self):
+        """Update dashboard with current statistics - IMPORTED FROM BACKUP"""
         try:
-            if isinstance(widget, tk.Frame):
-                if 'card' in str(widget).lower():
-                    widget.configure(bg=self.colors['card_bg'],
-                                   highlightbackground=self.colors['card_border'])
-                elif 'header' in str(widget).lower():
-                    widget.configure(bg=self.colors['header_bg'])
-                else:
-                    widget.configure(bg=self.colors['bg'])
+            # Update total files
+            current_total = 0
+            if self.monitor and hasattr(self.monitor, 'records'):
+                records = self.monitor.records
+                current_total = len(records)
+                self.total_files_var.set(str(current_total))
             
-            elif isinstance(widget, tk.Label):
-                if 'footer' in str(widget).lower():
-                    widget.configure(bg=self.colors['bg'], fg=self.colors['text_muted'])
-                elif 'card' in str(widget).lower() or isinstance(widget.master, tk.Frame) and 'card' in str(widget.master).lower():
-                    widget.configure(bg=self.colors['card_bg'], fg=self.colors['text_primary'])
-                else:
-                    widget.configure(bg=self.colors['bg'], fg=self.colors['text_primary'])
-            
-            elif isinstance(widget, tk.Button):
-                if widget != self.theme_btn:
-                    widget.configure(bg=self.colors['button_bg'], fg=self.colors['text_primary'])
-            
-            elif isinstance(widget, scrolledtext.ScrolledText):
-                widget.configure(bg=self.colors['card_bg'], fg=self.colors['text_primary'],
-                               insertbackground=self.colors['text_primary'])
-        except:
-            pass
-        
-        # Update children
-        for child in widget.winfo_children():
-            self._update_widget_colors(child)
+            # Update session counts
+            self.created_var.set(str(self.file_tracking['session_created']))
+            self.modified_var.set(str(self.file_tracking['session_modified']))
+            self.deleted_var.set(str(self.file_tracking['session_deleted']))
 
-    def _apply_permissions(self):
-        """Disable controls based on user role"""
-        if self.user_role == 'admin':
-            return
-            
-        # Role is 'user' (Read-Only)
-        self._append_log(f"Logged in as restricted viewer: {self.username}")
-        self.status_var.set("🔒 Read-Only Mode")
-        
-        # Disable Folder Entry
-        self.folder_entry.configure(state='disabled')
-        
-        # Define Restricted Actions
-        restricted_actions = [
-            "Start Monitor", 
-            "Stop Monitor", 
-            "Settings", 
-            "Verify Now",
-            "Open Folder",
-            "Browse"
-        ]
-        
-        # Recursively find and disable buttons
-        self._disable_recursive(self.root, restricted_actions)
+        except Exception as e:
+            print(f"Dashboard update error: {e}")
+            self.total_files_var.set("0")
+            self.created_var.set("0")
+            self.modified_var.set("0")
+            self.deleted_var.set("0")
 
-    def _disable_recursive(self, widget, restricted_list):
-        """Helper to find buttons recursively"""
-        for child in widget.winfo_children():
-            if isinstance(child, (tk.Button, ttk.Button)):
-                try:
-                    btn_text = child.cget('text')
-                    for action in restricted_list:
-                        if action in btn_text:
-                            child.configure(state='disabled')
-                except:
-                    pass
-            
-            self._disable_recursive(child, restricted_list)
+        # Update tamper indicators
+        self._update_tamper_indicators()
+
+        # Schedule next update
+        self.root.after(3000, self._update_dashboard)
 
     def _update_severity_counters(self):
-        """Update severity counters from disk"""
+        """Update severity counters from disk - IMPORTED FROM BACKUP"""
         try:
             counter_path = SEVERITY_COUNTER_FILE
             if integrity_core and hasattr(integrity_core, 'SEVERITY_COUNTER_FILE'):
@@ -959,416 +859,93 @@ class ProIntegrityGUI:
         # Schedule next update
         self.root.after(500, self._update_severity_counters)
 
-    def _setup_tray_icon(self):
-        """Create the system tray icon with robust fallback"""
-        try:
-            # Try PyInstaller internal path
-            if hasattr(sys, '_MEIPASS'):
-                icon_path = os.path.join(sys._MEIPASS, "assets", "app_icon.ico")
-            else:
-                # Try Local Development path
-                icon_path = os.path.join(os.path.abspath("assets"), "app_icon.ico")
-
-            # Fallback: Check if it's in an 'icons' subdirectory
-            if not os.path.exists(icon_path):
-                icon_path = os.path.join(os.path.dirname(icon_path), "icons", "app_icon.ico")
-
-            image = None
-            if os.path.exists(icon_path):
-                try:
-                    image = PILImage.open(icon_path)
-                except Exception as e:
-                    print(f"Failed to load icon: {e}")
-
-            # Fallback: If file missing or load failed, create a simple generated icon
-            if image is None:
-                # Create a 64x64 blue box with a white center
-                image = PILImage.new('RGB', (64, 64), color=(13, 110, 253))
-                
-            # Define Menu Actions
-            menu = (
-                item('Show Dashboard', self.show_window),
-                item('Run Verification', self.run_verification),
-                item('Exit', self.quit_app)
-            )
-
-            self.tray_icon = pystray.Icon("SecureFIM", image, "Secure File Integrity Monitor", menu)
-            
-        except Exception as e:
-            print(f"CRITICAL TRAY ERROR: {e}")
-            self.tray_icon = None
-
-    def show_window(self, icon=None, item=None):
-        """Restore the window from tray"""
-        self.root.after(0, self.root.deiconify)
-
-    def hide_window(self):
-        """Hide window to tray instead of closing"""
-        if not self.tray_icon:
-            self.root.iconify()
-            return
-
-        self.root.withdraw()
-        if not self.tray_icon.visible:
-            threading.Thread(target=self.tray_icon.run, daemon=True).start()
-
-    def quit_app(self, icon=None, item=None):
-        """Really quit the application"""
-        if hasattr(self, 'tray_icon'):
-            self.tray_icon.stop()
-        self.root.after(0, self.root.quit)
-
-    def on_closing(self):
-        """Handle window close request"""
-        try:
-            if self.monitor_running:
-                if messagebox.askyesno("Minimize to Tray", "Monitor is running.\n\nKeep monitoring in background?\n(No = Exit completely)"):
-                    self.hide_window()
-                else:
-                    self.quit_app()
-            else:
-                self.quit_app()
-        except Exception as e:
-            print(f"Close error: {e}")
-            self.root.destroy()
-            sys.exit(0)
-
-    def _check_safe_mode_status(self):
-        """Check if backend triggered Safe Mode"""
-        try:
-            from core.utils import get_app_data_dir
-            app_data = get_app_data_dir()
-            lockdown_path = os.path.join(app_data, "lockdown.flag")
-            is_safe = os.path.exists(lockdown_path)
-            
-            if not is_safe and safe_mode:
-                is_safe = safe_mode.is_safe_mode_enabled()
-
-            if is_safe:
-                self.status_var.set("⛔ SAFE MODE ACTIVE")
-                self.status_label.configure(foreground=self.colors['accent_danger'])
-                
-                # Disable buttons
-                for child in self.root.winfo_children():
-                    if isinstance(child, tk.Button) and child.cget('text') in ["▶ Start Monitor", "🔍 Verify Now"]:
-                        child.configure(state='disabled')
-                
-                if self.monitor_running:
-                    self.monitor_running = False
-                    if self.monitor:
-                        self.monitor.stop_monitoring()
-                    
-                    self._append_log("UI: Recognized Safe Mode - SYSTEM HALTED")
-                    self._show_alert("SYSTEM LOCKDOWN", "Safe Mode detected. Monitoring frozen.", "critical")
-
-        except Exception as e:
-            print(f"Safe Mode Check Error: {e}")
-        
-        self.root.after(1000, self._check_safe_mode_status)
-
-    # ===== FIXED ALERT PANEL METHODS =====
-    def _create_alert_panel(self):
-        """Create alert panel that won't overlap with main UI"""
-        # Destroy existing panel if it exists
-        if hasattr(self, '_alert_frame') and self._alert_frame:
+    def _update_tamper_indicators(self):
+        """Update tamper indicator colors - IMPORTED FROM BACKUP"""
+        if hasattr(self, '_rec_indicator'):
             try:
-                self._alert_frame.destroy()
+                rec_ok = self.tamper_records_var.get() == "OK"
+                log_ok = self.tamper_logs_var.get() == "OK"
+                
+                rec_bg = (self.colors['indicator_success'] if rec_ok else 
+                         self.colors['indicator_danger'] if self.tamper_records_var.get() == "TAMPERED" else 
+                         self.colors['indicator_info'])
+                log_bg = (self.colors['indicator_success'] if log_ok else 
+                         self.colors['indicator_danger'] if self.tamper_logs_var.get() == "TAMPERED" else 
+                         self.colors['indicator_info'])
+                
+                self._rec_indicator.configure(bg=rec_bg, fg='white')
+                self._log_indicator.configure(bg=log_bg, fg='white')
             except:
                 pass
-        
-        # Calculate position - place it in the top-right corner above main content
-        screen_width = self.root.winfo_screenwidth()
-        screen_height = self.root.winfo_screenheight()
-        
-        # Position at top-right corner with margin
-        start_x = screen_width
-        start_y = 100  # Below the header
-        
-        # Create alert frame as a top-level window to avoid z-index issues
-        self._alert_frame = tk.Toplevel(self.root)
-        self._alert_frame.title("Security Alerts")
-        self._alert_frame.geometry(f"{self.ALERT_PANEL_WIDTH}x{self.ALERT_PANEL_HEIGHT}+{start_x}+{start_y}")
-        self._alert_frame.overrideredirect(True)  # Remove window decorations
-        self._alert_frame.attributes('-topmost', True)  # Keep on top
-        self._alert_frame.configure(bg=self.colors['card_bg'], bd=2, relief='solid')
-        
-        # Make sure it doesn't interfere with main window
-        self._alert_frame.transient(self.root)
-        
-        # Header
-        header = tk.Frame(self._alert_frame, bg=self.colors['accent_primary'], height=40)
-        header.pack(fill=tk.X)
-        
-        self._alert_title = tk.Label(header, text="🚨 SECURITY ALERTS", 
-                                    bg=self.colors['accent_primary'], fg='white', 
-                                    font=('Segoe UI', 11, 'bold'))
-        self._alert_title.pack(side=tk.LEFT, padx=15, pady=8)
 
-        close_btn = tk.Button(header, text="✕", command=self._hide_alert, 
-                             bg=self.colors['accent_primary'], fg='white', bd=0,
-                             font=('Segoe UI', 12, 'bold'), cursor="hand2")
-        close_btn.pack(side=tk.RIGHT, padx=15, pady=8)
-        close_btn.bind("<Enter>", lambda e: close_btn.configure(fg='#ff6b6b'))
-        close_btn.bind("<Leave>", lambda e: close_btn.configure(fg='white'))
-
-        # Content area
-        content = tk.Frame(self._alert_frame, bg=self.colors['card_bg'])
-        content.pack(fill=tk.BOTH, expand=True)
-
-        self._alert_msg = scrolledtext.ScrolledText(content, wrap=tk.WORD, state="disabled",
-                                                   bg=self.colors['card_bg'],
-                                                   fg=self.colors['text_primary'],
-                                                   height=10, relief='flat',
-                                                   font=('Segoe UI', 9))
-        self._alert_msg.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-
-        # Footer with counter
-        footer = tk.Frame(content, bg=self.colors['card_bg'], height=30)
-        footer.pack(fill=tk.X, side=tk.BOTTOM)
+    def reset_session_counts(self):
+        """Reset session counts - IMPORTED FROM BACKUP"""
+        self.file_tracking['session_created'] = 0
+        self.file_tracking['session_modified'] = 0
+        self.file_tracking['session_deleted'] = 0
         
-        self._alert_meta = tk.Label(footer, text="No active alerts", 
-                                   bg=self.colors['card_bg'], fg=self.colors['text_secondary'],
-                                   font=('Segoe UI', 9))
-        self._alert_meta.pack(side=tk.LEFT, padx=10, pady=5)
-        
-        self._alert_counter = tk.Label(footer, text="Alerts: 0", 
-                                      bg=self.colors['card_bg'], fg=self.colors['text_secondary'],
-                                      font=('Segoe UI', 9, 'bold'))
-        self._alert_counter.pack(side=tk.RIGHT, padx=10, pady=5)
+        self.created_var.set("0")
+        self.modified_var.set("0")
+        self.deleted_var.set("0")
+        self._append_log("Session file counters reset")
 
-        # Internal state
-        self.alert_count = 0
-        self.alert_visible = False
-        
-        # Initially hide the window
-        self._alert_frame.withdraw()
+    def _track_file_changes(self, data):
+        """Track file changes - IMPORTED FROM BACKUP"""
+        if data:
+            created_count = len(data.get('created', []))
+            modified_count = len(data.get('modified', []))
+            deleted_count = len(data.get('deleted', []))
+            
+            self.file_tracking['session_created'] += created_count
+            self.file_tracking['session_modified'] += modified_count
+            self.file_tracking['session_deleted'] += deleted_count
+            
+            self.created_var.set(str(self.file_tracking['session_created']))
+            self.modified_var.set(str(self.file_tracking['session_modified']))
+            self.deleted_var.set(str(self.file_tracking['session_deleted']))
+            
+            # Show alerts for changes
+            if created_count > 0:
+                self._show_alert(f"{created_count} New Files", 
+                               f"{created_count} new file(s) detected.", 
+                               "created")
+            if modified_count > 0:
+                self._show_alert(f"{modified_count} Modified Files", 
+                               f"{modified_count} file(s) were modified.", 
+                               "modified")
+            if deleted_count > 0:
+                self._show_alert(f"{deleted_count} Deleted Files", 
+                               f"{deleted_count} file(s) were deleted.", 
+                               "deleted")
 
-    def _show_alert(self, title, message, level="info"):
-        """Show alert panel with modern styling"""
+    def _tail_log_loop(self):
+        """Tail log file - IMPORTED FROM BACKUP"""
         try:
-            # Ensure alert panel exists
-            if not hasattr(self, '_alert_frame') or not self._alert_frame:
-                self._create_alert_panel()
-            
-            severity_map = {
-                "info": "INFO",
-                "created": "INFO",
-                "modified": "MEDIUM",
-                "deleted": "MEDIUM",
-                "tampered": "CRITICAL",
-                "high": "HIGH",
-                "critical": "CRITICAL"
-            }
-            
-            severity = severity_map.get(level, "INFO")
-            severity_color = SEVERITY_COLORS.get(severity, self.colors['accent_info'])
-            severity_badge = SEVERITY_BADGES.get(severity, "INFO")
-            
-            ts = datetime.now().strftime("%H:%M:%S")
-            entry = f"[{ts}] [{severity_badge}] {title}\n{message}\n{'─' * 40}\n"
-            
-            # Insert at top with color tag
-            self._alert_msg.configure(state="normal")
-            
-            # Configure tag for this severity
-            tag_name = f"severity_{severity}"
-            self._alert_msg.tag_config(tag_name, foreground=severity_color, 
-                                      font=('Segoe UI', 9, 'bold' if severity in ['CRITICAL', 'HIGH'] else 'normal'))
-            
-            # Insert text with tag
-            self._alert_msg.insert("1.0", entry, tag_name)
-            self._alert_msg.configure(state="disabled")
-            
-            # Update meta
-            self.alert_count = getattr(self, "alert_count", 0) + 1
-            self._alert_counter.configure(text=f"Alerts: {self.alert_count}")
-            self._alert_meta.configure(text=f"Last: {severity} @ {ts}")
-            
-            # Update severity counter
-            if severity in self.severity_counters:
-                self.severity_counters[severity] += 1
-                if severity == "CRITICAL":
-                    self.critical_var.set(str(self.severity_counters["CRITICAL"]))
-                elif severity == "HIGH":
-                    self.high_var.set(str(self.severity_counters["HIGH"]))
-                elif severity == "MEDIUM":
-                    self.medium_var.set(str(self.severity_counters["MEDIUM"]))
-                elif severity == "INFO":
-                    self.info_var.set(str(self.severity_counters["INFO"]))
-            
-            # Show alert panel with animation
-            self._animate_panel_show()
-            
-        except Exception as e:
-            print("Error showing alert:", e)
-
-    def _animate_panel_show(self):
-        """Animate panel showing from right side"""
-        if self.alert_visible:
-            # If already visible, just update and restart timer
-            if self.alert_hide_after_id:
-                self.root.after_cancel(self.alert_hide_after_id)
-        else:
-            # Calculate target position
-            root_x = self.root.winfo_x()
-            root_y = self.root.winfo_y()
-            root_width = self.root.winfo_width()
-            
-            # Position alert panel at top-right of main window
-            target_x = root_x + root_width - self.ALERT_PANEL_WIDTH - 20
-            target_y = root_y + 100  # Below header
-            
-            # Set initial position off-screen to the right
-            self._alert_frame.geometry(f"{self.ALERT_PANEL_WIDTH}x{self.ALERT_PANEL_HEIGHT}+{root_x + root_width}+{target_y}")
-            self._alert_frame.deiconify()
-            self._alert_frame.lift()
-            
-            # Animate sliding in
-            self._animate_panel_slide(target_x, target_y, slide_in=True)
-            
-            self.alert_visible = True
-        
-        # Set auto-hide timer
-        self.alert_hide_after_id = self.root.after(self.ALERT_SHOW_MS, self._hide_alert)
-
-    def _animate_panel_slide(self, target_x, target_y, slide_in=True):
-        """Animate panel sliding in/out"""
-        current_x = self._alert_frame.winfo_x()
-        
-        if slide_in:
-            if current_x <= target_x:
-                # Reached target
-                self._alert_frame.geometry(f"{self.ALERT_PANEL_WIDTH}x{self.ALERT_PANEL_HEIGHT}+{target_x}+{target_y}")
-                return
-            
-            # Move left
-            new_x = current_x - self.ALERT_ANIM_STEP
-            if new_x < target_x:
-                new_x = target_x
-            
-            self._alert_frame.geometry(f"{self.ALERT_PANEL_WIDTH}x{self.ALERT_PANEL_HEIGHT}+{new_x}+{target_y}")
-            self.root.after(self.ALERT_ANIM_DELAY, lambda: self._animate_panel_slide(target_x, target_y, slide_in=True))
-        else:
-            # Slide out to the right
-            root_x = self.root.winfo_x()
-            root_width = self.root.winfo_width()
-            off_screen_x = root_x + root_width + 100
-            
-            if current_x >= off_screen_x:
-                # Reached off-screen
-                self._alert_frame.withdraw()
-                self.alert_visible = False
-                return
-            
-            # Move right
-            new_x = current_x + self.ALERT_ANIM_STEP
-            self._alert_frame.geometry(f"{self.ALERT_PANEL_WIDTH}x{self.ALERT_PANEL_HEIGHT}+{new_x}+{target_y}")
-            self.root.after(self.ALERT_ANIM_DELAY, lambda: self._animate_panel_slide(target_x, target_y, slide_in=False))
-
-    def _hide_alert(self):
-        """Hide alert panel"""
-        try:
-            if not self.alert_visible:
-                return
-
-            # Cancel any pending hide timer
-            if self.alert_hide_after_id:
-                self.root.after_cancel(self.alert_hide_after_id)
-                self.alert_hide_after_id = None
-
-            # Get current position
-            current_x = self._alert_frame.winfo_x()
-            current_y = self._alert_frame.winfo_y()
-            
-            # Slide out to the right
-            root_x = self.root.winfo_x()
-            root_width = self.root.winfo_width()
-            off_screen_x = root_x + root_width + 100
-            
-            self._animate_panel_slide(off_screen_x, current_y, slide_in=False)
-
-        except Exception as e:
-            print("Error hiding alert:", e)
-            # Fallback: just hide it
-            if hasattr(self, '_alert_frame') and self._alert_frame:
+            if os.path.exists(LOG_FILE):
                 try:
-                    self._alert_frame.withdraw()
-                    self.alert_visible = False
-                except:
-                    pass
-
-    # ===== END OF FIXED ALERT PANEL METHODS =====
-
-    def change_admin_password(self):
-        """Allow admin to change their password"""
-        if self.user_role != 'admin':
-            messagebox.showerror("Permission Denied", "Only administrators can change passwords.")
-            return
-
-        if not auth:
-            messagebox.showerror("Error", "Authentication backend not loaded.")
-            return
-
-        # Simple prompt flow
-        new_pass = simpledialog.askstring("Change Password", "Enter new password:", show='•', parent=self.root)
-        if not new_pass:
-            return
+                    with open(LOG_FILE, "r", encoding="utf-8") as f:
+                        lines = f.readlines()[-400:]
+                except Exception:
+                    lines = []
+                
+                existing = self.log_box.get("1.0", tk.END)
+                for line in lines:
+                    if line.strip() and (line not in existing):
+                        self.log_box.configure(state="normal")
+                        self.log_box.insert(tk.END, line)
+                        self.log_box.configure(state="disabled")
+                        self.log_box.see(tk.END)
+        except Exception as e:
+            print(f"Error in log tail: {e}")
         
-        confirm_pass = simpledialog.askstring("Confirm Password", "Confirm new password:", show='•', parent=self.root)
-        
-        if new_pass != confirm_pass:
-            messagebox.showerror("Error", "Passwords do not match!")
-            return
-            
-        if len(new_pass) < 4:
-            messagebox.showwarning("Weak Password", "Password must be at least 4 characters.")
-            return
+        self.root.after(2000, self._tail_log_loop)
 
-        # Call backend to update
-        success, msg = auth.update_password(self.username, new_pass)
-        
-        if success:
-            messagebox.showinfo("Success", "Password updated successfully!")
-            self._append_log(f"Admin password changed for user: {self.username}")
-        else:
-            messagebox.showerror("Error", f"Failed to update password: {msg}")
-
-    def logout(self):
-        """Logout and restart application"""
-        if messagebox.askyesno("Logout", "Are you sure you want to logout?"):
-            # Stop monitor if running
-            if self.monitor_running:
-                try:
-                    self.monitor.stop_monitoring()
-                except: pass
-            
-            # Destroy current window
-            self.root.destroy()
-            
-            # Restart login_gui.py
-            try:
-                subprocess.Popen([sys.executable, "login_gui.py"])
-            except Exception as e:
-                print(f"Failed to restart login: {e}")
-
-    def disable_lockdown(self):
-        """Admin override to disable safe mode"""
-        if self.user_role != 'admin':
-            messagebox.showerror("Access Denied", "Only Admins can disable Safe Mode.")
-            return
-            
-        if messagebox.askyesno("Confirm Unlock", "Are you sure the system is secure?\nThis will re-enable monitoring controls."):
-            success = safe_mode.disable_safe_mode("Admin Override via GUI")
-            if success:
-                messagebox.showinfo("Unlocked", "Safe Mode disabled. System returned to normal.")
-                self.status_var.set("🔴 Stopped")
-                self.status_label.configure(foreground=self.colors['text_primary'])
-            else:
-                messagebox.showerror("Error", "Failed to disable Safe Mode.")
-
+    # ===== REPORT METHODS FROM BACKUP =====
+    
     def normalize_report_data(self, summary=None):
         """
         Convert summary data to structured dictionary with JSON persistence
+        - IMPORTED FROM BACKUP
         """
         # 1. If summary is provided, use it
         if summary:
@@ -1415,7 +992,7 @@ class ProIntegrityGUI:
         return normalized
     
     def _parse_summary_from_file(self):
-        """Fallback text parser if JSON is missing"""
+        """Fallback text parser if JSON is missing - IMPORTED FROM BACKUP"""
         if not os.path.exists(REPORT_SUMMARY_FILE):
             return {}
         
@@ -1455,6 +1032,7 @@ class ProIntegrityGUI:
     def generate_bar_chart(self, data=None, save_path=None, show_chart=True):
         """
         Generate bar chart for created/modified/deleted counts
+        - IMPORTED FROM BACKUP
         """
         if not HAS_MATPLOTLIB:
             messagebox.showwarning("Chart Generation", 
@@ -1533,7 +1111,7 @@ class ProIntegrityGUI:
             plt.close(fig)
     
     def _show_chart_in_gui(self, fig):
-        """Display chart in a separate window"""
+        """Display chart in a separate window - IMPORTED FROM BACKUP"""
         chart_window = tk.Toplevel(self.root)
         chart_window.title("📈 File Integrity Chart")
         chart_window.geometry("800x600")
@@ -1558,7 +1136,7 @@ class ProIntegrityGUI:
         close_btn.pack(pady=5)
     
     def _save_chart_dialog(self, fig):
-        """Save chart to file dialog"""
+        """Save chart to file dialog - IMPORTED FROM BACKUP"""
         filename = filedialog.asksaveasfilename(
             defaultextension=".png",
             filetypes=[("PNG files", "*.png"), ("PDF files", "*.pdf"), ("All files", "*.*")],
@@ -1573,7 +1151,7 @@ class ProIntegrityGUI:
                 messagebox.showerror("Save Error", f"Failed to save chart: {e}")
 
     def generate_chart(self):
-        """Generate and display chart from current data"""
+        """Generate and display chart from current data - IMPORTED FROM BACKUP"""
         if not HAS_MATPLOTLIB:
             messagebox.showwarning("Chart Generation", 
                                  "Matplotlib not installed. Install with: pip install matplotlib")
@@ -1598,7 +1176,7 @@ class ProIntegrityGUI:
         self.generate_bar_chart(data, show_chart=True)
 
     def export_report_pdf(self):
-        """Export comprehensive PDF report with chart"""
+        """Export comprehensive PDF report with chart - IMPORTED FROM BACKUP"""
         if not HAS_REPORTLAB:
             messagebox.showwarning("PDF Export", 
                                  "ReportLab not installed. Install with: pip install reportlab")
@@ -1830,7 +1408,7 @@ class ProIntegrityGUI:
         threading.Thread(target=_generate_report, daemon=True).start()
     
     def export_logs_pdf(self):
-        """Export logs as PDF"""
+        """Export logs as PDF - IMPORTED FROM BACKUP"""
         if not HAS_REPORTLAB:
             messagebox.showwarning("PDF Export", 
                                  "ReportLab not installed. Install with: pip install reportlab")
@@ -1938,7 +1516,7 @@ class ProIntegrityGUI:
         threading.Thread(target=_generate_logs_pdf, daemon=True).start()
     
     def _show_export_success(self, filepath):
-        """Show export success dialog with option to open folder"""
+        """Show export success dialog with option to open folder - IMPORTED FROM BACKUP"""
         result = messagebox.askyesno("Export Successful",
                                     f"Report successfully exported to:\n{filepath}\n\n"
                                     "Would you like to open the containing folder?")
@@ -1954,9 +1532,10 @@ class ProIntegrityGUI:
                 except:
                     pass
 
-    # ---------- Core Actions ----------
+    # ===== CORE ACTION METHODS FROM BACKUP =====
+    
     def _browse(self):
-        """Browse for folder"""
+        """Browse for folder - IMPORTED FROM BACKUP"""
         d = filedialog.askdirectory()
         if d:
             self.watch_folder_var.set(d)
@@ -1965,7 +1544,7 @@ class ProIntegrityGUI:
             self._append_log(f"Selected monitor folder: {d}")
 
     def start_monitor(self):
-        """Start monitoring"""
+        """Start monitoring - IMPORTED FROM BACKUP"""
         if not FileIntegrityMonitor:
             messagebox.showerror("Error", "Backend not available.")
             return
@@ -2006,7 +1585,7 @@ class ProIntegrityGUI:
         threading.Thread(target=_start, daemon=True).start()
 
     def stop_monitor(self):
-        """Stop monitoring"""
+        """Stop monitoring - IMPORTED FROM BACKUP"""
         if not self.monitor_running:
             messagebox.showinfo("Info", "Monitor not running.")
             return
@@ -2024,7 +1603,7 @@ class ProIntegrityGUI:
             messagebox.showerror("Error", f"Exception: {ex}")
 
     def run_verification(self):
-        """Run manual verification with severity tracking"""
+        """Run manual verification with severity tracking - IMPORTED FROM BACKUP"""
         folder = self.folder_entry.get()
         if not folder or not os.path.exists(folder):
             messagebox.showerror("Error", "Choose valid folder first.")
@@ -2085,7 +1664,7 @@ class ProIntegrityGUI:
         threading.Thread(target=_verify, daemon=True).start()
 
     def verify_signatures(self):
-        """Verify cryptographic signatures"""
+        """Verify cryptographic signatures - IMPORTED FROM BACKUP"""
         rec_ok = None
         log_ok = None
         rec_msg = ""
@@ -2135,7 +1714,7 @@ class ProIntegrityGUI:
         self._append_log(f"Signature verification: records={rec_msg}, logs={log_msg}")
 
     def open_settings(self):
-        """Open settings dialog"""
+        """Open settings dialog - IMPORTED FROM BACKUP"""
         win = tk.Toplevel(self.root)
         win.title("Security Settings")
         win.geometry("520x300")
@@ -2200,9 +1779,10 @@ class ProIntegrityGUI:
         ttk.Button(btn_frame, text="💾 Save Settings", command=save_settings, style='Modern.TButton').pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="❌ Cancel", command=win.destroy, style='Modern.TButton').pack(side=tk.LEFT, padx=5)
 
-    # ---------- Helper Methods ----------
+    # ===== HELPER METHODS FROM BACKUP =====
+    
     def _append_log(self, text):
-        """Append text to the log display"""
+        """Append text to the log display - IMPORTED FROM BACKUP"""
         try:
             self.log_box.configure(state="normal")
             now = datetime.now().strftime("%H:%M:%S")
@@ -2212,55 +1792,8 @@ class ProIntegrityGUI:
         except Exception as e:
             print(f"Error appending to log: {e}")
 
-    def _update_dashboard(self):
-        """Update dashboard with current statistics"""
-        try:
-            # Update total files
-            current_total = 0
-            if self.monitor and hasattr(self.monitor, 'records'):
-                records = self.monitor.records
-                current_total = len(records)
-                self.total_files_var.set(str(current_total))
-            
-            # Update session counts
-            self.created_var.set(str(self.file_tracking['session_created']))
-            self.modified_var.set(str(self.file_tracking['session_modified']))
-            self.deleted_var.set(str(self.file_tracking['session_deleted']))
-
-        except Exception as e:
-            print(f"Dashboard update error: {e}")
-            self.total_files_var.set("0")
-            self.created_var.set("0")
-            self.modified_var.set("0")
-            self.deleted_var.set("0")
-
-        # Update tamper indicators
-        self._update_tamper_indicators()
-
-        # Schedule next update
-        self.root.after(3000, self._update_dashboard)
-
-    def _update_tamper_indicators(self):
-        """Update tamper indicator colors"""
-        if hasattr(self, '_rec_indicator'):
-            try:
-                rec_ok = self.tamper_records_var.get() == "OK"
-                log_ok = self.tamper_logs_var.get() == "OK"
-                
-                rec_bg = (self.colors['indicator_success'] if rec_ok else 
-                         self.colors['indicator_danger'] if self.tamper_records_var.get() == "TAMPERED" else 
-                         self.colors['indicator_info'])
-                log_bg = (self.colors['indicator_success'] if log_ok else 
-                         self.colors['indicator_danger'] if self.tamper_logs_var.get() == "TAMPERED" else 
-                         self.colors['indicator_info'])
-                
-                self._rec_indicator.configure(bg=rec_bg, fg='white')
-                self._log_indicator.configure(bg=log_bg, fg='white')
-            except:
-                pass
-
     def reset_session_counts(self):
-        """Reset session counts"""
+        """Reset session counts - IMPORTED FROM BACKUP"""
         self.file_tracking['session_created'] = 0
         self.file_tracking['session_modified'] = 0
         self.file_tracking['session_deleted'] = 0
@@ -2270,60 +1803,8 @@ class ProIntegrityGUI:
         self.deleted_var.set("0")
         self._append_log("Session file counters reset")
 
-    def _track_file_changes(self, data):
-        """Track file changes"""
-        if data:
-            created_count = len(data.get('created', []))
-            modified_count = len(data.get('modified', []))
-            deleted_count = len(data.get('deleted', []))
-            
-            self.file_tracking['session_created'] += created_count
-            self.file_tracking['session_modified'] += modified_count
-            self.file_tracking['session_deleted'] += deleted_count
-            
-            self.created_var.set(str(self.file_tracking['session_created']))
-            self.modified_var.set(str(self.file_tracking['session_modified']))
-            self.deleted_var.set(str(self.file_tracking['session_deleted']))
-            
-            # Show alerts for changes
-            if created_count > 0:
-                self._show_alert(f"{created_count} New Files", 
-                               f"{created_count} new file(s) detected.", 
-                               "created")
-            if modified_count > 0:
-                self._show_alert(f"{modified_count} Modified Files", 
-                               f"{modified_count} file(s) were modified.", 
-                               "modified")
-            if deleted_count > 0:
-                self._show_alert(f"{deleted_count} Deleted Files", 
-                               f"{deleted_count} file(s) were deleted.", 
-                               "deleted")
-
-    def _tail_log_loop(self):
-        """Tail log file"""
-        try:
-            if os.path.exists(LOG_FILE):
-                try:
-                    with open(LOG_FILE, "r", encoding="utf-8") as f:
-                        lines = f.readlines()[-400:]
-                except Exception:
-                    lines = []
-                
-                existing = self.log_box.get("1.0", tk.END)
-                for line in lines:
-                    if line.strip() and (line not in existing):
-                        self.log_box.configure(state="normal")
-                        self.log_box.insert(tk.END, line)
-                        self.log_box.configure(state="disabled")
-                        self.log_box.see(tk.END)
-        except Exception as e:
-            print(f"Error in log tail: {e}")
-        
-        self.root.after(2000, self._tail_log_loop)
-
-    # ---------- Other Methods ----------
     def view_report(self):
-        """View reports"""
+        """View reports - IMPORTED FROM BACKUP"""
         report_files = [
             "reports/report_summary.txt",
             os.path.join("logs", "activity_reports.txt"),
@@ -2358,7 +1839,7 @@ class ProIntegrityGUI:
             messagebox.showinfo("Report", "No report files found.")
 
     def reset_severity_counters(self):
-        """Reset all severity counters"""
+        """Reset all severity counters - IMPORTED FROM BACKUP"""
         if messagebox.askyesno("Reset Counters", "Reset all severity counters to zero?"):
             self.severity_counters = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'INFO': 0}
             
@@ -2378,7 +1859,7 @@ class ProIntegrityGUI:
                 messagebox.showerror("Error", f"Failed to save counters: {e}")
 
     def open_reports_folder(self):
-        """Open reports folder"""
+        """Open reports folder - IMPORTED FROM BACKUP"""
         folder = os.path.abspath(".")
         try:
             os.startfile(folder)
@@ -2386,7 +1867,7 @@ class ProIntegrityGUI:
             messagebox.showinfo("Info", f"Open folder: {folder}")
 
     def _handle_realtime_event(self, event_type, path, severity):
-        """Handle real-time events from the backend"""
+        """Handle real-time events from the backend - IMPORTED FROM BACKUP"""
         filename = os.path.basename(path)
         
         # Update Session Counters
@@ -2413,7 +1894,7 @@ class ProIntegrityGUI:
         self._show_alert(f"{event_type} Detected", msg, severity.lower())
 
     def _show_text(self, title, content):
-        """Show text in new window"""
+        """Show text in new window - IMPORTED FROM BACKUP"""
         w = tk.Toplevel(self.root)
         w.title(f"🔍 {title}")
         w.geometry("800x600")
@@ -2434,7 +1915,133 @@ class ProIntegrityGUI:
         close_btn = ttk.Button(w, text="Close", command=w.destroy, style='Modern.TButton')
         close_btn.pack(pady=10)
 
+    # ===== THEME AND UI METHODS =====
+    
+    def _clear_logs(self):
+        """Clear the log display"""
+        self.log_box.configure(state="normal")
+        self.log_box.delete("1.0", tk.END)
+        self.log_box.configure(state="disabled")
+        self._append_log("Log display cleared")
 
+    def toggle_theme(self):
+        """Toggle between light and dark themes"""
+        self.dark_mode = not self.dark_mode
+        self.colors = DARK_THEME if self.dark_mode else LIGHT_THEME
+        
+        # Update theme button
+        self.theme_btn.configure(text="🌙" if self.dark_mode else "☀️")
+        
+        # Reconfigure styles
+        self._configure_styles()
+        
+        # Update all widget colors
+        self._apply_theme()
+
+    def _apply_theme(self):
+        """Apply current theme to all widgets"""
+        # Update root window
+        self.root.configure(bg=self.colors['bg'])
+        
+        # Update all widgets with force refresh
+        self._update_widget_colors(self.root)
+        
+        # Force update button states (fix hover colors)
+        self._update_button_states()
+        
+        # Update menu button colors
+        if hasattr(self, 'menu_btn'):
+            self.menu_btn.configure(bg=self.colors['header_bg'], 
+                                fg=self.colors['text_primary'])
+        
+        # Update side menu colors if it exists
+        if hasattr(self, 'side_menu'):
+            self.side_menu.configure(bg=self.colors['sidebar_bg'])
+            for child in self.side_menu.winfo_children():
+                if isinstance(child, tk.Button):
+                    if "Demo" in child.cget('text'):
+                        child.configure(bg='#8b5cf6' if self.dark_mode else '#8b5cf6')
+                    elif "Archive" in child.cget('text'):
+                        child.configure(bg='#ef4444' if self.dark_mode else '#ef4444')
+                    elif "Close" in child.cget('text'):
+                        child.configure(bg=self.colors['sidebar_bg'], 
+                                    fg=self.colors['text_secondary'])
+
+    def _update_widget_colors(self, widget):
+        """Recursively update widget colors"""
+        try:
+            if isinstance(widget, tk.Frame):
+                if 'card' in str(widget).lower():
+                    widget.configure(bg=self.colors['card_bg'],
+                                   highlightbackground=self.colors['card_border'])
+                elif 'header' in str(widget).lower():
+                    widget.configure(bg=self.colors['header_bg'])
+                else:
+                    widget.configure(bg=self.colors['bg'])
+            
+            elif isinstance(widget, tk.Label):
+                if 'footer' in str(widget).lower():
+                    widget.configure(bg=self.colors['bg'], fg=self.colors['text_muted'])
+                elif 'card' in str(widget).lower() or isinstance(widget.master, tk.Frame) and 'card' in str(widget.master).lower():
+                    widget.configure(bg=self.colors['card_bg'], fg=self.colors['text_primary'])
+                else:
+                    widget.configure(bg=self.colors['bg'], fg=self.colors['text_primary'])
+            
+            elif isinstance(widget, tk.Button):
+                if widget != self.theme_btn:
+                    widget.configure(bg=self.colors['button_bg'], fg=self.colors['text_primary'])
+            
+            elif isinstance(widget, scrolledtext.ScrolledText):
+                widget.configure(bg=self.colors['card_bg'], fg=self.colors['text_primary'],
+                               insertbackground=self.colors['text_primary'])
+        except:
+            pass
+        
+        # Update children
+        for child in widget.winfo_children():
+            self._update_widget_colors(child)
+
+    def _apply_permissions(self):
+        """Disable controls based on user role"""
+        if self.user_role == 'admin':
+            return
+            
+        # Role is 'user' (Read-Only)
+        self._append_log(f"Logged in as restricted viewer: {self.username}")
+        self.status_var.set("🔒 Read-Only Mode")
+        
+        # Disable Folder Entry
+        self.folder_entry.configure(state='disabled')
+        
+        # Define Restricted Actions
+        restricted_actions = [
+            "Start Monitor", 
+            "Stop Monitor", 
+            "Settings", 
+            "Verify Now",
+            "Open Folder",
+            "Browse"
+        ]
+        
+        # Recursively find and disable buttons
+        self._disable_recursive(self.root, restricted_actions)
+
+    def _disable_recursive(self, widget, restricted_list):
+        """Helper to find buttons recursively"""
+        for child in widget.winfo_children():
+            if isinstance(child, (tk.Button, ttk.Button)):
+                try:
+                    btn_text = child.cget('text')
+                    for action in restricted_list:
+                        if action in btn_text:
+                            child.configure(state='disabled')
+                except:
+                    pass
+            
+            self._disable_recursive(child, restricted_list)
+
+    # ===== SIDE MENU METHODS =====
+    
     def _create_side_menu(self):
         """Create sliding side menu with demo and archive options"""
         self.menu_width = 250
@@ -2519,6 +2126,8 @@ class ProIntegrityGUI:
         self.side_menu.place(x=new_x)
         self.root.after(10, lambda: self._animate_menu(target_x))
 
+    # ===== DEMO AND ARCHIVE METHODS =====
+    
     def run_demo_mode(self):
         """Execute the demonstration sequence"""
         self.toggle_menu()  # Close menu first
@@ -2601,6 +2210,947 @@ class ProIntegrityGUI:
                     messagebox.showerror("Error", f"Failed to archive: {msg}")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to archive: {e}")
+
+    # ===== SYSTEM TRAY AND OTHER METHODS =====
+    
+    def _setup_tray_icon(self):
+        """Create the system tray icon with robust fallback"""
+        try:
+            # Try PyInstaller internal path
+            if hasattr(sys, '_MEIPASS'):
+                icon_path = os.path.join(sys._MEIPASS, "assets", "app_icon.ico")
+            else:
+                # Try Local Development path
+                icon_path = os.path.join(os.path.abspath("assets"), "app_icon.ico")
+
+            # Fallback: Check if it's in an 'icons' subdirectory
+            if not os.path.exists(icon_path):
+                icon_path = os.path.join(os.path.dirname(icon_path), "icons", "app_icon.ico")
+
+            image = None
+            if os.path.exists(icon_path):
+                try:
+                    image = PILImage.open(icon_path)
+                except Exception as e:
+                    print(f"Failed to load icon: {e}")
+
+            # Fallback: If file missing or load failed, create a simple generated icon
+            if image is None:
+                # Create a 64x64 blue box with a white center
+                image = PILImage.new('RGB', (64, 64), color=(13, 110, 253))
+                
+            # Define Menu Actions
+            menu = (
+                item('Show Dashboard', self.show_window),
+                item('Run Verification', self.run_verification),
+                item('Exit', self.quit_app)
+            )
+
+            self.tray_icon = pystray.Icon("SecureFIM", image, "Secure File Integrity Monitor", menu)
+            
+        except Exception as e:
+            print(f"CRITICAL TRAY ERROR: {e}")
+            self.tray_icon = None
+
+    def show_window(self, icon=None, item=None):
+        """Restore the window from tray"""
+        self.root.after(0, self.root.deiconify)
+
+    def hide_window(self):
+        """Hide window to tray instead of closing"""
+        if not self.tray_icon:
+            self.root.iconify()
+            return
+
+        self.root.withdraw()
+        if not self.tray_icon.visible:
+            threading.Thread(target=self.tray_icon.run, daemon=True).start()
+
+    def quit_app(self, icon=None, item=None):
+        """Really quit the application"""
+        if hasattr(self, 'tray_icon'):
+            self.tray_icon.stop()
+        self.root.after(0, self.root.quit)
+
+    def on_closing(self):
+        """Handle window close request"""
+        try:
+            if self.monitor_running:
+                if messagebox.askyesno("Minimize to Tray", "Monitor is running.\n\nKeep monitoring in background?\n(No = Exit completely)"):
+                    self.hide_window()
+                else:
+                    self.quit_app()
+            else:
+                self.quit_app()
+        except Exception as e:
+            print(f"Close error: {e}")
+            self.root.destroy()
+            sys.exit(0)
+
+    def _check_safe_mode_status(self):
+        """Check if backend triggered Safe Mode"""
+        try:
+            from core.utils import get_app_data_dir
+            app_data = get_app_data_dir()
+            lockdown_path = os.path.join(app_data, "lockdown.flag")
+            is_safe = os.path.exists(lockdown_path)
+            
+            if not is_safe and safe_mode:
+                is_safe = safe_mode.is_safe_mode_enabled()
+
+            if is_safe:
+                self.status_var.set("⛔ SAFE MODE ACTIVE")
+                self.status_label.configure(foreground=self.colors['accent_danger'])
+                
+                # Disable buttons
+                for child in self.root.winfo_children():
+                    if isinstance(child, tk.Button) and child.cget('text') in ["▶ Start Monitor", "🔍 Verify Now"]:
+                        child.configure(state='disabled')
+                
+                if self.monitor_running:
+                    self.monitor_running = False
+                    if self.monitor:
+                        self.monitor.stop_monitoring()
+                    
+                    self._append_log("UI: Recognized Safe Mode - SYSTEM HALTED")
+                    self._show_alert("SYSTEM LOCKDOWN", "Safe Mode detected. Monitoring frozen.", "critical")
+
+        except Exception as e:
+            print(f"Safe Mode Check Error: {e}")
+        
+        self.root.after(1000, self._check_safe_mode_status)
+
+    # ===== ALERT PANEL METHODS =====
+    
+    def _create_alert_panel(self):
+        """Create alert panel that won't overlap with main UI"""
+        # Destroy existing panel if it exists
+        if hasattr(self, '_alert_frame') and self._alert_frame:
+            try:
+                self._alert_frame.destroy()
+            except:
+                pass
+        
+        # Calculate position - place it in the top-right corner above main content
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        
+        # Position at top-right corner with margin
+        start_x = screen_width
+        start_y = 100  # Below the header
+        
+        # Create alert frame as a top-level window to avoid z-index issues
+        self._alert_frame = tk.Toplevel(self.root)
+        self._alert_frame.title("Security Alerts")
+        self._alert_frame.geometry(f"{self.ALERT_PANEL_WIDTH}x{self.ALERT_PANEL_HEIGHT}+{start_x}+{start_y}")
+        self._alert_frame.overrideredirect(True)  # Remove window decorations
+        self._alert_frame.attributes('-topmost', True)  # Keep on top
+        self._alert_frame.configure(bg=self.colors['card_bg'], bd=2, relief='solid')
+        
+        # Make sure it doesn't interfere with main window
+        self._alert_frame.transient(self.root)
+        
+        # Header
+        header = tk.Frame(self._alert_frame, bg=self.colors['accent_primary'], height=40)
+        header.pack(fill=tk.X)
+        
+        self._alert_title = tk.Label(header, text="🚨 SECURITY ALERTS", 
+                                    bg=self.colors['accent_primary'], fg='white', 
+                                    font=('Segoe UI', 11, 'bold'))
+        self._alert_title.pack(side=tk.LEFT, padx=15, pady=8)
+
+        close_btn = tk.Button(header, text="✕", command=self._hide_alert, 
+                             bg=self.colors['accent_primary'], fg='white', bd=0,
+                             font=('Segoe UI', 12, 'bold'), cursor="hand2")
+        close_btn.pack(side=tk.RIGHT, padx=15, pady=8)
+        close_btn.bind("<Enter>", lambda e: close_btn.configure(fg='#ff6b6b'))
+        close_btn.bind("<Leave>", lambda e: close_btn.configure(fg='white'))
+
+        # Content area
+        content = tk.Frame(self._alert_frame, bg=self.colors['card_bg'])
+        content.pack(fill=tk.BOTH, expand=True)
+
+        self._alert_msg = scrolledtext.ScrolledText(content, wrap=tk.WORD, state="disabled",
+                                                   bg=self.colors['card_bg'],
+                                                   fg=self.colors['text_primary'],
+                                                   height=10, relief='flat',
+                                                   font=('Segoe UI', 9))
+        self._alert_msg.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        # Footer with counter
+        footer = tk.Frame(content, bg=self.colors['card_bg'], height=30)
+        footer.pack(fill=tk.X, side=tk.BOTTOM)
+        
+        self._alert_meta = tk.Label(footer, text="No active alerts", 
+                                   bg=self.colors['card_bg'], fg=self.colors['text_secondary'],
+                                   font=('Segoe UI', 9))
+        self._alert_meta.pack(side=tk.LEFT, padx=10, pady=5)
+        
+        self._alert_counter = tk.Label(footer, text="Alerts: 0", 
+                                      bg=self.colors['card_bg'], fg=self.colors['text_secondary'],
+                                      font=('Segoe UI', 9, 'bold'))
+        self._alert_counter.pack(side=tk.RIGHT, padx=10, pady=5)
+
+        # Internal state
+        self.alert_count = 0
+        self.alert_visible = False
+        
+        # Initially hide the window
+        self._alert_frame.withdraw()
+
+    def _show_alert(self, title, message, level="info"):
+        """Show alert panel with modern styling"""
+        try:
+            # Ensure alert panel exists
+            if not hasattr(self, '_alert_frame') or not self._alert_frame:
+                self._create_alert_panel()
+            
+            severity_map = {
+                "info": "INFO",
+                "created": "INFO",
+                "modified": "MEDIUM",
+                "deleted": "MEDIUM",
+                "tampered": "CRITICAL",
+                "high": "HIGH",
+                "critical": "CRITICAL"
+            }
+            
+            severity = severity_map.get(level, "INFO")
+            severity_color = SEVERITY_COLORS.get(severity, self.colors['accent_info'])
+            severity_badge = SEVERITY_BADGES.get(severity, "INFO")
+            
+            ts = datetime.now().strftime("%H:%M:%S")
+            entry = f"[{ts}] [{severity_badge}] {title}\n{message}\n{'─' * 40}\n"
+            
+            # Insert at top with color tag
+            self._alert_msg.configure(state="normal")
+            
+            # Configure tag for this severity
+            tag_name = f"severity_{severity}"
+            self._alert_msg.tag_config(tag_name, foreground=severity_color, 
+                                      font=('Segoe UI', 9, 'bold' if severity in ['CRITICAL', 'HIGH'] else 'normal'))
+            
+            # Insert text with tag
+            self._alert_msg.insert("1.0", entry, tag_name)
+            self._alert_msg.configure(state="disabled")
+            
+            # Update meta
+            self.alert_count = getattr(self, "alert_count", 0) + 1
+            self._alert_counter.configure(text=f"Alerts: {self.alert_count}")
+            self._alert_meta.configure(text=f"Last: {severity} @ {ts}")
+            
+            # Update severity counter
+            if severity in self.severity_counters:
+                self.severity_counters[severity] += 1
+                if severity == "CRITICAL":
+                    self.critical_var.set(str(self.severity_counters["CRITICAL"]))
+                elif severity == "HIGH":
+                    self.high_var.set(str(self.severity_counters["HIGH"]))
+                elif severity == "MEDIUM":
+                    self.medium_var.set(str(self.severity_counters["MEDIUM"]))
+                elif severity == "INFO":
+                    self.info_var.set(str(self.severity_counters["INFO"]))
+            
+            # Show alert panel with animation
+            self._animate_panel_show()
+            
+        except Exception as e:
+            print("Error showing alert:", e)
+
+    def _animate_panel_show(self):
+        """Animate panel showing from right side"""
+        if self.alert_visible:
+            # If already visible, just update and restart timer
+            if self.alert_hide_after_id:
+                self.root.after_cancel(self.alert_hide_after_id)
+        else:
+            # Calculate target position
+            root_x = self.root.winfo_x()
+            root_y = self.root.winfo_y()
+            root_width = self.root.winfo_width()
+            
+            # Position alert panel at top-right of main window
+            target_x = root_x + root_width - self.ALERT_PANEL_WIDTH - 20
+            target_y = root_y + 100  # Below header
+            
+            # Set initial position off-screen to the right
+            self._alert_frame.geometry(f"{self.ALERT_PANEL_WIDTH}x{self.ALERT_PANEL_HEIGHT}+{root_x + root_width}+{target_y}")
+            self._alert_frame.deiconify()
+            self._alert_frame.lift()
+            
+            # Animate sliding in
+            self._animate_panel_slide(target_x, target_y, slide_in=True)
+            
+            self.alert_visible = True
+        
+        # Set auto-hide timer
+        self.alert_hide_after_id = self.root.after(self.ALERT_SHOW_MS, self._hide_alert)
+
+    def _animate_panel_slide(self, target_x, target_y, slide_in=True):
+        """Animate panel sliding in/out"""
+        current_x = self._alert_frame.winfo_x()
+        
+        if slide_in:
+            if current_x <= target_x:
+                # Reached target
+                self._alert_frame.geometry(f"{self.ALERT_PANEL_WIDTH}x{self.ALERT_PANEL_HEIGHT}+{target_x}+{target_y}")
+                return
+            
+            # Move left
+            new_x = current_x - self.ALERT_ANIM_STEP
+            if new_x < target_x:
+                new_x = target_x
+            
+            self._alert_frame.geometry(f"{self.ALERT_PANEL_WIDTH}x{self.ALERT_PANEL_HEIGHT}+{new_x}+{target_y}")
+            self.root.after(self.ALERT_ANIM_DELAY, lambda: self._animate_panel_slide(target_x, target_y, slide_in=True))
+        else:
+            # Slide out to the right
+            root_x = self.root.winfo_x()
+            root_width = self.root.winfo_width()
+            off_screen_x = root_x + root_width + 100
+            
+            if current_x >= off_screen_x:
+                # Reached off-screen
+                self._alert_frame.withdraw()
+                self.alert_visible = False
+                return
+            
+            # Move right
+            new_x = current_x + self.ALERT_ANIM_STEP
+            self._alert_frame.geometry(f"{self.ALERT_PANEL_WIDTH}x{self.ALERT_PANEL_HEIGHT}+{new_x}+{target_y}")
+            self.root.after(self.ALERT_ANIM_DELAY, lambda: self._animate_panel_slide(target_x, target_y, slide_in=False))
+
+    def _hide_alert(self):
+        """Hide alert panel"""
+        try:
+            if not self.alert_visible:
+                return
+
+            # Cancel any pending hide timer
+            if self.alert_hide_after_id:
+                self.root.after_cancel(self.alert_hide_after_id)
+                self.alert_hide_after_id = None
+
+            # Get current position
+            current_x = self._alert_frame.winfo_x()
+            current_y = self._alert_frame.winfo_y()
+            
+            # Slide out to the right
+            root_x = self.root.winfo_x()
+            root_width = self.root.winfo_width()
+            off_screen_x = root_x + root_width + 100
+            
+            self._animate_panel_slide(off_screen_x, current_y, slide_in=False)
+
+        except Exception as e:
+            print("Error hiding alert:", e)
+            # Fallback: just hide it
+            if hasattr(self, '_alert_frame') and self._alert_frame:
+                try:
+                    self._alert_frame.withdraw()
+                    self.alert_visible = False
+                except:
+                    pass
+
+    # ===== PASSWORD CHANGE METHODS =====
+    
+    def change_admin_password(self):
+        """Allow admin to change their password with hacker-themed UI"""
+        if self.user_role != 'admin':
+            messagebox.showerror("Permission Denied", "Only administrators can change passwords.")
+            return
+
+        if not auth:
+            messagebox.showerror("Error", "Authentication backend not loaded.")
+            self._append_log(f"Auth module state: auth={auth}")
+            return
+
+        # Create hacker-themed password change window
+        self._create_hacker_password_window()
+
+    def _create_hacker_password_window(self):
+        """Create a professional hacker-themed password change window"""
+        # Create a top-level window
+        self.pass_window = tk.Toplevel(self.root)
+        self.pass_window.title("🛡️ SECURE PASSWORD CHANGE")
+        self.pass_window.geometry("500x450")
+        self.pass_window.configure(bg='#0a0a0a')  # Pure black background
+        self.pass_window.resizable(False, False)
+        self.pass_window.transient(self.root)
+        self.pass_window.grab_set()
+        
+        # Hacker-style title
+        title_frame = tk.Frame(self.pass_window, bg='#0a0a0a')
+        title_frame.pack(fill=tk.X, pady=(20, 10))
+        
+        # Animated title effect
+        title_label = tk.Label(title_frame, 
+                              text="◈ CRYPTOGRAPHIC PASSWORD UPDATE ◈",
+                              font=('Courier New', 14, 'bold'),
+                              bg='#0a0a0a',
+                              fg='#00ff00')  # Matrix green
+        title_label.pack()
+        
+        # Animated border effect
+        self._animate_title_border(title_label)
+        
+        # Subtitle
+        subtitle = tk.Label(self.pass_window,
+                          text="System Security Level: MAXIMUM",
+                          font=('Courier New', 10),
+                          bg='#0a0a0a',
+                          fg='#00ffff')  # Cyan
+        subtitle.pack(pady=(0, 20))
+        
+        # Main content frame
+        main_frame = tk.Frame(self.pass_window, bg='#0a0a0a')
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=40)
+        
+        # Current user display
+        user_info = tk.Label(main_frame,
+                           text=f"USER: {self.username} | ROLE: ADMINISTRATOR",
+                           font=('Consolas', 10, 'bold'),
+                           bg='#0a0a0a',
+                           fg='#ff9900')  # Orange
+        user_info.pack(pady=(0, 30))
+        
+        # Password strength meter
+        self.strength_var = tk.StringVar(value="Strength: --")
+        self.strength_label = tk.Label(main_frame,
+                                      textvariable=self.strength_var,
+                                      font=('Consolas', 9),
+                                      bg='#0a0a0a',
+                                      fg='#666666')
+        self.strength_label.pack(anchor='w', pady=(0, 5))
+        
+        # New password field with hacker style
+        new_pass_frame = tk.Frame(main_frame, bg='#0a0a0a')
+        new_pass_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        tk.Label(new_pass_frame,
+                text="[1] ENTER NEW PASSWORD:",
+                font=('Consolas', 10, 'bold'),
+                bg='#0a0a0a',
+                fg='#00ff00').pack(anchor='w')
+        
+        new_pass_subframe = tk.Frame(new_pass_frame, bg='#0a0a0a')
+        new_pass_subframe.pack(fill=tk.X, pady=(5, 0))
+        
+        # Password entry with show/hide toggle
+        self.new_pass_var = tk.StringVar()
+        self.new_pass_entry = tk.Entry(new_pass_subframe,
+                                      textvariable=self.new_pass_var,
+                                      font=('Consolas', 11),
+                                      bg='#111111',
+                                      fg='#00ff00',
+                                      insertbackground='#00ff00',
+                                      show='•',
+                                      relief='flat',
+                                      width=30)
+        self.new_pass_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        # Bind password strength checker
+        self.new_pass_var.trace('w', self._check_password_strength)
+        
+        # Show/hide button for new password
+        self.show_new_var = tk.BooleanVar(value=False)
+        show_new_btn = tk.Checkbutton(new_pass_subframe,
+                                     text="👁",
+                                     variable=self.show_new_var,
+                                     command=self._toggle_password_visibility,
+                                     font=('Consolas', 10),
+                                     bg='#111111',
+                                     fg='#00ff00',
+                                     selectcolor='#111111',
+                                     activebackground='#111111',
+                                     activeforeground='#00ff00')
+        show_new_btn.pack(side=tk.RIGHT, padx=(5, 0))
+        
+        # Confirm password field
+        confirm_pass_frame = tk.Frame(main_frame, bg='#0a0a0a')
+        confirm_pass_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        tk.Label(confirm_pass_frame,
+                text="[2] CONFIRM PASSWORD:",
+                font=('Consolas', 10, 'bold'),
+                bg='#0a0a0a',
+                fg='#00ff00').pack(anchor='w')
+        
+        confirm_subframe = tk.Frame(confirm_pass_frame, bg='#0a0a0a')
+        confirm_subframe.pack(fill=tk.X, pady=(5, 0))
+        
+        self.confirm_pass_var = tk.StringVar()
+        self.confirm_pass_entry = tk.Entry(confirm_subframe,
+                                          textvariable=self.confirm_pass_var,
+                                          font=('Consolas', 11),
+                                          bg='#111111',
+                                          fg='#00ff00',
+                                          insertbackground='#00ff00',
+                                          show='•',
+                                          relief='flat',
+                                          width=30)
+        self.confirm_pass_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        # Show/hide button for confirm password
+        self.show_confirm_var = tk.BooleanVar(value=False)
+        show_confirm_btn = tk.Checkbutton(confirm_subframe,
+                                         text="👁",
+                                         variable=self.show_confirm_var,
+                                         command=self._toggle_confirm_visibility,
+                                         font=('Consolas', 10),
+                                         bg='#111111',
+                                         fg='#00ff00',
+                                         selectcolor='#111111',
+                                         activebackground='#111111',
+                                         activeforeground='#00ff00')
+        show_confirm_btn.pack(side=tk.RIGHT, padx=(5, 0))
+        
+        # Password match indicator (initially hidden)
+        self.match_indicator = tk.Label(main_frame,
+                                       text="",
+                                       font=('Consolas', 9, 'bold'),
+                                       bg='#0a0a0a')
+        self.match_indicator.pack(pady=(5, 0))
+        
+        # Bind to check password match on typing
+        self.confirm_pass_var.trace('w', self._check_password_match)
+        
+        # Error message display (for mismatch)
+        self.error_label = tk.Label(main_frame,
+                                   text="",
+                                   font=('Consolas', 9),
+                                   bg='#0a0a0a',
+                                   fg='#ff0000')
+        self.error_label.pack(pady=(5, 10))
+        
+        # Security requirements
+        requirements = tk.Label(main_frame,
+                              text="⚠ REQUIREMENTS: 8+ chars, mix of uppercase, lowercase, numbers, symbols",
+                              font=('Consolas', 8),
+                              bg='#0a0a0a',
+                              fg='#ff9900')
+        requirements.pack(pady=(0, 20))
+        
+        # Buttons frame
+        button_frame = tk.Frame(main_frame, bg='#0a0a0a')
+        button_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        # Change button with hacker style
+        change_btn = tk.Button(button_frame,
+                              text="⚡ EXECUTE PASSWORD CHANGE",
+                              command=self._execute_password_change,
+                              font=('Consolas', 10, 'bold'),
+                              bg='#003300',
+                              fg='#00ff00',
+                              activebackground='#005500',
+                              activeforeground='#00ff00',
+                              relief='raised',
+                              bd=2,
+                              padx=20,
+                              pady=10,
+                              cursor="hand2")
+        change_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # Cancel button
+        cancel_btn = tk.Button(button_frame,
+                              text="✗ ABORT OPERATION",
+                              command=self.pass_window.destroy,
+                              font=('Consolas', 10),
+                              bg='#330000',
+                              fg='#ff6666',
+                              activebackground='#550000',
+                              activeforeground='#ff9999',
+                              relief='raised',
+                              bd=2,
+                              padx=20,
+                              pady=10,
+                              cursor="hand2")
+        cancel_btn.pack(side=tk.RIGHT)
+        
+        # Status bar at bottom
+        status_bar = tk.Frame(self.pass_window, bg='#003300', height=20)
+        status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        self.status_text = tk.StringVar(value="◈ SYSTEM READY ◈")
+        status_label = tk.Label(status_bar,
+                               textvariable=self.status_text,
+                               font=('Consolas', 9),
+                               bg='#003300',
+                               fg='#00ff00')
+        status_label.pack(pady=2)
+        
+        # Start fake terminal typing effect
+        self._start_terminal_effect()
+        
+        # Focus on first entry
+        self.new_pass_entry.focus_set()
+
+    def _animate_title_border(self, label):
+        """Create animated border effect for title"""
+        colors = ['#00ff00', '#00ffff', '#ff00ff', '#ffff00', '#ff9900']
+        
+        def animate():
+            color = random.choice(colors)
+            label.configure(fg=color)
+            self.pass_window.after(500, animate)
+        
+        animate()
+
+    def _toggle_password_visibility(self):
+        """Toggle visibility of new password"""
+        if self.show_new_var.get():
+            self.new_pass_entry.configure(show='')
+        else:
+            self.new_pass_entry.configure(show='•')
+
+    def _toggle_confirm_visibility(self):
+        """Toggle visibility of confirm password"""
+        if self.show_confirm_var.get():
+            self.confirm_pass_entry.configure(show='')
+        else:
+            self.confirm_pass_entry.configure(show='•')
+
+    def _check_password_strength(self, *args):
+        """Check password strength and update indicator"""
+        password = self.new_pass_var.get()
+        
+        if not password:
+            self.strength_var.set("Strength: --")
+            self.strength_label.configure(fg='#666666')
+            return
+        
+        # Calculate strength
+        strength = 0
+        if len(password) >= 8:
+            strength += 1
+        if any(c.isupper() for c in password):
+            strength += 1
+        if any(c.islower() for c in password):
+            strength += 1
+        if any(c.isdigit() for c in password):
+            strength += 1
+        if any(not c.isalnum() for c in password):
+            strength += 1
+        
+        # Update display
+        if strength <= 2:
+            self.strength_var.set(f"Strength: WEAK [{strength}/5]")
+            self.strength_label.configure(fg='#ff0000')
+        elif strength <= 3:
+            self.strength_var.set(f"Strength: MEDIUM [{strength}/5]")
+            self.strength_label.configure(fg='#ff9900')
+        elif strength <= 4:
+            self.strength_var.set(f"Strength: STRONG [{strength}/5]")
+            self.strength_label.configure(fg='#00ff00')
+        else:
+            self.strength_var.set(f"Strength: MAXIMUM [{strength}/5]")
+            self.strength_label.configure(fg='#00ffff')
+
+    def _check_password_match(self, *args):
+        """Check if passwords match and update indicator"""
+        new_pass = self.new_pass_var.get()
+        confirm_pass = self.confirm_pass_var.get()
+        
+        if not new_pass or not confirm_pass:
+            self.match_indicator.configure(text="", fg='#0a0a0a')
+            self.error_label.configure(text="")
+            return
+        
+        if new_pass == confirm_pass:
+            self.match_indicator.configure(text="✓ PASSWORDS MATCH", fg='#00ff00')
+            self.error_label.configure(text="")
+        else:
+            self.match_indicator.configure(text="✗ PASSWORDS DO NOT MATCH", fg='#ff0000')
+            self._show_password_mismatch_error()
+
+    def _show_password_mismatch_error(self):
+        """Show hacker-style password mismatch error"""
+        # Clear any existing animation
+        if hasattr(self, '_mismatch_anim_id'):
+            self.pass_window.after_cancel(self._mismatch_anim_id)
+        
+        error_messages = [
+            "CRYPTOGRAPHIC MISMATCH DETECTED!",
+            "PASSWORD VERIFICATION FAILED!",
+            "SECURITY BREACH: MISMATCHED CREDENTIALS!",
+            "WARNING: PASSWORDS DO NOT SYNCHRONIZE!"
+        ]
+        
+        error_message = random.choice(error_messages)
+        
+        # Create flashing effect
+        def flash_error(count=0):
+            if count >= 6:  # Flash 3 times
+                self.error_label.configure(text=error_message, fg='#ff0000')
+                self.status_text.set("◈ CREDENTIAL MISMATCH ◈")
+                return
+            
+            if count % 2 == 0:
+                self.error_label.configure(text=error_message, fg='#ff0000', bg='#220000')
+                self.status_text.set("◈ VERIFICATION FAILED ◈")
+            else:
+                self.error_label.configure(text=error_message, fg='#ff6666', bg='#0a0a0a')
+                self.status_text.set("◈ RE-ENTER PASSWORD ◈")
+            
+            self._mismatch_anim_id = self.pass_window.after(200, lambda: flash_error(count + 1))
+        
+        flash_error()
+
+    def _start_terminal_effect(self):
+        """Start fake terminal typing effect in status"""
+        terminal_texts = [
+            "Initializing security protocols...",
+            "Loading cryptographic modules...",
+            "Establishing secure connection...",
+            "Verifying user credentials...",
+            "System ready for password update..."
+        ]
+        
+        def type_text(text_index=0, char_index=0):
+            if text_index >= len(terminal_texts):
+                text_index = 0
+            
+            current_text = terminal_texts[text_index]
+            
+            if char_index <= len(current_text):
+                self.status_text.set(f"◈ {current_text[:char_index]} ◈")
+                char_index += 1
+                self.pass_window.after(50, lambda: type_text(text_index, char_index))
+            else:
+                self.pass_window.after(1000, lambda: type_text(text_index + 1, 0))
+        
+        type_text()
+
+    def _execute_password_change(self):
+        """Execute the password change"""
+        new_pass = self.new_pass_var.get()
+        confirm_pass = self.confirm_pass_var.get()
+        
+        # Validate
+        if not new_pass or not confirm_pass:
+            self._show_validation_error("ERROR: Both fields must be completed!")
+            return
+        
+        if new_pass != confirm_pass:
+            self._show_validation_error("CRITICAL: Password mismatch detected!")
+            return
+        
+        if len(new_pass) < 4:
+            self._show_validation_error("ERROR: Password must be at least 4 characters!")
+            return
+        
+        # Show processing animation
+        self.status_text.set("◈ PROCESSING CRYPTOGRAPHIC UPDATE... ◈")
+        
+        # Change button to processing state
+        for widget in self.pass_window.winfo_children():
+            if isinstance(widget, tk.Frame):
+                for child in widget.winfo_children():
+                    if isinstance(child, tk.Button) and "EXECUTE" in child.cget('text'):
+                        child.configure(text="⚡ PROCESSING...", state='disabled', bg='#555555')
+                        break
+        
+        # Simulate processing delay (for effect)
+        def process_change():
+            try:
+                # Call backend to update
+                success, msg = auth.update_password(self.username, new_pass)
+                
+                if success:
+                    # Success animation
+                    self._show_success_animation()
+                    
+                    # Close window after delay
+                    self.pass_window.after(2000, self.pass_window.destroy)
+                    
+                    # Show success message in main window
+                    self.root.after(2100, lambda: messagebox.showinfo("Success", "Password updated successfully!"))
+                    self._append_log(f"Admin password changed for user: {self.username}")
+                    self._show_alert("Password Changed", f"Password for {self.username} has been updated.", "info")
+                else:
+                    self._show_validation_error(f"FAILED: {msg}")
+                    # Re-enable button
+                    for widget in self.pass_window.winfo_children():
+                        if isinstance(widget, tk.Frame):
+                            for child in widget.winfo_children():
+                                if isinstance(child, tk.Button) and "PROCESSING" in child.cget('text'):
+                                    child.configure(text="⚡ EXECUTE PASSWORD CHANGE", state='normal', bg='#003300')
+                                    break
+                    
+            except Exception as e:
+                self._show_validation_error(f"EXCEPTION: {str(e)}")
+        
+        # Start processing after short delay (for visual effect)
+        self.pass_window.after(1000, process_change)
+
+    def _show_validation_error(self, message):
+        """Show validation error in hacker style"""
+        # Flash red border on window
+        original_color = self.pass_window.cget('bg')
+        
+        def flash_border(count=0):
+            if count >= 6:
+                self.pass_window.configure(bg=original_color)
+                return
+            
+            if count % 2 == 0:
+                self.pass_window.configure(bg='#330000')
+            else:
+                self.pass_window.configure(bg=original_color)
+            
+            self.pass_window.after(150, lambda: flash_border(count + 1))
+        
+        flash_border()
+        
+        # Update error label
+        self.error_label.configure(text=message, fg='#ff0000', bg='#220000')
+        self.status_text.set("◈ OPERATION FAILED ◈")
+
+    def _show_success_animation(self):
+        """Show success animation"""
+        # Change window to success theme
+        self.pass_window.configure(bg='#003300')
+        
+        # Update all labels to success theme
+        for widget in self.pass_window.winfo_children():
+            if isinstance(widget, tk.Label):
+                widget.configure(bg='#003300', fg='#00ff00')
+            elif isinstance(widget, tk.Frame):
+                for child in widget.winfo_children():
+                    if isinstance(child, tk.Label):
+                        child.configure(bg='#003300', fg='#00ff00')
+        
+        # Update status
+        self.status_text.set("◈ PASSWORD UPDATED SUCCESSFULLY ◈")
+        
+        # Success message
+        self.error_label.configure(text="✓ CRYPTOGRAPHIC UPDATE COMPLETE", 
+                                 fg='#00ff00', 
+                                 bg='#003300')
+        
+        # Animate success text
+        def pulse_success(count=0):
+            if count >= 4:
+                return
+            
+            if count % 2 == 0:
+                self.error_label.configure(fg='#ffffff')
+            else:
+                self.error_label.configure(fg='#00ff00')
+            
+            self.pass_window.after(300, lambda: pulse_success(count + 1))
+        
+        pulse_success()
+
+    # ===== OTHER SYSTEM METHODS =====
+    
+    def logout(self):
+        """Logout and restart application"""
+        if messagebox.askyesno("Logout", "Are you sure you want to logout?"):
+            # Stop monitor if running
+            if self.monitor_running:
+                try:
+                    self.monitor.stop_monitoring()
+                except: pass
+            
+            # Destroy current window
+            self.root.destroy()
+            
+            # Restart login_gui.py
+            try:
+                subprocess.Popen([sys.executable, "login_gui.py"])
+            except Exception as e:
+                print(f"Failed to restart login: {e}")
+
+    def disable_lockdown(self):
+        """Admin override to disable safe mode"""
+        if self.user_role != 'admin':
+            messagebox.showerror("Access Denied", "Only Admins can disable Safe Mode.")
+            return
+            
+        if messagebox.askyesno("Confirm Unlock", "Are you sure the system is secure?\nThis will re-enable monitoring controls."):
+            success = safe_mode.disable_safe_mode("Admin Override via GUI")
+            if success:
+                messagebox.showinfo("Unlocked", "Safe Mode disabled. System returned to normal.")
+                self.status_var.set("🔴 Stopped")
+                self.status_label.configure(foreground=self.colors['text_primary'])
+            else:
+                messagebox.showerror("Error", "Failed to disable Safe Mode.")
+
+    def _update_button_states(self):
+        """Force button colors to update by toggling state"""
+        # Get all buttons and force color update
+        def update_btn_colors(widget):
+            for child in widget.winfo_children():
+                if isinstance(child, tk.Button):
+                    # Skip theme and special buttons
+                    if child not in [self.theme_btn, self.menu_btn, self.pass_btn, 
+                                self.unlock_btn, self.logout_btn]:
+                        # Force color update by simulating state change
+                        current_bg = child.cget('bg')
+                        current_fg = child.cget('fg')
+                        
+                        # Set to new theme colors
+                        if "Start" in child.cget('text'):
+                            child.configure(bg=self.colors['accent_success'])
+                        elif "Stop" in child.cget('text'):
+                            child.configure(bg=self.colors['accent_danger'])
+                        elif "Verify" in child.cget('text'):
+                            child.configure(bg=self.colors['accent_primary'])
+                        elif "Check" in child.cget('text'):
+                            child.configure(bg=self.colors['accent_secondary'])
+                        elif "Settings" in child.cget('text'):
+                            child.configure(bg=self.colors['accent_info'])
+                        elif "Reset" in child.cget('text'):
+                            child.configure(bg=self.colors['accent_warning'])
+                        else:
+                            # For other buttons, use button_bg
+                            child.configure(bg=self.colors['button_bg'], 
+                                        fg=self.colors['text_primary'])
+                        
+                        # Re-bind hover events
+                        btn_text = child.cget('text')
+                        if "Start" in btn_text:
+                            child.bind("<Enter>", lambda e, b=child: b.configure(
+                                bg=self._lighten_color(self.colors['accent_success'])))
+                            child.bind("<Leave>", lambda e, b=child: b.configure(
+                                bg=self.colors['accent_success']))
+                        elif "Stop" in btn_text:
+                            child.bind("<Enter>", lambda e, b=child: b.configure(
+                                bg=self._lighten_color(self.colors['accent_danger'])))
+                            child.bind("<Leave>", lambda e, b=child: b.configure(
+                                bg=self.colors['accent_danger']))
+                        elif "Verify" in btn_text:
+                            child.bind("<Enter>", lambda e, b=child: b.configure(
+                                bg=self._lighten_color(self.colors['accent_primary'])))
+                            child.bind("<Leave>", lambda e, b=child: b.configure(
+                                bg=self.colors['accent_primary']))
+                        elif "Check" in btn_text:
+                            child.bind("<Enter>", lambda e, b=child: b.configure(
+                                bg=self._lighten_color(self.colors['accent_secondary'])))
+                            child.bind("<Leave>", lambda e, b=child: b.configure(
+                                bg=self.colors['accent_secondary']))
+                        elif "Settings" in btn_text:
+                            child.bind("<Enter>", lambda e, b=child: b.configure(
+                                bg=self._lighten_color(self.colors['accent_info'])))
+                            child.bind("<Leave>", lambda e, b=child: b.configure(
+                                bg=self.colors['accent_info']))
+                        elif "Reset" in btn_text:
+                            child.bind("<Enter>", lambda e, b=child: b.configure(
+                                bg=self._lighten_color(self.colors['accent_warning'])))
+                            child.bind("<Leave>", lambda e, b=child: b.configure(
+                                bg=self.colors['accent_warning']))
+                        else:
+                            # For report buttons
+                            child.bind("<Enter>", lambda e, b=child: b.configure(
+                                bg=self.colors['button_hover']))
+                            child.bind("<Leave>", lambda e, b=child: b.configure(
+                                bg=self.colors['button_bg']))
+                
+                # Recursively update children
+                update_btn_colors(child)
+        
+        update_btn_colors(self.root)
 
 
 # ---------- Run ----------

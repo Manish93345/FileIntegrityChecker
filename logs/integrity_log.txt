@@ -1,7 +1,2 @@
-2026-02-03 14:50:42 - [🟢 INFO] Log reset. New session started.
-2026-02-03 14:50:52 - [🟢 INFO] SAFE MODE DISABLED: Admin Override via GUI
-2026-02-03 14:51:28 - [🟢 INFO] INFO: No hash signature found; created new signature.
-2026-02-03 14:51:28 - [🟢 INFO] Startup: records signature OK
-2026-02-03 14:51:28 - [🟢 INFO] Startup: log signature OK
-2026-02-03 14:51:28 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/Photos/New folder
-2026-02-03 14:51:35 - [🟢 INFO] MANUAL_VERIFICATION_STARTED
+2026-02-06 16:14:00 - [🟢 INFO] Log reset. New session started.
+2026-02-06 16:14:14 - [🟢 INFO] PERIODIC_VERIFICATION_START

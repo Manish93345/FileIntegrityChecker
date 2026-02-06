@@ -1,7 +1,7 @@
 {
     "admin": {
-        "hash": "feec6ac2237c46c1d38960c3678830738f09ff155e0f1c44a0f658788db4ec06",
-        "salt": "3451e921d8604eb584079bddc78baade",
+        "hash": "76ded3adef10c003e00b0250e0d42d8cae9afc45d39e492b5385c0bbd528db60",
+        "salt": "bb724414fda143f1a89577b1d6e1122a",
         "role": "admin"
     }
 }

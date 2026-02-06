@@ -1,0 +1,50 @@
+2026-02-06 14:40:24 - [🟢 INFO] SAFE MODE DISABLED: Admin Override via GUI
+2026-02-06 15:59:22 - [🟢 INFO] WARNING: hash_records.json corrupted or invalid JSON — resetting to {}
+2026-02-06 15:59:22 - [🟢 INFO] WARNING: hash_records.json corrupted or invalid JSON — resetting to {}
+2026-02-06 15:59:22 - [🟢 INFO] INFO: No hash signature found; created new signature.
+2026-02-06 15:59:22 - [🟢 INFO] Startup: records signature OK
+2026-02-06 15:59:22 - [🟢 INFO] Startup: log signature OK
+2026-02-06 15:59:23 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/Photos/New folder
+2026-02-06 15:59:28 - [🟢 INFO] MANUAL_VERIFICATION_STARTED
+2026-02-06 16:00:23 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-06 16:01:23 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-06 16:01:32 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\Screenshot_20251108_134932_com.dts.freefiremax.jpg
+2026-02-06 16:01:32 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\Screenshot_20251221_115811_com.dts.freefiremax.jpg
+2026-02-06 16:01:32 - [🟠 HIGH] Multiple deletes detected: 3 files
+2026-02-06 16:01:32 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\Screenshot_20251230_220933_com.dts.freefiremax.jpg
+2026-02-06 16:01:32 - [🟠 HIGH] Multiple deletes detected: 4 files
+2026-02-06 16:01:32 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\Screenshot_20260105_224626_com.dts.freefiremax.jpg
+2026-02-06 16:01:32 - [🟠 HIGH] Multiple deletes detected: 5 files
+2026-02-06 16:01:32 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\Screenshot_20260105_224627_com.dts.freefiremax.jpg
+2026-02-06 16:01:32 - [🟠 HIGH] Burst operation detected: 5 events in 10 seconds
+2026-02-06 16:01:32 - [🟠 HIGH] Multiple deletes detected: 6 files
+2026-02-06 16:01:32 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\Screenshot_20260105_232157_com.dts.freefiremax.jpg
+2026-02-06 16:01:32 - [🟠 HIGH] Multiple deletes detected: 7 files
+2026-02-06 16:01:32 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\Screenshot_20260105_232252_com.dts.freefiremax.jpg
+2026-02-06 16:01:40 - [🟢 INFO] CREATED: D:\Free_fire\Photos\New folder\Screenshot_20260111_202954_com.dts.freefiremax.jpg
+2026-02-06 16:01:40 - [🟢 INFO] CREATED: D:\Free_fire\Photos\New folder\Screenshot_20251221_115815_com.dts.freefiremax.jpg
+2026-02-06 16:01:40 - [🟢 INFO] CREATED: D:\Free_fire\Photos\New folder\Screenshot_20251221_115811_com.dts.freefiremax.jpg
+2026-02-06 16:01:40 - [🟢 INFO] CREATED: D:\Free_fire\Photos\New folder\Screenshot_20251116_235151_com.dts.freefiremax.jpg
+2026-02-06 16:02:23 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-06 16:02:32 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\Screenshot_20260111_202954_com.dts.freefiremax.jpg
+2026-02-06 16:02:32 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\Screenshot_20251221_115811_com.dts.freefiremax.jpg
+2026-02-06 16:02:32 - [🟠 HIGH] Multiple deletes detected: 3 files
+2026-02-06 16:02:32 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\Screenshot_20251221_115815_com.dts.freefiremax.jpg
+2026-02-06 16:02:32 - [🟠 HIGH] Multiple deletes detected: 4 files
+2026-02-06 16:02:32 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\Screenshot_20260105_232553_com.dts.freefiremax.jpg
+2026-02-06 16:02:32 - [🟠 HIGH] Multiple deletes detected: 5 files
+2026-02-06 16:02:32 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\Screenshot_20260107_233117_com.dts.freefiremax.jpg
+2026-02-06 16:02:32 - [🟠 HIGH] Burst operation detected: 5 events in 10 seconds
+2026-02-06 16:02:32 - [🟠 HIGH] Multiple deletes detected: 6 files
+2026-02-06 16:02:32 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\Screenshot_20260108_024802_com.dts.freefiremax.jpg
+2026-02-06 16:02:40 - [🟢 INFO] CREATED: D:\Free_fire\Photos\New folder\Screenshot_20260111_202954_com.dts.freefiremax.jpg
+2026-02-06 16:02:40 - [🟢 INFO] CREATED: D:\Free_fire\Photos\New folder\Screenshot_20251221_115811_com.dts.freefiremax.jpg
+2026-02-06 16:02:40 - [🟢 INFO] CREATED: D:\Free_fire\Photos\New folder\Screenshot_20251221_115815_com.dts.freefiremax.jpg
+2026-02-06 16:02:40 - [🟢 INFO] CREATED: D:\Free_fire\Photos\New folder\Screenshot_20260105_232553_com.dts.freefiremax.jpg
+2026-02-06 16:02:40 - [🟢 INFO] CREATED: D:\Free_fire\Photos\New folder\Screenshot_20260107_233117_com.dts.freefiremax.jpg
+2026-02-06 16:02:40 - [🟢 INFO] CREATED: D:\Free_fire\Photos\New folder\Screenshot_20260108_024802_com.dts.freefiremax.jpg
+2026-02-06 16:03:23 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-06 16:04:23 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-06 16:05:23 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-06 16:13:14 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-06 16:13:33 - [🟢 INFO] MONITOR_STOPPED
