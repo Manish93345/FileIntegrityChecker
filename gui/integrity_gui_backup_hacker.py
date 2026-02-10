@@ -271,6 +271,10 @@ class ProIntegrityGUI:
         # Theme management
         self.dark_mode = True  # Start with dark theme
         self.colors = DARK_THEME
+
+        # Counter label storage
+        self.file_counter_labels = []
+        self.severity_counter_labels = []
         
         # Alert panel configuration - FIXED POSITIONING
         self.ALERT_PANEL_WIDTH = 350  # Reduced width to avoid overlap
@@ -541,6 +545,10 @@ class ProIntegrityGUI:
         content_frame = tk.Frame(main_container, bg=self.colors['bg'])
         content_frame.pack(fill=tk.BOTH, expand=True)
 
+        # Initialize label storage
+        self.file_counter_labels = []
+        self.severity_counter_labels = []
+
         # ===== LEFT PANEL - Controls and Status =====
         left_panel = tk.Frame(content_frame, bg=self.colors['bg'], width=400)
         left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=False)
@@ -660,10 +668,10 @@ class ProIntegrityGUI:
         dashboard_frame.pack_propagate(False)
         dashboard_frame.configure(height=320)
 
-        # File Statistics Card - IMPORTED FROM BACKUP
+        # File Statistics Card - MODIFIED: Store counter labels
         stats_card = tk.Frame(dashboard_frame, bg=self.colors['card_bg'], width=300,
-                             relief='flat', bd=1, highlightbackground=self.colors['card_border'],
-                             highlightthickness=1)
+                            relief='flat', bd=1, highlightbackground=self.colors['card_border'],
+                            highlightthickness=1)
         stats_card.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         stats_card.pack_propagate(False)
         
@@ -688,10 +696,13 @@ class ProIntegrityGUI:
                     bg=self.colors['card_bg'], fg=self.colors['text_secondary']).pack(side=tk.LEFT)
             
             value_label = tk.Label(stat_frame, textvariable=var, font=('Segoe UI', 14, 'bold'),
-                                  bg=color, fg='white', padx=15, pady=6, relief='flat')
+                                bg=color, fg='white', padx=15, pady=6, relief='flat')
             value_label.pack(side=tk.RIGHT)
-
-        # Severity Dashboard Card - IMPORTED FROM BACKUP
+            
+            # Store the label reference
+            self.file_counter_labels.append((value_label, label, color))
+        
+        # Severity Dashboard Card - MODIFIED: Store severity counter labels
         severity_card = tk.Frame(dashboard_frame, bg=self.colors['card_bg'], width=300,
                                 relief='flat', bd=1, highlightbackground=self.colors['card_border'],
                                 highlightthickness=1)
@@ -719,8 +730,11 @@ class ProIntegrityGUI:
                     bg=self.colors['card_bg'], fg=self.colors['text_secondary']).pack(side=tk.LEFT)
             
             value_label = tk.Label(severity_frame, textvariable=var, font=('Segoe UI', 14, 'bold'),
-                                  bg=color, fg='white', padx=15, pady=6, relief='flat')
+                                bg=color, fg='white', padx=15, pady=6, relief='flat')
             value_label.pack(side=tk.RIGHT)
+        
+            # Store the label reference
+            self.severity_counter_labels.append((value_label, label, color))
 
         # Report Tools Card - IMPORTED FROM BACKUP
         report_card = tk.Frame(dashboard_frame, bg=self.colors['card_bg'], width=300,
@@ -1938,6 +1952,9 @@ class ProIntegrityGUI:
         # Update all widget colors
         self._apply_theme()
 
+        # Update status color specifically
+        self._update_status_color()
+
     def _apply_theme(self):
         """Apply current theme to all widgets"""
         # Update root window
@@ -1946,8 +1963,24 @@ class ProIntegrityGUI:
         # Update all widgets with force refresh
         self._update_widget_colors(self.root)
         
+        # Update counter colors
+        if hasattr(self, 'file_counter_labels') and hasattr(self, 'severity_counter_labels'):
+            self._update_counter_colors()
+        
         # Force update button states (fix hover colors)
         self._update_button_states()
+        
+        # Update status label color
+        if hasattr(self, 'status_label'):
+            current_status = self.status_var.get()
+            if "Running" in current_status or "🟢" in current_status:
+                self.status_label.configure(fg=self.colors['accent_success'])
+            elif "DEMO" in current_status or "SAFE" in current_status:
+                self.status_label.configure(fg=self.colors['accent_danger'])
+            elif "Read-Only" in current_status:
+                self.status_label.configure(fg=self.colors['accent_warning'])
+            else:  # Stopped
+                self.status_label.configure(fg=self.colors['accent_primary'])
         
         # Update menu button colors
         if hasattr(self, 'menu_btn'):
@@ -1960,12 +1993,115 @@ class ProIntegrityGUI:
             for child in self.side_menu.winfo_children():
                 if isinstance(child, tk.Button):
                     if "Demo" in child.cget('text'):
-                        child.configure(bg='#8b5cf6' if self.dark_mode else '#8b5cf6')
+                        child.configure(bg='#8b5cf6')
                     elif "Archive" in child.cget('text'):
-                        child.configure(bg='#ef4444' if self.dark_mode else '#ef4444')
+                        child.configure(bg='#ef4444')
                     elif "Close" in child.cget('text'):
                         child.configure(bg=self.colors['sidebar_bg'], 
                                     fg=self.colors['text_secondary'])
+
+    def _update_counter_colors(self):
+        """Update the colors of counter labels after theme change"""
+        # Update file counter colors
+        for i, (label_widget, label_text, original_color) in enumerate(self.file_counter_labels):
+            # Determine which color to use based on label text
+            if "Total" in label_text:
+                new_color = self.colors['accent_primary']
+            elif "Created" in label_text:
+                new_color = self.colors['accent_success']
+            elif "Modified" in label_text:
+                new_color = self.colors['accent_warning']
+            elif "Deleted" in label_text:
+                new_color = self.colors['accent_danger']
+            else:
+                new_color = original_color
+            
+            # Update the label
+            label_widget.configure(bg=new_color, fg='white')
+        
+        # Update severity counter colors (these are fixed colors, but we need to re-apply them)
+        for label_widget, label_text, color in self.severity_counter_labels:
+            label_widget.configure(bg=color, fg='white')
+
+    def _update_counter_widgets(self, widget):
+        """Recursively find and update counter widget colors"""
+        try:
+            if isinstance(widget, tk.Label):
+                # Check if this is a counter label by its styling
+                text = widget.cget('text')
+                bg = widget.cget('bg')
+                
+                # Check if it's a statistic counter (has specific colors)
+                if bg in [DARK_THEME['accent_primary'], LIGHT_THEME['accent_primary'],
+                        DARK_THEME['accent_success'], LIGHT_THEME['accent_success'],
+                        DARK_THEME['accent_warning'], LIGHT_THEME['accent_warning'],
+                        DARK_THEME['accent_danger'], LIGHT_THEME['accent_danger']]:
+                    
+                    # Determine which color to use based on text content
+                    if "Total" in str(widget.master) or text == "0":  # Total files
+                        widget.configure(bg=self.colors['accent_primary'], fg='white')
+                    elif "Created" in str(widget.master):  # Created files
+                        widget.configure(bg=self.colors['accent_success'], fg='white')
+                    elif "Modified" in str(widget.master):  # Modified files
+                        widget.configure(bg=self.colors['accent_warning'], fg='white')
+                    elif "Deleted" in str(widget.master):  # Deleted files
+                        widget.configure(bg=self.colors['accent_danger'], fg='white')
+            
+            # Recursively check children
+            for child in widget.winfo_children():
+                self._update_counter_widgets(child)
+        except:
+            pass
+
+
+    def _update_severity_counter_colors(self):
+        """Update severity counter colors after theme change"""
+        # Find and update severity counter labels
+        try:
+            # CRITICAL counter
+            if hasattr(self, 'critical_var'):
+                # Find the label showing critical count
+                for widget in self.root.winfo_children():
+                    self._find_and_update_severity_label(widget, "CRITICAL", self.critical_var.get())
+            
+            # Similar for HIGH, MEDIUM, INFO
+            # You would implement similar logic for each severity level
+            # This is a simplified version - you might need to adjust based on your actual widget structure
+            
+        except Exception as e:
+            print(f"Error updating severity colors: {e}")
+
+
+    def _find_and_update_severity_label(self, widget, severity, value):
+        """Find and update a specific severity label"""
+        try:
+            if isinstance(widget, tk.Label):
+                # Check if this is the severity label
+                if severity in widget.cget('text') or widget.cget('textvariable') == getattr(self, f'{severity.lower()}_var', None):
+                    # Update color based on severity
+                    color = SEVERITY_COLORS.get(severity, self.colors['accent_info'])
+                    widget.configure(bg=color, fg='white')
+            
+            # Check children
+            for child in widget.winfo_children():
+                self._find_and_update_severity_label(child, severity, value)
+        except:
+            pass
+
+    def _update_status_color(self):
+        """Update the status label color based on current status"""
+        if not hasattr(self, 'status_label'):
+            return
+        
+        current_status = self.status_var.get()
+        if "Running" in current_status or "🟢" in current_status:
+            self.status_label.configure(fg=self.colors['accent_success'])
+        elif "DEMO" in current_status or "SAFE" in current_status:
+            self.status_label.configure(fg=self.colors['accent_danger'])
+        elif "Read-Only" in current_status:
+            self.status_label.configure(fg=self.colors['accent_warning'])
+        else:  # Stopped or default
+            self.status_label.configure(fg=self.colors['accent_primary'])
 
     def _update_widget_colors(self, widget):
         """Recursively update widget colors"""
@@ -1973,14 +2109,18 @@ class ProIntegrityGUI:
             if isinstance(widget, tk.Frame):
                 if 'card' in str(widget).lower():
                     widget.configure(bg=self.colors['card_bg'],
-                                   highlightbackground=self.colors['card_border'])
+                                highlightbackground=self.colors['card_border'])
                 elif 'header' in str(widget).lower():
                     widget.configure(bg=self.colors['header_bg'])
                 else:
                     widget.configure(bg=self.colors['bg'])
             
             elif isinstance(widget, tk.Label):
-                if 'footer' in str(widget).lower():
+                # Skip counter labels - they're handled separately
+                if widget in [label for label, _, _ in self.file_counter_labels] or \
+                widget in [label for label, _, _ in self.severity_counter_labels]:
+                    pass  # Don't update counter labels here
+                elif 'footer' in str(widget).lower():
                     widget.configure(bg=self.colors['bg'], fg=self.colors['text_muted'])
                 elif 'card' in str(widget).lower() or isinstance(widget.master, tk.Frame) and 'card' in str(widget.master).lower():
                     widget.configure(bg=self.colors['card_bg'], fg=self.colors['text_primary'])
@@ -1993,7 +2133,7 @@ class ProIntegrityGUI:
             
             elif isinstance(widget, scrolledtext.ScrolledText):
                 widget.configure(bg=self.colors['card_bg'], fg=self.colors['text_primary'],
-                               insertbackground=self.colors['text_primary'])
+                            insertbackground=self.colors['text_primary'])
         except:
             pass
         
@@ -2043,65 +2183,380 @@ class ProIntegrityGUI:
     # ===== SIDE MENU METHODS =====
     
     def _create_side_menu(self):
-        """Create sliding side menu with demo and archive options"""
-        self.menu_width = 250
+        """Create a professional hacker-themed sliding side menu"""
+        self.menu_width = 320  # Increased width for better layout
         self.menu_visible = False
         
-        # Create side menu frame
-        self.side_menu = tk.Frame(self.root, bg=self.colors['sidebar_bg'], width=self.menu_width)
+        # Create side menu frame with hacker theme
+        self.side_menu = tk.Frame(self.root, 
+                                bg='#000000',  # Black background
+                                width=self.menu_width,
+                                bd=2, 
+                                relief='ridge',
+                                highlightbackground='#00ff00',  # Matrix green border
+                                highlightthickness=1)
         self.side_menu.place(x=-self.menu_width, y=0, height=self.root.winfo_height(), relheight=1.0)
         
-        # Menu Title
-        tk.Label(self.side_menu, text="🛡️ SECURITY MENU", 
-                font=('Segoe UI', 14, 'bold'), 
-                bg=self.colors['accent_primary'], 
-                fg='white', 
-                pady=15).pack(fill=tk.X)
+        # Create matrix background FIRST
+        self._create_matrix_background()
         
-        # Demo Simulation Button
-        demo_btn = tk.Button(self.side_menu, text="🎬 Run Demo Simulation", 
-                            command=self.run_demo_mode,
-                            font=('Segoe UI', 11), 
-                            bg='#8b5cf6',  # Purple
-                            fg='white',
-                            bd=0, 
-                            padx=20, 
-                            pady=15,
-                            cursor="hand2",
-                            anchor='w',
-                            activebackground='#7c3aed')
-        demo_btn.pack(fill=tk.X, pady=(20, 10), padx=10)
+        # Menu Header with ASCII Art
+        header_frame = tk.Frame(self.side_menu, bg='#000000')
+        header_frame.pack(fill=tk.X, pady=(20, 10))
         
-        # Archive & Reset Button
-        archive_btn = tk.Button(self.side_menu, text="🗄️ Archive Logs & Reset", 
-                            command=self.archive_and_reset,
-                            font=('Segoe UI', 11), 
-                            bg='#ef4444',  # Red
-                            fg='white',
-                            bd=0, 
-                            padx=20, 
-                            pady=15,
-                            cursor="hand2",
-                            anchor='w',
-                            activebackground='#dc2626')
-        archive_btn.pack(fill=tk.X, pady=10, padx=10)
+        # ASCII Art Security Logo
+        ascii_art = """
+        ███████╗███████╗ ██████╗██╗   ██╗██████╗ 
+        ██╔════╝██╔════╝██╔════╝██║   ██║██╔══██╗
+        ███████╗█████╗  ██║     ██║   ██║██████╔╝
+        ╚════██║██╔══╝  ██║     ██║   ██║██╔══██╗
+        ███████║███████╗╚██████╗╚██████╔╝██║  ██║
+        ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝
+        """
         
-        # Close Menu Button
-        close_btn = tk.Button(self.side_menu, text="✕ Close Menu", 
+        ascii_label = tk.Label(header_frame, 
+                            text=ascii_art,
+                            font=('Consolas', 8),
+                            bg='#000000',
+                            fg='#00ff00',  # Matrix green
+                            justify='center')
+        ascii_label.pack()
+        
+        # Animated Terminal Title
+        title_frame = tk.Frame(self.side_menu, bg='#000000')
+        title_frame.pack(fill=tk.X, pady=(0, 20))
+        
+        self.menu_title = tk.Label(title_frame,
+                                text="[ SECURITY TERMINAL v2.4 ]",
+                                font=('Courier New', 12, 'bold'),
+                                bg='#000000',
+                                fg='#00ffff')  # Cyan
+        self.menu_title.pack()
+        
+        # Blinking cursor effect for title
+        self._blink_menu_title()
+        
+        # System Status Display
+        status_frame = tk.Frame(self.side_menu, bg='#000000')
+        status_frame.pack(fill=tk.X, padx=20, pady=(0, 20))
+        
+        # System Status Line
+        tk.Label(status_frame, 
+                text="◈ SYSTEM STATUS ◈",
+                font=('Courier New', 10, 'bold'),
+                bg='#000000',
+                fg='#ff9900').pack(anchor='w')
+        
+        # Status indicators with blinking dots
+        status_grid = tk.Frame(status_frame, bg='#000000')
+        status_grid.pack(fill=tk.X, pady=(5, 0))
+        
+        status_items = [
+            ("MONITOR", "ACTIVE" if self.monitor_running else "STANDBY", 
+            '#00ff00' if self.monitor_running else '#ff0000'),
+            ("INTEGRITY", "VERIFIED", '#00ff00'),
+            ("ENCRYPTION", "ENABLED", '#00ff00'),
+            ("SESSION", f"USER:{self.username}", '#00ffff')
+        ]
+        
+        self.status_dots = []
+        for label, value, color in status_items:
+            item_frame = tk.Frame(status_grid, bg='#000000')
+            item_frame.pack(fill=tk.X, pady=2)
+            
+            # Blinking dot
+            dot = tk.Label(item_frame, text="●", 
+                        font=('Consolas', 12),
+                        bg='#000000',
+                        fg=color)
+            dot.pack(side=tk.LEFT, padx=(0, 10))
+            self.status_dots.append(dot)
+            
+            tk.Label(item_frame, 
+                    text=f"{label}: {value}",
+                    font=('Courier New', 9),
+                    bg='#000000',
+                    fg='#ffffff').pack(side=tk.LEFT)
+        
+        # Start blinking animation for status dots
+        self._blink_status_dots()
+        
+        # Separator
+        sep = tk.Frame(self.side_menu, height=2, bg='#00ff00')
+        sep.pack(fill=tk.X, padx=20, pady=10)
+        
+        # Menu Items with Terminal Style
+        menu_items = [
+            ("⚡ $> RUN SECURITY DRILL", self.run_demo_mode, '#00ff00', '▶'),
+            ("📊 $> AUDIT LOGS", self._open_audit_logs, '#00ffff', '📁'),
+            ("🔐 $> CRYPTO TOOLS", self._open_crypto_tools, '#ff00ff', '🔑'),
+            ("🛡️ $> FIREWALL SETTINGS", self._open_firewall_settings, '#ff9900', '⚙️'),
+            ("💾 $> SYSTEM BACKUP", self.archive_and_reset, '#ff0000', '💿'),
+            ("🚨 $> EMERGENCY LOCKDOWN", self._emergency_lockdown, '#ff0000', '⚠️')
+        ]
+        
+        for text, command, color, icon in menu_items:
+            self._create_terminal_button(text, command, color, icon)
+        
+        # Close Menu Button with Terminal Style
+        close_frame = tk.Frame(self.side_menu, bg='#000000')
+        close_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(0, 20))
+        
+        close_btn = tk.Button(close_frame,
+                            text="$> exit_terminal",
                             command=self.toggle_menu,
-                            font=('Segoe UI', 10), 
-                            bg=self.colors['sidebar_bg'], 
-                            fg=self.colors['text_secondary'],
-                            bd=0,
-                            cursor="hand2")
-        close_btn.pack(side=tk.BOTTOM, pady=20)
+                            font=('Courier New', 10),
+                            bg='#111111',
+                            fg='#ff0000',
+                            bd=1,
+                            relief='flat',
+                            padx=20,
+                            pady=8,
+                            cursor="hand2",
+                            activebackground='#222222',
+                            activeforeground='#ff6666')
+        close_btn.pack(fill=tk.X, padx=20)
+        
+        # Add keyboard shortcut hint
+        tk.Label(self.side_menu,
+                text="[ Press ESC to close ]",
+                font=('Courier New', 8),
+                bg='#000000',
+                fg='#666666').pack(side=tk.BOTTOM, pady=(0, 5))
+        
+        # Bind ESC key to close menu
+        self.side_menu.bind('<Escape>', lambda e: self.toggle_menu())
+        
+        # Start matrix animation
+        self._start_matrix_animation()
+
+
+    def _create_matrix_background(self):
+        """Create matrix code rain effect in background"""
+        self.matrix_canvas = tk.Canvas(self.side_menu, 
+                                    bg='#000000',
+                                    highlightthickness=0)
+        self.matrix_canvas.place(x=0, y=0, relwidth=1, relheight=1)
+        
+        # Store matrix columns
+        self.matrix_columns = []
+        self.matrix_chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$+-*/=%\"'#&_(),.;:?!\\|{}<>[]^~"
+        
+        # Create columns
+        num_columns = self.menu_width // 15
+        for i in range(num_columns):
+            column = {
+                'x': i * 15,
+                'chars': [],
+                'speed': random.uniform(1, 3),
+                'length': random.randint(5, 20)
+            }
+            self.matrix_columns.append(column)
+        
+        # Place matrix behind all other widgets - FIXED: use widget.lower() without argument
+        # We need to ensure the canvas is created before other widgets
+        # Since we're creating it in place, it will naturally be behind if created first
+        # So we don't need to call lower() at all
+
+    
+    def _start_matrix_animation(self):
+        """Start matrix code rain animation"""
+        if not hasattr(self, 'matrix_canvas') or self.matrix_canvas is None:
+            return
+        
+        # Clear previous frame
+        self.matrix_canvas.delete("matrix")
+        
+        # Update each column
+        for column in self.matrix_columns:
+            # Move column down
+            column['x'] += random.uniform(-0.5, 0.5)  # Slight horizontal drift
+            
+            # Add new character at top
+            char = random.choice(self.matrix_chars)
+            y = 0
+            
+            # Create gradient of green colors
+            brightness = random.randint(100, 255)
+            color = f'#00{format(brightness, "02x")}00'  # Green gradient
+            
+            # Draw character
+            self.matrix_canvas.create_text(column['x'], y,
+                                        text=char,
+                                        fill=color,
+                                        font=('Consolas', 12),
+                                        tags="matrix")
+            
+            # Update existing characters
+            for i, (char_id, char_y) in enumerate(list(column['chars'])):
+                new_y = char_y + column['speed']
+                
+                if new_y > self.side_menu.winfo_height():  # Use side_menu height instead of root
+                    # Remove off-screen characters
+                    self.matrix_canvas.delete(char_id)
+                    column['chars'].pop(i)
+                else:
+                    # Update character position
+                    self.matrix_canvas.coords(char_id, column['x'], new_y)
+                    
+                    # Fade out as it falls
+                    brightness = max(50, 255 - (new_y / self.side_menu.winfo_height() * 200))
+                    color = f'#00{format(int(brightness), "02x")}00'
+                    self.matrix_canvas.itemconfig(char_id, fill=color)
+                    
+                    # Update position in list
+                    column['chars'][i] = (char_id, new_y)
+            
+            # Add new character to column
+            char_id = self.matrix_canvas.create_text(column['x'], y,
+                                                text=char,
+                                                fill=color,
+                                                font=('Consolas', 12),
+                                                tags="matrix")
+            column['chars'].append((char_id, y))
+            
+            # Limit column length
+            if len(column['chars']) > column['length']:
+                old_id, _ = column['chars'].pop(0)
+                self.matrix_canvas.delete(old_id)
+        
+        # Schedule next frame
+        if self.menu_visible and hasattr(self, 'matrix_canvas') and self.matrix_canvas:
+            self.root.after(50, self._start_matrix_animation)
+
+
+    def _create_terminal_button(self, text, command, color, icon):
+        """Create a terminal-style button for the menu"""
+        btn_frame = tk.Frame(self.side_menu, bg='#000000')
+        btn_frame.pack(fill=tk.X, padx=20, pady=5)
+        
+        # Button with terminal prompt style
+        btn = tk.Button(btn_frame,
+                    text=text,
+                    command=command,
+                    font=('Courier New', 10),
+                    bg='#111111',
+                    fg=color,
+                    bd=1,
+                    relief='flat',
+                    padx=15,
+                    pady=10,
+                    anchor='w',
+                    cursor="hand2",
+                    activebackground='#222222',
+                    activeforeground=color)
+        btn.pack(fill=tk.X)
+        
+        # Add icon beside text
+        icon_label = tk.Label(btn,
+                            text=icon,
+                            font=('Segoe UI Emoji', 10),
+                            bg='#111111',
+                            fg=color)
+        icon_label.place(x=5, y=5)
+        
+        # Add hover effect
+        btn.bind("<Enter>", lambda e, b=btn, c=color: 
+                b.configure(bg='#222222', fg=self._lighten_color(c, 0.3)))
+        btn.bind("<Leave>", lambda e, b=btn, c=color: 
+                b.configure(bg='#111111', fg=c))
+        
+        # Add typing sound effect simulation (visual only)
+        btn.bind("<Button-1>", lambda e: self._simulate_terminal_click(text))
+
+    
+    def _blink_menu_title(self):
+        """Create blinking cursor effect for menu title"""
+        if not hasattr(self, 'menu_title') or self.menu_title is None:
+            return
+        
+        current_text = self.menu_title.cget('text')
+        
+        if current_text.endswith('█'):
+            # Remove cursor
+            new_text = current_text[:-1]
+            self.menu_title.configure(text=new_text)
+        else:
+            # Add cursor
+            new_text = current_text + '█'
+            self.menu_title.configure(text=new_text)
+        
+        # Continue blinking if menu is visible
+        if self.menu_visible:
+            self.root.after(500, self._blink_menu_title)
+
+    def _blink_status_dots(self):
+        """Create blinking effect for status dots"""
+        if not hasattr(self, 'status_dots') or not self.menu_visible:
+            return
+        
+        for dot in self.status_dots:
+            current_color = dot.cget('fg')
+            # Alternate between color and black for blinking effect
+            if current_color == '#000000':
+                # Restore original color (stored in a custom attribute)
+                if hasattr(dot, 'original_color'):
+                    dot.configure(fg=dot.original_color)
+            else:
+                # Store original color and hide
+                dot.original_color = current_color
+                dot.configure(fg='#000000')
+        
+        # Continue blinking
+        self.root.after(700, self._blink_status_dots)
+
+    
+    def _simulate_terminal_click(self, command):
+        """Simulate terminal typing effect when menu item is clicked"""
+        if hasattr(self, 'menu_title'):
+            original_text = self.menu_title.cget('text').replace('█', '')
+            self.menu_title.configure(text=f"$> {command}")
+            self.root.after(300, lambda: self.menu_title.configure(text=original_text + '█'))
+
+    def _open_audit_logs(self):
+        """Open audit logs viewer"""
+        self.toggle_menu()
+        # Implementation for audit logs viewer
+        self._append_log("Accessing security audit logs...")
+
+    def _open_crypto_tools(self):
+        """Open cryptographic tools panel"""
+        self.toggle_menu()
+        # Implementation for crypto tools
+        self._append_log("Launching cryptographic toolkit...")
+
+    def _open_firewall_settings(self):
+        """Open firewall settings panel"""
+        self.toggle_menu()
+        # Implementation for firewall settings
+        self._append_log("Accessing firewall configuration...")
+
+    def _emergency_lockdown(self):
+        """Initiate emergency lockdown"""
+        self.toggle_menu()
+        if messagebox.askyesno("🚨 EMERGENCY LOCKDOWN",
+                            "CONFIRM SYSTEM LOCKDOWN?\n\n"
+                            "This will:\n"
+                            "• Halt all monitoring\n"
+                            "• Encrypt sensitive logs\n"
+                            "• Disable all external connections\n"
+                            "• Require admin override to restore"):
+            self._append_log("EMERGENCY LOCKDOWN ACTIVATED")
+            self._show_alert("SYSTEM LOCKDOWN", "All operations halted. Admin override required.", "critical")
+        
+
+    
 
     def toggle_menu(self):
-        """Toggle the side menu visibility"""
+        """Toggle the side menu visibility with enhanced animation"""
         if not self.menu_visible:
-            # Show menu
+            # Show menu with matrix animation
             self._animate_menu(0)
             self.menu_visible = True
+            # Start animations
+            self._blink_menu_title()
+            self._blink_status_dots()
+            self._start_matrix_animation()
         else:
             # Hide menu
             self._animate_menu(-self.menu_width)

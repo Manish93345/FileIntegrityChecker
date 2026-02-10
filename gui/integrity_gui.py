@@ -2104,7 +2104,11 @@ class ProIntegrityGUI:
             self.status_label.configure(fg=self.colors['accent_primary'])
 
     def _update_widget_colors(self, widget):
-        """Recursively update widget colors"""
+        """Recursively update widget colors, skipping the side menu"""
+        # SKIP if this widget belongs to the side menu
+        if self._is_side_menu_widget(widget):
+            return
+
         try:
             if isinstance(widget, tk.Frame):
                 if 'card' in str(widget).lower():
@@ -2117,29 +2121,48 @@ class ProIntegrityGUI:
             
             elif isinstance(widget, tk.Label):
                 # Skip counter labels - they're handled separately
-                if widget in [label for label, _, _ in self.file_counter_labels] or \
-                widget in [label for label, _, _ in self.severity_counter_labels]:
-                    pass  # Don't update counter labels here
+                if hasattr(self, 'file_counter_labels') and widget in [label for label, _, _ in self.file_counter_labels]:
+                    pass
+                elif hasattr(self, 'severity_counter_labels') and widget in [label for label, _, _ in self.severity_counter_labels]:
+                    pass
                 elif 'footer' in str(widget).lower():
                     widget.configure(bg=self.colors['bg'], fg=self.colors['text_muted'])
-                elif 'card' in str(widget).lower() or isinstance(widget.master, tk.Frame) and 'card' in str(widget.master).lower():
+                elif 'card' in str(widget).lower() or (isinstance(widget.master, tk.Frame) and 'card' in str(widget.master).lower()):
                     widget.configure(bg=self.colors['card_bg'], fg=self.colors['text_primary'])
                 else:
                     widget.configure(bg=self.colors['bg'], fg=self.colors['text_primary'])
             
             elif isinstance(widget, tk.Button):
-                if widget != self.theme_btn:
+                # Update standard buttons, but skip special toggle buttons
+                if widget not in [self.theme_btn, getattr(self, 'menu_btn', None), getattr(self, 'pass_btn', None), 
+                                getattr(self, 'unlock_btn', None), getattr(self, 'logout_btn', None)]:
                     widget.configure(bg=self.colors['button_bg'], fg=self.colors['text_primary'])
             
             elif isinstance(widget, scrolledtext.ScrolledText):
                 widget.configure(bg=self.colors['card_bg'], fg=self.colors['text_primary'],
                             insertbackground=self.colors['text_primary'])
-        except:
-            pass
+        except Exception as e:
+            pass # Ignore configuration errors for widgets that might not support options
         
         # Update children
         for child in widget.winfo_children():
             self._update_widget_colors(child)
+
+    def _is_side_menu_widget(self, widget):
+        """Check if a widget is part of the side menu"""
+        if not hasattr(self, 'side_menu') or not self.side_menu:
+            return False
+            
+        # Traverse up the widget hierarchy to see if the side_menu is a parent
+        current = widget
+        while current:
+            if current == self.side_menu:
+                return True
+            # Stop if we hit root to prevent infinite loops (though unlikely in Tk)
+            if current == self.root:
+                break
+            current = current.master
+        return False
 
     def _apply_permissions(self):
         """Disable controls based on user role"""
@@ -3536,32 +3559,42 @@ class ProIntegrityGUI:
         """Force button colors to update by toggling state"""
         # Get all buttons and force color update
         def update_btn_colors(widget):
+            # SKIP side menu buttons
+            if self._is_side_menu_widget(widget):
+                return
+
             for child in widget.winfo_children():
+                # Recursively check children FIRST
+                update_btn_colors(child)
+                
                 if isinstance(child, tk.Button):
                     # Skip theme and special buttons
-                    if child not in [self.theme_btn, self.menu_btn, self.pass_btn, 
-                                self.unlock_btn, self.logout_btn]:
-                        # Force color update by simulating state change
-                        current_bg = child.cget('bg')
-                        current_fg = child.cget('fg')
+                    if child not in [self.theme_btn, getattr(self, 'menu_btn', None), getattr(self, 'pass_btn', None), 
+                                getattr(self, 'unlock_btn', None), getattr(self, 'logout_btn', None)]:
                         
-                        # Set to new theme colors
-                        if "Start" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_success'])
-                        elif "Stop" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_danger'])
-                        elif "Verify" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_primary'])
-                        elif "Check" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_secondary'])
-                        elif "Settings" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_info'])
-                        elif "Reset" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_warning'])
-                        else:
-                            # For other buttons, use button_bg
-                            child.configure(bg=self.colors['button_bg'], 
-                                        fg=self.colors['text_primary'])
+                        # SKIP side menu buttons (double check for direct children)
+                        if self._is_side_menu_widget(child):
+                            continue
+
+                        # ... REST OF YOUR EXISTING LOGIC ...
+                        # (Set colors for Start/Stop/Verify etc...)
+                        btn_text = child.cget('text')
+                        
+                        # Default Colors
+                        new_bg = self.colors['button_bg']
+                        new_fg = self.colors['text_primary']
+                        
+                        # Specific Buttons
+                        if "Start" in btn_text: new_bg = self.colors['accent_success']; new_fg = 'white'
+                        elif "Stop" in btn_text: new_bg = self.colors['accent_danger']; new_fg = 'white'
+                        elif "Verify" in btn_text: new_bg = self.colors['accent_primary']; new_fg = 'white'
+                        elif "Check" in btn_text: new_bg = self.colors['accent_secondary']; new_fg = 'white'
+                        elif "Settings" in btn_text: new_bg = self.colors['accent_info']; new_fg = 'white'
+                        elif "Reset" in btn_text: new_bg = self.colors['accent_warning']; new_fg = 'white'
+                        
+                        try:
+                            child.configure(bg=new_bg, fg=new_fg)
+                        except: pass
                         
                         # Re-bind hover events
                         btn_text = child.cget('text')
