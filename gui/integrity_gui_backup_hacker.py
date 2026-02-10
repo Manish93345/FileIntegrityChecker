@@ -281,7 +281,7 @@ class ProIntegrityGUI:
         self.alert_visible = False
         self.alert_hide_after_id = None
         
-        # Report tracking
+        # Report tracking - ADDED FROM BACKUP
         self.report_data = {
             'total': 0,
             'created': [],
@@ -293,7 +293,7 @@ class ProIntegrityGUI:
             'last_update': None
         }
         
-        # Chart configuration
+        # Chart configuration - ADDED FROM BACKUP
         self.chart_colors = {
             'created': '#10b981',  # Green
             'modified': '#f59e0b',  # Amber
@@ -301,7 +301,7 @@ class ProIntegrityGUI:
             'total': '#3b82f6'      # Blue
         }
 
-        # Severity counters
+        # Severity counters - ADDED FROM BACKUP
         self.severity_counters = {
             'CRITICAL': 0,
             'HIGH': 0,
@@ -309,7 +309,7 @@ class ProIntegrityGUI:
             'INFO': 0
         }
 
-        # UI variables for severity counters
+        # UI variables for severity counters - ADDED FROM BACKUP
         self.critical_var = tk.StringVar(value="0")
         self.high_var = tk.StringVar(value="0")
         self.medium_var = tk.StringVar(value="0")
@@ -334,7 +334,7 @@ class ProIntegrityGUI:
         self.monitor_thread = None
         self.monitor_running = False
 
-        # UI variables
+        # UI variables - ADDED MISSING VARIABLES FROM BACKUP
         self.watch_folder_var = tk.StringVar(value=os.path.abspath(CONFIG.get("watch_folder", os.getcwd())))
         self.status_var = tk.StringVar(value="🔴 Stopped")
         self.total_files_var = tk.StringVar(value="0")
@@ -345,7 +345,7 @@ class ProIntegrityGUI:
         self.tamper_logs_var = tk.StringVar(value="UNKNOWN")
         self.webhook_var = tk.StringVar(value=str(CONFIG.get("webhook_url", "")))
 
-        # Initialize file tracking
+        # Initialize file tracking - ADDED FROM BACKUP
         self.file_tracking = {
             'last_total': 0,
             'session_created': 0,
@@ -365,10 +365,12 @@ class ProIntegrityGUI:
         # Create alert panel (initially hidden)
         self._create_alert_panel()
 
-        # Start background update loops
+        # Start background update loops - ADDED FROM BACKUP
         self._update_dashboard()
         self._update_severity_counters()
         self._tail_log_loop()
+
+        
 
         # Start Safe Mode Watcher
         self._check_safe_mode_status()
@@ -456,6 +458,8 @@ class ProIntegrityGUI:
         header_frame = tk.Frame(main_container, bg=self.colors['header_bg'], height=80)
         header_frame.pack(fill=tk.X, pady=(0, 20))
         header_frame.pack_propagate(False)
+        
+        # Menu Button
         self.menu_btn = tk.Button(header_frame, text="☰", 
                          command=self.toggle_menu,
                          font=('Segoe UI', 16), 
@@ -497,7 +501,7 @@ class ProIntegrityGUI:
         btn_frame = tk.Frame(control_frame, bg=self.colors['header_bg'])
         btn_frame.pack(side=tk.RIGHT)
         
-                # Theme toggle
+        # Theme toggle
         self.theme_btn = tk.Button(btn_frame, text="🌙" if self.dark_mode else "☀️", 
                                   command=self.toggle_theme,
                                   font=('Segoe UI', 12), bg=self.colors['button_bg'], 
@@ -537,7 +541,7 @@ class ProIntegrityGUI:
         content_frame = tk.Frame(main_container, bg=self.colors['bg'])
         content_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Left Panel - Controls and Status
+        # ===== LEFT PANEL - Controls and Status =====
         left_panel = tk.Frame(content_frame, bg=self.colors['bg'], width=400)
         left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=False)
         left_panel.pack_propagate(False)
@@ -592,7 +596,7 @@ class ProIntegrityGUI:
         tk.Label(action_card, text="🎮 Control Panel", font=('Segoe UI', 12, 'bold'),
                 bg=self.colors['card_bg'], fg=self.colors['text_primary']).pack(anchor='w', padx=20, pady=(15, 10))
         
-        # Create button grid
+        # Create button grid - IMPORTED FROM BACKUP
         buttons = [
             ("▶ Start Monitor", self.start_monitor, self.colors['accent_success']),
             ("⏹ Stop Monitor", self.stop_monitor, self.colors['accent_danger']),
@@ -611,7 +615,7 @@ class ProIntegrityGUI:
             btn.bind("<Enter>", lambda e, b=btn: b.configure(bg=self._lighten_color(color)))
             btn.bind("<Leave>", lambda e, b=btn, c=color: b.configure(bg=c))
 
-        # Security Status Card
+        # Security Status Card - IMPORTED FROM BACKUP
         security_card = tk.Frame(left_panel, bg=self.colors['card_bg'],
                                 relief='flat', bd=1, highlightbackground=self.colors['card_border'],
                                 highlightthickness=1)
@@ -623,7 +627,7 @@ class ProIntegrityGUI:
         security_content = tk.Frame(security_card, bg=self.colors['card_bg'])
         security_content.pack(fill=tk.X, padx=20, pady=(0, 15))
         
-        # Security indicators
+        # Security indicators - IMPORTED FROM BACKUP
         indicators = [
             ("Hash Records:", self.tamper_records_var),
             ("Log Files:", self.tamper_logs_var),
@@ -646,15 +650,17 @@ class ProIntegrityGUI:
             else:
                 self._log_indicator = indicator
 
-        # Right Panel - Dashboard and Logs
+        # ===== RIGHT PANEL - Dashboard and Logs =====
         right_panel = tk.Frame(content_frame, bg=self.colors['bg'])
         right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(20, 0))
 
-        # Dashboard Cards Row
+        # Dashboard Cards Row - IMPORTED FROM BACKUP
         dashboard_frame = tk.Frame(right_panel, bg=self.colors['bg'])
-        dashboard_frame.pack(fill=tk.X, pady=(0, 20))
+        dashboard_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=False, pady=(0, 20))
+        dashboard_frame.pack_propagate(False)
+        dashboard_frame.configure(height=320)
 
-        # File Statistics Card
+        # File Statistics Card - IMPORTED FROM BACKUP
         stats_card = tk.Frame(dashboard_frame, bg=self.colors['card_bg'], width=300,
                              relief='flat', bd=1, highlightbackground=self.colors['card_border'],
                              highlightthickness=1)
@@ -685,7 +691,7 @@ class ProIntegrityGUI:
                                   bg=color, fg='white', padx=15, pady=6, relief='flat')
             value_label.pack(side=tk.RIGHT)
 
-        # Severity Dashboard Card
+        # Severity Dashboard Card - IMPORTED FROM BACKUP
         severity_card = tk.Frame(dashboard_frame, bg=self.colors['card_bg'], width=300,
                                 relief='flat', bd=1, highlightbackground=self.colors['card_border'],
                                 highlightthickness=1)
@@ -716,7 +722,7 @@ class ProIntegrityGUI:
                                   bg=color, fg='white', padx=15, pady=6, relief='flat')
             value_label.pack(side=tk.RIGHT)
 
-        # Report Tools Card
+        # Report Tools Card - IMPORTED FROM BACKUP
         report_card = tk.Frame(dashboard_frame, bg=self.colors['card_bg'], width=300,
                               relief='flat', bd=1, highlightbackground=self.colors['card_border'],
                               highlightthickness=1)
@@ -738,7 +744,7 @@ class ProIntegrityGUI:
             report_buttons.append(("📈 Generate Chart", self.generate_chart))
         
         report_buttons.append(("📊 View Reports", self.view_report))
-        report_buttons.append(("📁 Open Folder", self.open_reports_folder))
+        # report_buttons.append(("📁 Open Folder", self.open_reports_folder))
 
         for text, command in report_buttons:
             btn = tk.Button(report_content, text=text, command=command,
@@ -753,7 +759,9 @@ class ProIntegrityGUI:
         logs_card = tk.Frame(right_panel, bg=self.colors['card_bg'],
                             relief='flat', bd=1, highlightbackground=self.colors['card_border'],
                             highlightthickness=1)
-        logs_card.pack(fill=tk.BOTH, expand=True)
+        logs_card.pack(side=tk.BOTTOM, fill=tk.X)
+        logs_card.configure(height=300)
+        logs_card.pack_propagate(False)
         
         # Logs header with controls
         logs_header = tk.Frame(logs_card, bg=self.colors['card_bg'])
@@ -793,6 +801,1122 @@ class ProIntegrityGUI:
                               bg=self.colors['bg'], fg=self.colors['text_muted'])
         footer_label.pack(pady=10)
 
+    # ===== MISSING METHODS FROM BACKUP =====
+    
+    def _update_dashboard(self):
+        """Update dashboard with current statistics - IMPORTED FROM BACKUP"""
+        try:
+            # Update total files
+            current_total = 0
+            if self.monitor and hasattr(self.monitor, 'records'):
+                records = self.monitor.records
+                current_total = len(records)
+                self.total_files_var.set(str(current_total))
+            
+            # Update session counts
+            self.created_var.set(str(self.file_tracking['session_created']))
+            self.modified_var.set(str(self.file_tracking['session_modified']))
+            self.deleted_var.set(str(self.file_tracking['session_deleted']))
+
+        except Exception as e:
+            print(f"Dashboard update error: {e}")
+            self.total_files_var.set("0")
+            self.created_var.set("0")
+            self.modified_var.set("0")
+            self.deleted_var.set("0")
+
+        # Update tamper indicators
+        self._update_tamper_indicators()
+
+        # Schedule next update
+        self.root.after(3000, self._update_dashboard)
+
+    def _update_severity_counters(self):
+        """Update severity counters from disk - IMPORTED FROM BACKUP"""
+        try:
+            counter_path = SEVERITY_COUNTER_FILE
+            if integrity_core and hasattr(integrity_core, 'SEVERITY_COUNTER_FILE'):
+                counter_path = integrity_core.SEVERITY_COUNTER_FILE
+
+            if os.path.exists(counter_path):
+                try:
+                    with open(counter_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        if data and isinstance(data, dict):
+                            self.severity_counters = data
+                except Exception:
+                    pass
+
+            # Update UI Variables
+            self.critical_var.set(str(self.severity_counters.get('CRITICAL', 0)))
+            self.high_var.set(str(self.severity_counters.get('HIGH', 0)))
+            self.medium_var.set(str(self.severity_counters.get('MEDIUM', 0)))
+            self.info_var.set(str(self.severity_counters.get('INFO', 0)))
+            
+        except Exception as e:
+            pass
+
+        # Schedule next update
+        self.root.after(500, self._update_severity_counters)
+
+    def _update_tamper_indicators(self):
+        """Update tamper indicator colors - IMPORTED FROM BACKUP"""
+        if hasattr(self, '_rec_indicator'):
+            try:
+                rec_ok = self.tamper_records_var.get() == "OK"
+                log_ok = self.tamper_logs_var.get() == "OK"
+                
+                rec_bg = (self.colors['indicator_success'] if rec_ok else 
+                         self.colors['indicator_danger'] if self.tamper_records_var.get() == "TAMPERED" else 
+                         self.colors['indicator_info'])
+                log_bg = (self.colors['indicator_success'] if log_ok else 
+                         self.colors['indicator_danger'] if self.tamper_logs_var.get() == "TAMPERED" else 
+                         self.colors['indicator_info'])
+                
+                self._rec_indicator.configure(bg=rec_bg, fg='white')
+                self._log_indicator.configure(bg=log_bg, fg='white')
+            except:
+                pass
+
+    def reset_session_counts(self):
+        """Reset session counts - IMPORTED FROM BACKUP"""
+        self.file_tracking['session_created'] = 0
+        self.file_tracking['session_modified'] = 0
+        self.file_tracking['session_deleted'] = 0
+        
+        self.created_var.set("0")
+        self.modified_var.set("0")
+        self.deleted_var.set("0")
+        self._append_log("Session file counters reset")
+
+    def _track_file_changes(self, data):
+        """Track file changes - IMPORTED FROM BACKUP"""
+        if data:
+            created_count = len(data.get('created', []))
+            modified_count = len(data.get('modified', []))
+            deleted_count = len(data.get('deleted', []))
+            
+            self.file_tracking['session_created'] += created_count
+            self.file_tracking['session_modified'] += modified_count
+            self.file_tracking['session_deleted'] += deleted_count
+            
+            self.created_var.set(str(self.file_tracking['session_created']))
+            self.modified_var.set(str(self.file_tracking['session_modified']))
+            self.deleted_var.set(str(self.file_tracking['session_deleted']))
+            
+            # Show alerts for changes
+            if created_count > 0:
+                self._show_alert(f"{created_count} New Files", 
+                               f"{created_count} new file(s) detected.", 
+                               "created")
+            if modified_count > 0:
+                self._show_alert(f"{modified_count} Modified Files", 
+                               f"{modified_count} file(s) were modified.", 
+                               "modified")
+            if deleted_count > 0:
+                self._show_alert(f"{deleted_count} Deleted Files", 
+                               f"{deleted_count} file(s) were deleted.", 
+                               "deleted")
+
+    def _tail_log_loop(self):
+        """Tail log file - IMPORTED FROM BACKUP"""
+        try:
+            if os.path.exists(LOG_FILE):
+                try:
+                    with open(LOG_FILE, "r", encoding="utf-8") as f:
+                        lines = f.readlines()[-400:]
+                except Exception:
+                    lines = []
+                
+                existing = self.log_box.get("1.0", tk.END)
+                for line in lines:
+                    if line.strip() and (line not in existing):
+                        self.log_box.configure(state="normal")
+                        self.log_box.insert(tk.END, line)
+                        self.log_box.configure(state="disabled")
+                        self.log_box.see(tk.END)
+        except Exception as e:
+            print(f"Error in log tail: {e}")
+        
+        self.root.after(2000, self._tail_log_loop)
+
+    # ===== REPORT METHODS FROM BACKUP =====
+    
+    def normalize_report_data(self, summary=None):
+        """
+        Convert summary data to structured dictionary with JSON persistence
+        - IMPORTED FROM BACKUP
+        """
+        # 1. If summary is provided, use it
+        if summary:
+            pass
+        
+        # 2. If no summary provided, check if we have data in memory
+        elif self.report_data.get('total', 0) > 0:
+            return self.report_data
+            
+        # 3. If memory is empty, try to load from the JSON cache
+        else:
+            if os.path.exists(REPORT_DATA_JSON):
+                try:
+                    with open(REPORT_DATA_JSON, 'r') as f:
+                        self.report_data = json.load(f)
+                    return self.report_data
+                except Exception as e:
+                    print(f"Error loading report cache: {e}")
+
+            # 4. Last resort: Try to parse the text file
+            summary = self._parse_summary_from_file()
+        
+        # Normalize the data structure
+        normalized = {
+            'total': summary.get('total_monitored', 0),
+            'created': summary.get('created', []),
+            'modified': summary.get('modified', []),
+            'deleted': summary.get('deleted', []),
+            'skipped': summary.get('skipped', []),
+            'tampered_records': summary.get('tampered_records', False),
+            'tampered_logs': summary.get('tampered_logs', False),
+            'last_update': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        
+        # Save to JSON cache for future chart generation
+        try:
+            with open(REPORT_DATA_JSON, 'w') as f:
+                json.dump(normalized, f, indent=4)
+        except Exception as e:
+            print(f"Failed to save report cache: {e}")
+
+        # Update internal report data
+        self.report_data = normalized
+        return normalized
+    
+    def _parse_summary_from_file(self):
+        """Fallback text parser if JSON is missing - IMPORTED FROM BACKUP"""
+        if not os.path.exists(REPORT_SUMMARY_FILE):
+            return {}
+        
+        try:
+            with open(REPORT_SUMMARY_FILE, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            summary = {}
+            lines = content.split('\n')
+            
+            # Helper to extract lists from text lines
+            def extract_files(prefix):
+                files = []
+                for line in lines:
+                    if line.strip().startswith(prefix):
+                        parts = line.split(':', 1)
+                        if len(parts) > 1:
+                            raw_files = parts[1].split(',')
+                            files = [f.strip() for f in raw_files if f.strip()]
+                return files
+
+            summary['created'] = extract_files('Created:')
+            summary['modified'] = extract_files('Modified:')
+            summary['deleted'] = extract_files('Deleted:')
+            
+            # Extract total count
+            import re
+            total_match = re.search(r'Total files monitored:\s*(\d+)', content)
+            if total_match:
+                summary['total_monitored'] = int(total_match.group(1))
+            
+            return summary
+        except Exception as e:
+            print(f"Error parsing summary file: {e}")
+            return {}
+
+    def generate_bar_chart(self, data=None, save_path=None, show_chart=True):
+        """
+        Generate bar chart for created/modified/deleted counts
+        - IMPORTED FROM BACKUP
+        """
+        if not HAS_MATPLOTLIB:
+            messagebox.showwarning("Chart Generation", 
+                                 "Matplotlib not installed. Install with: pip install matplotlib")
+            return None
+        
+        if data is None:
+            data = self.report_data
+        
+        # Prepare data for chart
+        categories = ['Created', 'Modified', 'Deleted']
+        counts = [
+            len(data.get('created', [])),
+            len(data.get('modified', [])),
+            len(data.get('deleted', []))
+        ]
+        
+        # Set up the figure with theme compatibility
+        plt.style.use('dark_background' if self.dark_mode else 'default')
+        fig, ax = plt.subplots(figsize=(8, 5))
+        
+        # Set colors based on theme
+        bg_color = self.colors['chart_bg']
+        text_color = self.colors['chart_text']
+        grid_color = self.colors['chart_grid']
+        
+        fig.patch.set_facecolor(bg_color)
+        ax.set_facecolor(bg_color)
+        
+        # Create bar chart
+        bars = ax.bar(categories, counts, color=[
+            self.chart_colors['created'],
+            self.chart_colors['modified'],
+            self.chart_colors['deleted']
+        ], edgecolor='white', linewidth=1.5)
+        
+        # Add value labels on top of bars
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height + 0.1,
+                   f'{int(height)}', ha='center', va='bottom',
+                   color=text_color, fontweight='bold')
+        
+        # Customize chart
+        ax.set_title('File Integrity Changes', fontsize=14, fontweight='bold', color=text_color, pad=20)
+        ax.set_xlabel('Change Type', fontsize=12, color=text_color)
+        ax.set_ylabel('Number of Files', fontsize=12, color=text_color)
+        ax.grid(True, alpha=0.3, color=grid_color, linestyle='--')
+        ax.set_axisbelow(True)
+        
+        # Set tick colors
+        ax.tick_params(colors=text_color, which='both')
+        
+        # Add total files info
+        total_files = data.get('total', 0)
+        ax.text(0.02, 0.98, f'Total Monitored Files: {total_files}',
+                transform=ax.transAxes, fontsize=10, color=text_color,
+                verticalalignment='top', bbox=dict(boxstyle='round', facecolor=bg_color, alpha=0.8))
+        
+        plt.tight_layout()
+        
+        # Save chart if requested
+        if save_path:
+            try:
+                plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor=bg_color)
+                print(f"Chart saved to: {save_path}")
+            except Exception as e:
+                print(f"Error saving chart: {e}")
+                save_path = None
+        
+        # Show chart in GUI if requested
+        if show_chart:
+            self._show_chart_in_gui(fig)
+        
+        if not show_chart:
+            plt.close(fig)
+    
+    def _show_chart_in_gui(self, fig):
+        """Display chart in a separate window - IMPORTED FROM BACKUP"""
+        chart_window = tk.Toplevel(self.root)
+        chart_window.title("📈 File Integrity Chart")
+        chart_window.geometry("800x600")
+        chart_window.configure(bg=self.colors['bg'])
+        
+        # Embed matplotlib figure in Tkinter window
+        canvas = FigureCanvasTkAgg(fig, master=chart_window)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        
+        # Add save button
+        save_btn = tk.Button(chart_window, text="💾 Save Chart",
+                            command=lambda: self._save_chart_dialog(fig),
+                            font=('Segoe UI', 10), bg=self.colors['accent_primary'], fg='white',
+                            bd=0, padx=20, pady=8, cursor="hand2")
+        save_btn.pack(pady=10)
+        
+        # Add close button
+        close_btn = tk.Button(chart_window, text="Close", command=chart_window.destroy,
+                             font=('Segoe UI', 10), bg=self.colors['button_bg'], fg=self.colors['text_primary'],
+                             bd=0, padx=20, pady=8, cursor="hand2")
+        close_btn.pack(pady=5)
+    
+    def _save_chart_dialog(self, fig):
+        """Save chart to file dialog - IMPORTED FROM BACKUP"""
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=[("PNG files", "*.png"), ("PDF files", "*.pdf"), ("All files", "*.*")],
+            initialfile=f"integrity_chart_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        )
+        if filename:
+            try:
+                fig.savefig(filename, dpi=300, bbox_inches='tight',
+                          facecolor=self.colors['chart_bg'])
+                messagebox.showinfo("Save Successful", f"Chart saved to:\n{filename}")
+            except Exception as e:
+                messagebox.showerror("Save Error", f"Failed to save chart: {e}")
+
+    def generate_chart(self):
+        """Generate and display chart from current data - IMPORTED FROM BACKUP"""
+        if not HAS_MATPLOTLIB:
+            messagebox.showwarning("Chart Generation", 
+                                 "Matplotlib not installed. Install with: pip install matplotlib")
+            return
+        
+        # Ensure we fetch data intelligently
+        if self.report_data.get('total', 0) > 0:
+            data = self.report_data
+        else:
+            data = self.normalize_report_data()
+        
+        # Check if we actually have data to show
+        has_data = (len(data.get('created', [])) > 0 or 
+                   len(data.get('modified', [])) > 0 or 
+                   len(data.get('deleted', [])) > 0)
+        
+        if not has_data and data.get('total', 0) == 0:
+            messagebox.showinfo("No Data", "No report data found to chart.\nPlease run 'Verify Now' first.")
+            return
+
+        # Generate chart
+        self.generate_bar_chart(data, show_chart=True)
+
+    def export_report_pdf(self):
+        """Export comprehensive PDF report with chart - IMPORTED FROM BACKUP"""
+        if not HAS_REPORTLAB:
+            messagebox.showwarning("PDF Export", 
+                                 "ReportLab not installed. Install with: pip install reportlab")
+            return
+        
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            filetypes=[("PDF files", "*.pdf"), ("All files", "*.*")],
+            initialfile=f"integrity_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        )
+        
+        if not filename:
+            return
+        
+        def _generate_report():
+            try:
+                self._append_log("Generating comprehensive PDF report...")
+                
+                # Normalize data
+                data = self.normalize_report_data()
+
+                # Get severity counters
+                severity_summary = self.severity_counters
+                
+                # Generate chart image
+                chart_path = None
+                if HAS_MATPLOTLIB:
+                    temp_dir = tempfile.gettempdir()
+                    chart_path = os.path.join(temp_dir, f"chart_{datetime.now().strftime('%Y%m%d%H%M%S')}.png")
+                    self.generate_bar_chart(data, save_path=chart_path, show_chart=False)
+                
+                # Create PDF document
+                doc = SimpleDocTemplate(filename, pagesize=A4, topMargin=0.5*inch)
+                styles = getSampleStyleSheet()
+                
+                # Custom styles
+                title_style = ParagraphStyle(
+                    'CustomTitle',
+                    parent=styles['Heading1'],
+                    fontSize=18,
+                    spaceAfter=20,
+                    textColor=colors.HexColor('#3b82f6')
+                )
+                
+                heading_style = ParagraphStyle(
+                    'CustomHeading',
+                    parent=styles['Heading2'],
+                    fontSize=14,
+                    spaceAfter=12,
+                    textColor=colors.HexColor('#3b82f6')
+                )
+                
+                subheading_style = ParagraphStyle(
+                    'CustomSubHeading',
+                    parent=styles['Heading3'],
+                    fontSize=12,
+                    spaceAfter=8,
+                    textColor=colors.HexColor('#64748b')
+                )
+                
+                normal_style = ParagraphStyle(
+                    'CustomNormal',
+                    parent=styles['Normal'],
+                    fontSize=10,
+                    spaceAfter=6
+                )
+                
+                # Content collection
+                story = []
+                
+                # Title Section
+                story.append(Paragraph("SECURITY INTEGRITY MONITOR REPORT", title_style))
+                story.append(Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", normal_style))
+                story.append(Spacer(1, 20))
+
+                # Security Severity Summary
+                story.append(Paragraph("🚨 SECURITY SEVERITY SUMMARY", heading_style))
+
+                severity_data = [
+                    ["Severity Level", "Count", "Description"],
+                    ["🔴 CRITICAL", str(severity_summary.get('CRITICAL', 0)), "Hash/Log tampering, major breaches"],
+                    ["🟠 HIGH", str(severity_summary.get('HIGH', 0)), "Config changes, multiple deletes"],
+                    ["🟡 MEDIUM", str(severity_summary.get('MEDIUM', 0)), "File modifications, deletions"],
+                    ["🟢 INFO", str(severity_summary.get('INFO', 0)), "Normal file operations, system events"]
+                ]
+
+                severity_table = Table(severity_data, colWidths=[1.5*inch, 1*inch, 3*inch])
+                severity_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3b82f6')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
+                    ('PADDING', (0, 0), (-1, -1), 8),
+                    ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 10),
+                    ('BACKGROUND', (0, 1), (0, 1), colors.HexColor('#ef4444')),
+                    ('BACKGROUND', (0, 2), (0, 2), colors.HexColor('#f97316')),
+                    ('BACKGROUND', (0, 3), (0, 3), colors.HexColor('#f59e0b')),
+                    ('BACKGROUND', (0, 4), (0, 4), colors.HexColor('#06b6d4')),
+                    ('TEXTCOLOR', (0, 1), (0, 4), colors.white),
+                ]))
+                story.append(severity_table)
+                story.append(Spacer(1, 20))
+                
+                # Executive Summary
+                story.append(Paragraph("EXECUTIVE SUMMARY", heading_style))
+                
+                summary_data = [
+                    ["Total Files Monitored:", str(data['total'])],
+                    ["New Files Created:", str(len(data['created']))],
+                    ["Files Modified:", str(len(data['modified']))],
+                    ["Files Deleted:", str(len(data['deleted']))],
+                    ["Files Skipped:", str(len(data['skipped']))],
+                    ["Records Integrity:", "✓ VERIFIED" if not data['tampered_records'] else "✗ COMPROMISED"],
+                    ["Logs Integrity:", "✓ VERIFIED" if not data['tampered_logs'] else "✗ COMPROMISED"]
+                ]
+                
+                summary_table = Table(summary_data, colWidths=[2.5*inch, 1.5*inch])
+                summary_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f1f5f9')),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
+                    ('PADDING', (0, 0), (-1, -1), 8),
+                    ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 10),
+                    ('ALIGN', (1, 0), (1, -1), 'CENTER'),
+                ]))
+                story.append(summary_table)
+                story.append(Spacer(1, 30))
+                
+                # Chart Section
+                if chart_path and os.path.exists(chart_path):
+                    story.append(Paragraph("FILE ACTIVITY CHART", heading_style))
+                    try:
+                        chart_img = Image(chart_path, width=6*inch, height=3*inch)
+                        story.append(chart_img)
+                        story.append(Spacer(1, 20))
+                    except Exception as e:
+                        print(f"Error adding chart to PDF: {e}")
+                        story.append(Paragraph("Chart generation failed", normal_style))
+                
+                # File Lists Section
+                story.append(Paragraph("DETAILED FILE CHANGES", heading_style))
+                
+                # Created Files
+                if data['created']:
+                    story.append(Paragraph("Newly Created Files:", subheading_style))
+                    created_list = data['created'][:20]
+                    for file in created_list:
+                        story.append(Paragraph(f"• {file}", normal_style))
+                    if len(data['created']) > 20:
+                        story.append(Paragraph(f"... and {len(data['created']) - 20} more files", normal_style))
+                    story.append(Spacer(1, 10))
+                
+                # Modified Files
+                if data['modified']:
+                    story.append(Paragraph("Modified Files:", subheading_style))
+                    modified_list = data['modified'][:20]
+                    for file in modified_list:
+                        story.append(Paragraph(f"• {file}", normal_style))
+                    if len(data['modified']) > 20:
+                        story.append(Paragraph(f"... and {len(data['modified']) - 20} more files", normal_style))
+                    story.append(Spacer(1, 10))
+                
+                # Deleted Files
+                if data['deleted']:
+                    story.append(Paragraph("Deleted Files:", subheading_style))
+                    deleted_list = data['deleted'][:20]
+                    for file in deleted_list:
+                        story.append(Paragraph(f"• {file}", normal_style))
+                    if len(data['deleted']) > 20:
+                        story.append(Paragraph(f"... and {len(data['deleted']) - 20} more files", normal_style))
+                
+                # Security Status
+                story.append(Spacer(1, 20))
+                story.append(Paragraph("SECURITY STATUS", heading_style))
+                
+                security_status = [
+                    ["Component", "Status", "Details"],
+                    ["Hash Records", 
+                     "SECURE" if not data['tampered_records'] else "COMPROMISED",
+                     "Cryptographically signed and verified" if not data['tampered_records'] else "Signature mismatch detected"],
+                    ["Audit Logs",
+                     "SECURE" if not data['tampered_logs'] else "COMPROMISED",
+                     "Line-by-line HMAC verification passed" if not data['tampered_logs'] else "Log tampering detected"]
+                ]
+                
+                security_table = Table(security_status, colWidths=[1.5*inch, 1.5*inch, 3*inch])
+                security_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3b82f6')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
+                    ('PADDING', (0, 0), (-1, -1), 8),
+                    ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 10),
+                    ('BACKGROUND', (1, 1), (1, 2), 
+                     colors.HexColor('#10b981') if not data['tampered_records'] else colors.HexColor('#ef4444')),
+                    ('BACKGROUND', (1, 2), (1, 2), 
+                     colors.HexColor('#10b981') if not data['tampered_logs'] else colors.HexColor('#ef4444')),
+                    ('TEXTCOLOR', (1, 1), (1, 2), colors.white),
+                ]))
+                story.append(security_table)
+                story.append(Spacer(1, 30))
+                
+                # Footer
+                story.append(Paragraph("Report generated by Secure File Integrity Monitor", normal_style))
+                story.append(Paragraph("Professional Security Edition", normal_style))
+                
+                # Build PDF
+                doc.build(story)
+                
+                # Clean up temp chart file
+                if chart_path and os.path.exists(chart_path):
+                    try:
+                        os.remove(chart_path)
+                    except:
+                        pass
+                
+                self._append_log(f"Comprehensive PDF report exported: {filename}")
+                
+                # Show success message with option to open folder
+                self.root.after(0, lambda: self._show_export_success(filename))
+                
+            except Exception as e:
+                self._append_log(f"PDF report generation failed: {e}")
+                traceback.print_exc()
+                self.root.after(0, lambda: messagebox.showerror("Export Error", 
+                                                               f"Failed to generate PDF report:\n{str(e)}"))
+        
+        # Run in separate thread
+        threading.Thread(target=_generate_report, daemon=True).start()
+    
+    def export_logs_pdf(self):
+        """Export logs as PDF - IMPORTED FROM BACKUP"""
+        if not HAS_REPORTLAB:
+            messagebox.showwarning("PDF Export", 
+                                 "ReportLab not installed. Install with: pip install reportlab")
+            return
+        
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            filetypes=[("PDF files", "*.pdf"), ("All files", "*.*")],
+            initialfile=f"integrity_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        )
+        
+        if not filename:
+            return
+        
+        def _generate_logs_pdf():
+            try:
+                self._append_log("Generating logs PDF...")
+                
+                # Create PDF document
+                doc = SimpleDocTemplate(filename, pagesize=A4, topMargin=0.5*inch)
+                styles = getSampleStyleSheet()
+                
+                # Custom styles
+                title_style = ParagraphStyle(
+                    'CustomTitle',
+                    parent=styles['Heading1'],
+                    fontSize=16,
+                    spaceAfter=20,
+                    textColor=colors.HexColor('#3b82f6')
+                )
+                
+                timestamp_style = ParagraphStyle(
+                    'TimestampStyle',
+                    parent=styles['Normal'],
+                    fontSize=9,
+                    textColor=colors.grey,
+                    spaceAfter=3
+                )
+                
+                log_style = ParagraphStyle(
+                    'LogStyle',
+                    parent=styles['Code'],
+                    fontSize=8,
+                    fontName='Courier',
+                    spaceAfter=4,
+                    leftIndent=10
+                )
+                
+                # Content collection
+                story = []
+                
+                # Title Section
+                story.append(Paragraph("SECURITY AUDIT LOGS", title_style))
+                story.append(Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 
+                                      styles['Normal']))
+                story.append(Paragraph(f"Log File: {os.path.abspath(LOG_FILE)}", styles['Normal']))
+                story.append(Spacer(1, 20))
+                
+                # Read log file
+                if os.path.exists(LOG_FILE):
+                    try:
+                        with open(LOG_FILE, 'r', encoding='utf-8') as f:
+                            log_lines = f.readlines()[-1000:]  # Last 1000 lines
+                        
+                        # Add log entries
+                        for line in log_lines:
+                            line = line.strip()
+                            if line:
+                                # Try to extract timestamp
+                                if ' - ' in line:
+                                    timestamp, message = line.split(' - ', 1)
+                                    story.append(Paragraph(timestamp, timestamp_style))
+                                    story.append(Paragraph(message, log_style))
+                                else:
+                                    story.append(Paragraph(line, log_style))
+                        
+                        story.append(Spacer(1, 20))
+                        story.append(Paragraph(f"Total log entries: {len(log_lines)}", styles['Normal']))
+                        
+                    except Exception as e:
+                        story.append(Paragraph(f"Error reading log file: {str(e)}", styles['Normal']))
+                else:
+                    story.append(Paragraph("No log file found", styles['Normal']))
+                
+                # Footer
+                story.append(Spacer(1, 30))
+                story.append(Paragraph("Generated by Secure File Integrity Monitor", styles['Normal']))
+                story.append(Paragraph("Security Audit Log Export", styles['Normal']))
+                
+                # Build PDF
+                doc.build(story)
+                
+                self._append_log(f"Logs PDF exported: {filename}")
+                
+                # Show success message
+                self.root.after(0, lambda: self._show_export_success(filename))
+                
+            except Exception as e:
+                self._append_log(f"Logs PDF generation failed: {e}")
+                traceback.print_exc()
+                self.root.after(0, lambda: messagebox.showerror("Export Error", 
+                                                               f"Failed to generate logs PDF:\n{str(e)}"))
+        
+        # Run in separate thread
+        threading.Thread(target=_generate_logs_pdf, daemon=True).start()
+    
+    def _show_export_success(self, filepath):
+        """Show export success dialog with option to open folder - IMPORTED FROM BACKUP"""
+        result = messagebox.askyesno("Export Successful",
+                                    f"Report successfully exported to:\n{filepath}\n\n"
+                                    "Would you like to open the containing folder?")
+        if result:
+            try:
+                folder_path = os.path.dirname(filepath)
+                os.startfile(folder_path)
+            except:
+                # Fallback for Linux/Mac
+                try:
+                    import subprocess
+                    subprocess.run(['xdg-open', folder_path])
+                except:
+                    pass
+
+    # ===== CORE ACTION METHODS FROM BACKUP =====
+    
+    def _browse(self):
+        """Browse for folder - IMPORTED FROM BACKUP"""
+        d = filedialog.askdirectory()
+        if d:
+            self.watch_folder_var.set(d)
+            self.folder_entry.delete(0, tk.END)
+            self.folder_entry.insert(0, d)
+            self._append_log(f"Selected monitor folder: {d}")
+
+    def start_monitor(self):
+        """Start monitoring - IMPORTED FROM BACKUP"""
+        if not FileIntegrityMonitor:
+            messagebox.showerror("Error", "Backend not available.")
+            return
+        if self.monitor_running:
+            messagebox.showinfo("Info", "Monitor already running.")
+            return
+        
+        folder = self.folder_entry.get()
+        if not folder or not os.path.exists(folder):
+            messagebox.showerror("Error", "Please select a valid folder.")
+            return
+
+        def _start():
+            try:
+                # Define the callback wrapper
+                def gui_callback(event_type, path, severity):
+                    self.root.after(0, lambda: self._handle_realtime_event(event_type, path, severity))
+                
+                # Pass the callback to the backend
+                ok = self.monitor.start_monitoring(watch_folder=folder, event_callback=gui_callback)
+                
+                if ok:
+                    self.monitor_running = True
+                    self.status_var.set(f"🟢 Running — {os.path.basename(folder)}")
+                    self._append_log(f"Security monitoring STARTED for: {folder}")
+                    self._show_alert("Monitoring started", 
+                                   f"Started monitoring folder:\n{folder}", 
+                                   "info")
+                    self.reset_session_counts()
+                else:
+                    self._append_log("Monitor failed to start")
+                    messagebox.showerror("Error", "Monitor failed to start.")
+            except Exception as ex:
+                self._append_log(f"Exception starting monitor: {ex}")
+                traceback.print_exc()
+                messagebox.showerror("Error", f"Exception: {ex}")
+
+        threading.Thread(target=_start, daemon=True).start()
+
+    def stop_monitor(self):
+        """Stop monitoring - IMPORTED FROM BACKUP"""
+        if not self.monitor_running:
+            messagebox.showinfo("Info", "Monitor not running.")
+            return
+        try:
+            self.monitor.stop_monitoring()
+            self.monitor_running = False
+            self.status_var.set("🔴 Stopped")
+            self._append_log("Security monitoring STOPPED by user.")
+            self._show_alert("Monitoring Stopped", 
+                           "File integrity monitoring has been stopped.", 
+                           "info")
+        except Exception as ex:
+            self._append_log(f"Exception stopping monitor: {ex}")
+            traceback.print_exc()
+            messagebox.showerror("Error", f"Exception: {ex}")
+
+    def run_verification(self):
+        """Run manual verification with severity tracking - IMPORTED FROM BACKUP"""
+        folder = self.folder_entry.get()
+        if not folder or not os.path.exists(folder):
+            messagebox.showerror("Error", "Choose valid folder first.")
+            return
+
+        def _verify():
+            try:
+                self._append_log("Manual security verification started...")
+                
+                # Run the backend verification
+                summary = self.monitor.run_verification(watch_folder=folder)
+                
+                # Normalize AND SAVE to JSON cache automatically
+                normalized = self.normalize_report_data(summary)
+                
+                # Track file changes with severity
+                self._track_file_changes(normalized)
+
+                # Update UI Status Indicators based on verification results
+                rec_status = "TAMPERED" if normalized['tampered_records'] else "OK"
+                log_status = "TAMPERED" if normalized['tampered_logs'] else "OK"
+                
+                # Update the text variables
+                self.tamper_records_var.set(rec_status)
+                self.tamper_logs_var.set(log_status)
+                
+                # Show tamper alerts with CRITICAL severity if detected
+                if normalized['tampered_records']:
+                    self._show_alert("CRITICAL: Hash Database Tampered!", 
+                                   "File hash records have been tampered with!", 
+                                   "critical")
+                if normalized['tampered_logs']:
+                    self._show_alert("CRITICAL: Log Files Tampered!", 
+                                   "Audit log files have been tampered with!", 
+                                   "critical")
+                
+                # Force the dashboard to refresh colors immediately
+                self.root.after(0, self._update_tamper_indicators)
+                
+                # Show results with severity summary
+                txt = (f"🔍 SECURITY VERIFICATION COMPLETE\n\n"
+                    f"📊 Total monitored: {normalized['total']}\n"
+                    f"🟢 New files: {len(normalized['created'])}\n"
+                    f"🟡 Modified files: {len(normalized['modified'])}\n"
+                    f"🔴 Deleted files: {len(normalized['deleted'])}\n\n"
+                    f"🚨 SECURITY STATUS:\n"
+                    f"🔥 CRITICAL - Hash DB: {'TAMPERED' if normalized['tampered_records'] else 'SECURE'}\n"
+                    f"🔥 CRITICAL - Logs: {'TAMPERED' if normalized['tampered_logs'] else 'SECURE'}\n")
+                
+                messagebox.showinfo("Security Verification Summary", txt)
+                self._append_log("Manual security verification finished.")
+                
+            except Exception as ex:
+                self._append_log(f"Verification error: {ex}")
+                traceback.print_exc()
+                messagebox.showerror("Error", f"Verification failed: {ex}")
+
+        threading.Thread(target=_verify, daemon=True).start()
+
+    def verify_signatures(self):
+        """Verify cryptographic signatures - IMPORTED FROM BACKUP"""
+        rec_ok = None
+        log_ok = None
+        rec_msg = ""
+        log_msg = ""
+        
+        try:
+            if verify_records_signature_on_disk:
+                rec_ok = verify_records_signature_on_disk()
+                rec_msg = "records HMAC OK" if rec_ok else "records HMAC FAILED"
+            else:
+                rec_msg = "No verify_records available"
+        except Exception as ex:
+            rec_ok = False
+            rec_msg = f"Exception: {ex}"
+
+        try:
+            if verify_log_signatures:
+                got = verify_log_signatures()
+                if isinstance(got, tuple):
+                    log_ok, detail = got
+                    log_msg = detail
+                elif isinstance(got, bool):
+                    log_ok = got
+                    log_msg = "log sig OK" if log_ok else "log sig FAILED"
+                else:
+                    log_msg = str(got)
+            else:
+                log_msg = "No verify_log available"
+        except Exception as ex:
+            log_ok = False
+            log_msg = f"Exception: {ex}"
+
+        # Update UI indicators
+        self.tamper_records_var.set("OK" if rec_ok else "TAMPERED" if rec_ok is False else "UNKNOWN")
+        self.tamper_logs_var.set("OK" if log_ok else "TAMPERED" if log_ok is False else "UNKNOWN")
+        
+        # Show alert for tamper detection
+        if rec_ok is False or log_ok is False:
+            self._show_alert("SIGNATURE TAMPER DETECTED!", 
+                           f"Records: {rec_msg}\nLogs: {log_msg}", 
+                           "tampered")
+        elif rec_ok and log_ok:
+            self._show_alert("Signatures Verified", 
+                           "All cryptographic signatures are valid and intact.", 
+                           "info")
+        
+        self._append_log(f"Signature verification: records={rec_msg}, logs={log_msg}")
+
+    def open_settings(self):
+        """Open settings dialog - IMPORTED FROM BACKUP"""
+        win = tk.Toplevel(self.root)
+        win.title("Security Settings")
+        win.geometry("520x300")
+        win.configure(bg=self.colors['bg'])
+        
+        tk.Label(win, text="🔧 Security Configuration (config.json)", 
+                bg=self.colors['bg'], fg=self.colors['text_primary'], font=('Segoe UI', 12, 'bold')).pack(anchor="w", padx=10, pady=(10, 0))
+
+        cfg = dict(CONFIG)
+
+        tk.Label(win, text="📁 Watch folder:", bg=self.colors['bg'], fg=self.colors['text_primary'], font=('Segoe UI', 10)).pack(anchor="w", padx=10, pady=(8, 0))
+        watch_var = tk.StringVar(value=cfg.get("watch_folder", ""))
+        e1 = ttk.Entry(win, textvariable=watch_var, width=70, style='Modern.TEntry')
+        e1.pack(padx=10)
+
+        tk.Label(win, text="⏱️ Verify interval (seconds):", bg=self.colors['bg'], fg=self.colors['text_primary'], font=('Segoe UI', 10)).pack(anchor="w", padx=10, pady=(8, 0))
+        int_var = tk.StringVar(value=str(cfg.get("verify_interval", 1800)))
+        e2 = ttk.Entry(win, textvariable=int_var, width=20, style='Modern.TEntry')
+        e2.pack(padx=10)
+
+        tk.Label(win, text="🔔 Webhook URL (optional):", bg=self.colors['bg'], fg=self.colors['text_primary'], font=('Segoe UI', 10)).pack(anchor="w", padx=10, pady=(8, 0))
+        web_var = tk.StringVar(value=str(cfg.get("webhook_url") or ""))
+        e3 = ttk.Entry(win, textvariable=web_var, width=70, style='Modern.TEntry')
+        e3.pack(padx=10)
+
+        def save_settings():
+            new_cfg = dict(CONFIG)
+            new_cfg["watch_folder"] = watch_var.get()
+            try:
+                new_cfg["verify_interval"] = int(int_var.get())
+            except Exception:
+                messagebox.showerror("Error", "verify_interval must be integer seconds")
+                return
+            new_cfg["webhook_url"] = web_var.get() or None
+            
+            try:
+                # Save to AppData/config/config.json
+                from core.utils import get_app_data_dir
+                app_data = get_app_data_dir()
+                config_dir = os.path.join(app_data, "config")
+                if not os.path.exists(config_dir):
+                    os.makedirs(config_dir)
+                    
+                target_file = os.path.join(config_dir, "config.json")
+                
+                with open(target_file, "w", encoding="utf-8") as f:
+                    json.dump(new_cfg, f, indent=4)
+                
+                # Reload config
+                if load_config:
+                    load_config(target_file)
+                    
+                messagebox.showinfo("Settings", f"Configuration saved to:\n{target_file}")
+                self._show_alert("Settings Updated", "Security configuration has been updated.", "info")
+                win.destroy()
+            except Exception as ex:
+                messagebox.showerror("Error", f"Failed to save config: {ex}")
+
+        btn_frame = ttk.Frame(win)
+        btn_frame.pack(pady=12)
+        
+        ttk.Button(btn_frame, text="💾 Save Settings", command=save_settings, style='Modern.TButton').pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="❌ Cancel", command=win.destroy, style='Modern.TButton').pack(side=tk.LEFT, padx=5)
+
+    # ===== HELPER METHODS FROM BACKUP =====
+    
+    def _append_log(self, text):
+        """Append text to the log display - IMPORTED FROM BACKUP"""
+        try:
+            self.log_box.configure(state="normal")
+            now = datetime.now().strftime("%H:%M:%S")
+            self.log_box.insert(tk.END, f"[{now}] {text}\n")
+            self.log_box.configure(state="disabled")
+            self.log_box.see(tk.END)
+        except Exception as e:
+            print(f"Error appending to log: {e}")
+
+    def reset_session_counts(self):
+        """Reset session counts - IMPORTED FROM BACKUP"""
+        self.file_tracking['session_created'] = 0
+        self.file_tracking['session_modified'] = 0
+        self.file_tracking['session_deleted'] = 0
+        
+        self.created_var.set("0")
+        self.modified_var.set("0")
+        self.deleted_var.set("0")
+        self._append_log("Session file counters reset")
+
+    def view_report(self):
+        """View reports - IMPORTED FROM BACKUP"""
+        report_files = [
+            "reports/report_summary.txt",
+            os.path.join("logs", "activity_reports.txt"),
+            os.path.join("logs", "detailed_reports.txt")
+        ]
+        combined_content = ""
+
+        severity_summary = self.severity_counters
+        combined_content += f"🚨 SECURITY SEVERITY SUMMARY\n"
+        combined_content += f"{'='*60}\n"
+        combined_content += f"CRITICAL Alerts: {severity_summary.get('CRITICAL', 0)}\n"
+        combined_content += f"HIGH Alerts: {severity_summary.get('HIGH', 0)}\n"
+        combined_content += f"MEDIUM Alerts: {severity_summary.get('MEDIUM', 0)}\n"
+        combined_content += f"INFO Alerts: {severity_summary.get('INFO', 0)}\n"
+        combined_content += f"{'='*60}\n\n"
+        
+        for report_file in report_files:
+            if os.path.exists(report_file):
+                try:
+                    with open(report_file, "r", encoding="utf-8") as f:
+                        content = f.read()
+                        combined_content += f"\n{'='*60}\n"
+                        combined_content += f"CONTENT FROM: {report_file}\n"
+                        combined_content += f"{'='*60}\n\n"
+                        combined_content += content + "\n"
+                except Exception as ex:
+                    combined_content += f"Error reading {report_file}: {ex}\n"
+        
+        if combined_content:
+            self._show_text("Combined Security Reports", combined_content)
+        else:
+            messagebox.showinfo("Report", "No report files found.")
+
+    def reset_severity_counters(self):
+        """Reset all severity counters - IMPORTED FROM BACKUP"""
+        if messagebox.askyesno("Reset Counters", "Reset all severity counters to zero?"):
+            self.severity_counters = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'INFO': 0}
+            
+            # Update UI
+            self.critical_var.set("0")
+            self.high_var.set("0")
+            self.medium_var.set("0")
+            self.info_var.set("0")
+            
+            # Save to file
+            try:
+                with open(SEVERITY_COUNTER_FILE, "w", encoding="utf-8") as f:
+                    json.dump(self.severity_counters, f, indent=2)
+                self._append_log("Severity counters reset to zero")
+                self._show_alert("Counters Reset", "All severity counters have been reset to zero.", "info")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to save counters: {e}")
+
+    def open_reports_folder(self):
+        """Open reports folder - IMPORTED FROM BACKUP"""
+        folder = os.path.abspath(".")
+        try:
+            os.startfile(folder)
+        except Exception:
+            messagebox.showinfo("Info", f"Open folder: {folder}")
+
+    def _handle_realtime_event(self, event_type, path, severity):
+        """Handle real-time events from the backend - IMPORTED FROM BACKUP"""
+        filename = os.path.basename(path)
+        
+        # Update Session Counters
+        if "CREATED" in event_type:
+            self.file_tracking['session_created'] += 1
+            self.created_var.set(str(self.file_tracking['session_created']))
+            # Increment total files
+            current_total = int(self.total_files_var.get())
+            self.total_files_var.set(str(current_total + 1))
+            
+        elif "MODIFIED" in event_type:
+            self.file_tracking['session_modified'] += 1
+            self.modified_var.set(str(self.file_tracking['session_modified']))
+            
+        elif "DELETED" in event_type:
+            self.file_tracking['session_deleted'] += 1
+            self.deleted_var.set(str(self.file_tracking['session_deleted']))
+            # Decrement total files
+            current_total = int(self.total_files_var.get())
+            self.total_files_var.set(str(max(0, current_total - 1)))
+
+        # Trigger the alert popup
+        msg = f"File: {filename}\nPath: {path}"
+        self._show_alert(f"{event_type} Detected", msg, severity.lower())
+
+    def _show_text(self, title, content):
+        """Show text in new window - IMPORTED FROM BACKUP"""
+        w = tk.Toplevel(self.root)
+        w.title(f"🔍 {title}")
+        w.geometry("800x600")
+        w.configure(bg=self.colors['bg'])
+        
+        header = tk.Label(w, text=title, font=('Segoe UI', 12, 'bold'),
+                        bg=self.colors['bg'], fg=self.colors['accent_primary'])
+        header.pack(pady=10)
+        
+        st = scrolledtext.ScrolledText(w, wrap=tk.WORD, 
+                                     bg=self.colors['card_bg'], 
+                                     fg=self.colors['text_primary'],
+                                     font=("Consolas", 10))
+        st.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        st.insert(tk.END, content)
+        st.configure(state="disabled")
+        
+        close_btn = ttk.Button(w, text="Close", command=w.destroy, style='Modern.TButton')
+        close_btn.pack(pady=10)
+
+    # ===== THEME AND UI METHODS =====
+    
     def _clear_logs(self):
         """Clear the log display"""
         self.log_box.configure(state="normal")
@@ -842,81 +1966,6 @@ class ProIntegrityGUI:
                     elif "Close" in child.cget('text'):
                         child.configure(bg=self.colors['sidebar_bg'], 
                                     fg=self.colors['text_secondary'])
-
-    def _update_button_states(self):
-        """Force button colors to update by toggling state"""
-        # Get all buttons and force color update
-        def update_btn_colors(widget):
-            for child in widget.winfo_children():
-                if isinstance(child, tk.Button):
-                    # Skip theme and special buttons
-                    if child not in [self.theme_btn, self.menu_btn, self.pass_btn, 
-                                self.unlock_btn, self.logout_btn]:
-                        # Force color update by simulating state change
-                        current_bg = child.cget('bg')
-                        current_fg = child.cget('fg')
-                        
-                        # Set to new theme colors
-                        if "Start" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_success'])
-                        elif "Stop" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_danger'])
-                        elif "Verify" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_primary'])
-                        elif "Check" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_secondary'])
-                        elif "Settings" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_info'])
-                        elif "Reset" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_warning'])
-                        else:
-                            # For other buttons, use button_bg
-                            child.configure(bg=self.colors['button_bg'], 
-                                        fg=self.colors['text_primary'])
-                        
-                        # Re-bind hover events
-                        btn_text = child.cget('text')
-                        if "Start" in btn_text:
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self._lighten_color(self.colors['accent_success'])))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['accent_success']))
-                        elif "Stop" in btn_text:
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self._lighten_color(self.colors['accent_danger'])))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['accent_danger']))
-                        elif "Verify" in btn_text:
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self._lighten_color(self.colors['accent_primary'])))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['accent_primary']))
-                        elif "Check" in btn_text:
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self._lighten_color(self.colors['accent_secondary'])))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['accent_secondary']))
-                        elif "Settings" in btn_text:
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self._lighten_color(self.colors['accent_info'])))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['accent_info']))
-                        elif "Reset" in btn_text:
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self._lighten_color(self.colors['accent_warning'])))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['accent_warning']))
-                        else:
-                            # For report buttons
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self.colors['button_hover']))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['button_bg']))
-                
-                # Recursively update children
-                update_btn_colors(child)
-        
-        update_btn_colors(self.root)
 
     def _update_widget_colors(self, widget):
         """Recursively update widget colors"""
@@ -991,34 +2040,179 @@ class ProIntegrityGUI:
             
             self._disable_recursive(child, restricted_list)
 
-    def _update_severity_counters(self):
-        """Update severity counters from disk"""
-        try:
-            counter_path = SEVERITY_COUNTER_FILE
-            if integrity_core and hasattr(integrity_core, 'SEVERITY_COUNTER_FILE'):
-                counter_path = integrity_core.SEVERITY_COUNTER_FILE
+    # ===== SIDE MENU METHODS =====
+    
+    def _create_side_menu(self):
+        """Create sliding side menu with demo and archive options"""
+        self.menu_width = 250
+        self.menu_visible = False
+        
+        # Create side menu frame
+        self.side_menu = tk.Frame(self.root, bg=self.colors['sidebar_bg'], width=self.menu_width)
+        self.side_menu.place(x=-self.menu_width, y=0, height=self.root.winfo_height(), relheight=1.0)
+        
+        # Menu Title
+        tk.Label(self.side_menu, text="🛡️ SECURITY MENU", 
+                font=('Segoe UI', 14, 'bold'), 
+                bg=self.colors['accent_primary'], 
+                fg='white', 
+                pady=15).pack(fill=tk.X)
+        
+        # Demo Simulation Button
+        demo_btn = tk.Button(self.side_menu, text="🎬 Run Demo Simulation", 
+                            command=self.run_demo_mode,
+                            font=('Segoe UI', 11), 
+                            bg='#8b5cf6',  # Purple
+                            fg='white',
+                            bd=0, 
+                            padx=20, 
+                            pady=15,
+                            cursor="hand2",
+                            anchor='w',
+                            activebackground='#7c3aed')
+        demo_btn.pack(fill=tk.X, pady=(20, 10), padx=10)
+        
+        # Archive & Reset Button
+        archive_btn = tk.Button(self.side_menu, text="🗄️ Archive Logs & Reset", 
+                            command=self.archive_and_reset,
+                            font=('Segoe UI', 11), 
+                            bg='#ef4444',  # Red
+                            fg='white',
+                            bd=0, 
+                            padx=20, 
+                            pady=15,
+                            cursor="hand2",
+                            anchor='w',
+                            activebackground='#dc2626')
+        archive_btn.pack(fill=tk.X, pady=10, padx=10)
+        
+        # Close Menu Button
+        close_btn = tk.Button(self.side_menu, text="✕ Close Menu", 
+                            command=self.toggle_menu,
+                            font=('Segoe UI', 10), 
+                            bg=self.colors['sidebar_bg'], 
+                            fg=self.colors['text_secondary'],
+                            bd=0,
+                            cursor="hand2")
+        close_btn.pack(side=tk.BOTTOM, pady=20)
 
-            if os.path.exists(counter_path):
-                try:
-                    with open(counter_path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                        if data and isinstance(data, dict):
-                            self.severity_counters = data
-                except Exception:
-                    pass
+    def toggle_menu(self):
+        """Toggle the side menu visibility"""
+        if not self.menu_visible:
+            # Show menu
+            self._animate_menu(0)
+            self.menu_visible = True
+        else:
+            # Hide menu
+            self._animate_menu(-self.menu_width)
+            self.menu_visible = False
 
-            # Update UI Variables
-            self.critical_var.set(str(self.severity_counters.get('CRITICAL', 0)))
-            self.high_var.set(str(self.severity_counters.get('HIGH', 0)))
-            self.medium_var.set(str(self.severity_counters.get('MEDIUM', 0)))
-            self.info_var.set(str(self.severity_counters.get('INFO', 0)))
+    def _animate_menu(self, target_x):
+        """Animate menu sliding in/out"""
+        current_x = self.side_menu.winfo_x()
+        
+        if current_x < target_x:
+            step = 30  # Slide right
+        else:
+            step = -30  # Slide left
+        
+        if abs(target_x - current_x) < abs(step):
+            self.side_menu.place(x=target_x)
+            if target_x == -self.menu_width:
+                self.menu_visible = False
+            return
+        
+        new_x = current_x + step
+        self.side_menu.place(x=new_x)
+        self.root.after(10, lambda: self._animate_menu(target_x))
+
+    # ===== DEMO AND ARCHIVE METHODS =====
+    
+    def run_demo_mode(self):
+        """Execute the demonstration sequence"""
+        self.toggle_menu()  # Close menu first
+        
+        if messagebox.askyesno("Run Demo", "⚠️ Start Demo Simulation?\n\nThis will trigger fake alerts, modify logs, and activate Safe Mode. Real monitoring will continue in background."):
             
-        except Exception as e:
-            pass
+            # Reset counters for clean visual
+            self.reset_severity_counters()
+            self._append_log("--- STARTING DEMO SIMULATION ---")
+            
+            # Disable buttons to prevent interference
+            self.status_var.set("🎬 DEMO RUNNING...")
+            
+            # Initialize Simulator
+            try:
+                from demo_simulator import DemoSimulator
+            except ImportError:
+                try:
+                    sys.path.append('../core')
+                    from demo_simulator import DemoSimulator
+                except ImportError:
+                    messagebox.showerror("Error", "Demo simulator not available")
+                    return
+            
+            simulator = DemoSimulator(alert_callback=self._show_alert_from_demo)
+            
+            # Run in Thread
+            threading.Thread(target=simulator.run_simulation, daemon=True).start()
 
-        # Schedule next update
-        self.root.after(500, self._update_severity_counters)
+    def _show_alert_from_demo(self, title, message, severity):
+        """Bridge function to allow Demo thread to trigger UI alerts"""
+        self.root.after(0, lambda: self._show_alert(title, message, severity))
 
+    def archive_and_reset(self):
+        """Archive current logs and reset UI"""
+        self.toggle_menu()  # Close the menu
+        
+        # Safety Check
+        if self.monitor_running:
+            messagebox.showwarning("Monitor Running", "Please Stop the Monitor before archiving.")
+            return
+
+        # Confirmation
+        confirm = messagebox.askyesno(
+            "Confirm Archive & Reset", 
+            "Are you sure?\n\n"
+            "1. All current logs and reports will be moved to 'config/history'.\n"
+            "2. The current dashboard will be cleared.\n"
+            "3. You can start fresh with a new folder."
+        )
+        
+        if confirm:
+            try:
+                # Call Backend
+                success, msg = integrity_core.archive_session()
+                
+                if success:
+                    # Reset UI Elements
+                    self.log_box.configure(state="normal")
+                    self.log_box.delete("1.0", tk.END)
+                    self.log_box.insert(tk.END, f"[{datetime.now().strftime('%H:%M:%S')}] Session archived.\n")
+                    self.log_box.insert(tk.END, f"[{datetime.now().strftime('%H:%M:%S')}] Ready for new task.\n")
+                    self.log_box.configure(state="disabled")
+                    
+                    # Reset Severity Counters
+                    self.reset_severity_counters()
+                    
+                    # Reset Session Stats
+                    self.reset_session_counts()
+                    self.total_files_var.set("0")
+                    
+                    # Reset Tamper Indicators
+                    self.tamper_records_var.set("UNKNOWN")
+                    self.tamper_logs_var.set("UNKNOWN")
+                    self._update_tamper_indicators()
+                    
+                    messagebox.showinfo("Success", f"System Reset Complete.\n\nOld files saved in:\n{msg}")
+                    self._append_log("System reset successfully.")
+                else:
+                    messagebox.showerror("Error", f"Failed to archive: {msg}")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to archive: {e}")
+
+    # ===== SYSTEM TRAY AND OTHER METHODS =====
+    
     def _setup_tray_icon(self):
         """Create the system tray icon with robust fallback"""
         try:
@@ -1126,7 +2320,8 @@ class ProIntegrityGUI:
         
         self.root.after(1000, self._check_safe_mode_status)
 
-    # ===== FIXED ALERT PANEL METHODS =====
+    # ===== ALERT PANEL METHODS =====
+    
     def _create_alert_panel(self):
         """Create alert panel that won't overlap with main UI"""
         # Destroy existing panel if it exists
@@ -1357,8 +2552,8 @@ class ProIntegrityGUI:
                 except:
                     pass
 
-    # ===== END OF FIXED ALERT PANEL METHODS =====
-
+    # ===== PASSWORD CHANGE METHODS =====
+    
     def change_admin_password(self):
         """Allow admin to change their password with hacker-themed UI"""
         if self.user_role != 'admin':
@@ -1589,7 +2784,6 @@ class ProIntegrityGUI:
         
         # Focus on first entry
         self.new_pass_entry.focus_set()
-
 
     def _animate_title_border(self, label):
         """Create animated border effect for title"""
@@ -1848,6 +3042,8 @@ class ProIntegrityGUI:
         
         pulse_success()
 
+    # ===== OTHER SYSTEM METHODS =====
+    
     def logout(self):
         """Logout and restart application"""
         if messagebox.askyesno("Logout", "Are you sure you want to logout?"):
@@ -1881,1241 +3077,80 @@ class ProIntegrityGUI:
             else:
                 messagebox.showerror("Error", "Failed to disable Safe Mode.")
 
-    def normalize_report_data(self, summary=None):
-        """
-        Convert summary data to structured dictionary with JSON persistence
-        """
-        # 1. If summary is provided, use it
-        if summary:
-            pass
-        
-        # 2. If no summary provided, check if we have data in memory
-        elif self.report_data.get('total', 0) > 0:
-            return self.report_data
-            
-        # 3. If memory is empty, try to load from the JSON cache
-        else:
-            if os.path.exists(REPORT_DATA_JSON):
-                try:
-                    with open(REPORT_DATA_JSON, 'r') as f:
-                        self.report_data = json.load(f)
-                    return self.report_data
-                except Exception as e:
-                    print(f"Error loading report cache: {e}")
-
-            # 4. Last resort: Try to parse the text file
-            summary = self._parse_summary_from_file()
-        
-        # Normalize the data structure
-        normalized = {
-            'total': summary.get('total_monitored', 0),
-            'created': summary.get('created', []),
-            'modified': summary.get('modified', []),
-            'deleted': summary.get('deleted', []),
-            'skipped': summary.get('skipped', []),
-            'tampered_records': summary.get('tampered_records', False),
-            'tampered_logs': summary.get('tampered_logs', False),
-            'last_update': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-        
-        # Save to JSON cache for future chart generation
-        try:
-            with open(REPORT_DATA_JSON, 'w') as f:
-                json.dump(normalized, f, indent=4)
-        except Exception as e:
-            print(f"Failed to save report cache: {e}")
-
-        # Update internal report data
-        self.report_data = normalized
-        return normalized
-    
-    def _parse_summary_from_file(self):
-        """Fallback text parser if JSON is missing"""
-        if not os.path.exists(REPORT_SUMMARY_FILE):
-            return {}
-        
-        try:
-            with open(REPORT_SUMMARY_FILE, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            summary = {}
-            lines = content.split('\n')
-            
-            # Helper to extract lists from text lines
-            def extract_files(prefix):
-                files = []
-                for line in lines:
-                    if line.strip().startswith(prefix):
-                        parts = line.split(':', 1)
-                        if len(parts) > 1:
-                            raw_files = parts[1].split(',')
-                            files = [f.strip() for f in raw_files if f.strip()]
-                return files
-
-            summary['created'] = extract_files('Created:')
-            summary['modified'] = extract_files('Modified:')
-            summary['deleted'] = extract_files('Deleted:')
-            
-            # Extract total count
-            import re
-            total_match = re.search(r'Total files monitored:\s*(\d+)', content)
-            if total_match:
-                summary['total_monitored'] = int(total_match.group(1))
-            
-            return summary
-        except Exception as e:
-            print(f"Error parsing summary file: {e}")
-            return {}
-
-    def generate_bar_chart(self, data=None, save_path=None, show_chart=True):
-        """
-        Generate bar chart for created/modified/deleted counts
-        """
-        if not HAS_MATPLOTLIB:
-            messagebox.showwarning("Chart Generation", 
-                                 "Matplotlib not installed. Install with: pip install matplotlib")
-            return None
-        
-        if data is None:
-            data = self.report_data
-        
-        # Prepare data for chart
-        categories = ['Created', 'Modified', 'Deleted']
-        counts = [
-            len(data.get('created', [])),
-            len(data.get('modified', [])),
-            len(data.get('deleted', []))
-        ]
-        
-        # Set up the figure with theme compatibility
-        plt.style.use('dark_background' if self.dark_mode else 'default')
-        fig, ax = plt.subplots(figsize=(8, 5))
-        
-        # Set colors based on theme
-        bg_color = self.colors['chart_bg']
-        text_color = self.colors['chart_text']
-        grid_color = self.colors['chart_grid']
-        
-        fig.patch.set_facecolor(bg_color)
-        ax.set_facecolor(bg_color)
-        
-        # Create bar chart
-        bars = ax.bar(categories, counts, color=[
-            self.chart_colors['created'],
-            self.chart_colors['modified'],
-            self.chart_colors['deleted']
-        ], edgecolor='white', linewidth=1.5)
-        
-        # Add value labels on top of bars
-        for bar in bars:
-            height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height + 0.1,
-                   f'{int(height)}', ha='center', va='bottom',
-                   color=text_color, fontweight='bold')
-        
-        # Customize chart
-        ax.set_title('File Integrity Changes', fontsize=14, fontweight='bold', color=text_color, pad=20)
-        ax.set_xlabel('Change Type', fontsize=12, color=text_color)
-        ax.set_ylabel('Number of Files', fontsize=12, color=text_color)
-        ax.grid(True, alpha=0.3, color=grid_color, linestyle='--')
-        ax.set_axisbelow(True)
-        
-        # Set tick colors
-        ax.tick_params(colors=text_color, which='both')
-        
-        # Add total files info
-        total_files = data.get('total', 0)
-        ax.text(0.02, 0.98, f'Total Monitored Files: {total_files}',
-                transform=ax.transAxes, fontsize=10, color=text_color,
-                verticalalignment='top', bbox=dict(boxstyle='round', facecolor=bg_color, alpha=0.8))
-        
-        plt.tight_layout()
-        
-        # Save chart if requested
-        if save_path:
-            try:
-                plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor=bg_color)
-                print(f"Chart saved to: {save_path}")
-            except Exception as e:
-                print(f"Error saving chart: {e}")
-                save_path = None
-        
-        # Show chart in GUI if requested
-        if show_chart:
-            self._show_chart_in_gui(fig)
-        
-        if not show_chart:
-            plt.close(fig)
-    
-    def _show_chart_in_gui(self, fig):
-        """Display chart in a separate window"""
-        chart_window = tk.Toplevel(self.root)
-        chart_window.title("📈 File Integrity Chart")
-        chart_window.geometry("800x600")
-        chart_window.configure(bg=self.colors['bg'])
-        
-        # Embed matplotlib figure in Tkinter window
-        canvas = FigureCanvasTkAgg(fig, master=chart_window)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-        
-        # Add save button
-        save_btn = tk.Button(chart_window, text="💾 Save Chart",
-                            command=lambda: self._save_chart_dialog(fig),
-                            font=('Segoe UI', 10), bg=self.colors['accent_primary'], fg='white',
-                            bd=0, padx=20, pady=8, cursor="hand2")
-        save_btn.pack(pady=10)
-        
-        # Add close button
-        close_btn = tk.Button(chart_window, text="Close", command=chart_window.destroy,
-                             font=('Segoe UI', 10), bg=self.colors['button_bg'], fg=self.colors['text_primary'],
-                             bd=0, padx=20, pady=8, cursor="hand2")
-        close_btn.pack(pady=5)
-    
-    def _save_chart_dialog(self, fig):
-        """Save chart to file dialog"""
-        filename = filedialog.asksaveasfilename(
-            defaultextension=".png",
-            filetypes=[("PNG files", "*.png"), ("PDF files", "*.pdf"), ("All files", "*.*")],
-            initialfile=f"integrity_chart_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-        )
-        if filename:
-            try:
-                fig.savefig(filename, dpi=300, bbox_inches='tight',
-                          facecolor=self.colors['chart_bg'])
-                messagebox.showinfo("Save Successful", f"Chart saved to:\n{filename}")
-            except Exception as e:
-                messagebox.showerror("Save Error", f"Failed to save chart: {e}")
-
-    def generate_chart(self):
-        """Generate and display chart from current data"""
-        if not HAS_MATPLOTLIB:
-            messagebox.showwarning("Chart Generation", 
-                                 "Matplotlib not installed. Install with: pip install matplotlib")
-            return
-        
-        # Ensure we fetch data intelligently
-        if self.report_data.get('total', 0) > 0:
-            data = self.report_data
-        else:
-            data = self.normalize_report_data()
-        
-        # Check if we actually have data to show
-        has_data = (len(data.get('created', [])) > 0 or 
-                   len(data.get('modified', [])) > 0 or 
-                   len(data.get('deleted', [])) > 0)
-        
-        if not has_data and data.get('total', 0) == 0:
-            messagebox.showinfo("No Data", "No report data found to chart.\nPlease run 'Verify Now' first.")
-            return
-
-        # Generate chart
-        self.generate_bar_chart(data, show_chart=True)
-
-    def export_report_pdf(self):
-        """Export comprehensive PDF report with chart"""
-        if not HAS_REPORTLAB:
-            messagebox.showwarning("PDF Export", 
-                                 "ReportLab not installed. Install with: pip install reportlab")
-            return
-        
-        filename = filedialog.asksaveasfilename(
-            defaultextension=".pdf",
-            filetypes=[("PDF files", "*.pdf"), ("All files", "*.*")],
-            initialfile=f"integrity_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-        )
-        
-        if not filename:
-            return
-        
-        def _generate_report():
-            try:
-                self._append_log("Generating comprehensive PDF report...")
-                
-                # Normalize data
-                data = self.normalize_report_data()
-
-                # Get severity counters
-                severity_summary = self.severity_counters
-                
-                # Generate chart image
-                chart_path = None
-                if HAS_MATPLOTLIB:
-                    temp_dir = tempfile.gettempdir()
-                    chart_path = os.path.join(temp_dir, f"chart_{datetime.now().strftime('%Y%m%d%H%M%S')}.png")
-                    self.generate_bar_chart(data, save_path=chart_path, show_chart=False)
-                
-                # Create PDF document
-                doc = SimpleDocTemplate(filename, pagesize=A4, topMargin=0.5*inch)
-                styles = getSampleStyleSheet()
-                
-                # Custom styles
-                title_style = ParagraphStyle(
-                    'CustomTitle',
-                    parent=styles['Heading1'],
-                    fontSize=18,
-                    spaceAfter=20,
-                    textColor=colors.HexColor('#3b82f6')
-                )
-                
-                heading_style = ParagraphStyle(
-                    'CustomHeading',
-                    parent=styles['Heading2'],
-                    fontSize=14,
-                    spaceAfter=12,
-                    textColor=colors.HexColor('#3b82f6')
-                )
-                
-                subheading_style = ParagraphStyle(
-                    'CustomSubHeading',
-                    parent=styles['Heading3'],
-                    fontSize=12,
-                    spaceAfter=8,
-                    textColor=colors.HexColor('#64748b')
-                )
-                
-                normal_style = ParagraphStyle(
-                    'CustomNormal',
-                    parent=styles['Normal'],
-                    fontSize=10,
-                    spaceAfter=6
-                )
-                
-                # Content collection
-                story = []
-                
-                # Title Section
-                story.append(Paragraph("SECURITY INTEGRITY MONITOR REPORT", title_style))
-                story.append(Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", normal_style))
-                story.append(Spacer(1, 20))
-
-                # Security Severity Summary
-                story.append(Paragraph("🚨 SECURITY SEVERITY SUMMARY", heading_style))
-
-                severity_data = [
-                    ["Severity Level", "Count", "Description"],
-                    ["🔴 CRITICAL", str(severity_summary.get('CRITICAL', 0)), "Hash/Log tampering, major breaches"],
-                    ["🟠 HIGH", str(severity_summary.get('HIGH', 0)), "Config changes, multiple deletes"],
-                    ["🟡 MEDIUM", str(severity_summary.get('MEDIUM', 0)), "File modifications, deletions"],
-                    ["🟢 INFO", str(severity_summary.get('INFO', 0)), "Normal file operations, system events"]
-                ]
-
-                severity_table = Table(severity_data, colWidths=[1.5*inch, 1*inch, 3*inch])
-                severity_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3b82f6')),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
-                    ('PADDING', (0, 0), (-1, -1), 8),
-                    ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-                    ('FONTSIZE', (0, 0), (-1, -1), 10),
-                    ('BACKGROUND', (0, 1), (0, 1), colors.HexColor('#ef4444')),
-                    ('BACKGROUND', (0, 2), (0, 2), colors.HexColor('#f97316')),
-                    ('BACKGROUND', (0, 3), (0, 3), colors.HexColor('#f59e0b')),
-                    ('BACKGROUND', (0, 4), (0, 4), colors.HexColor('#06b6d4')),
-                    ('TEXTCOLOR', (0, 1), (0, 4), colors.white),
-                ]))
-                story.append(severity_table)
-                story.append(Spacer(1, 20))
-                
-                # Executive Summary
-                story.append(Paragraph("EXECUTIVE SUMMARY", heading_style))
-                
-                summary_data = [
-                    ["Total Files Monitored:", str(data['total'])],
-                    ["New Files Created:", str(len(data['created']))],
-                    ["Files Modified:", str(len(data['modified']))],
-                    ["Files Deleted:", str(len(data['deleted']))],
-                    ["Files Skipped:", str(len(data['skipped']))],
-                    ["Records Integrity:", "✓ VERIFIED" if not data['tampered_records'] else "✗ COMPROMISED"],
-                    ["Logs Integrity:", "✓ VERIFIED" if not data['tampered_logs'] else "✗ COMPROMISED"]
-                ]
-                
-                summary_table = Table(summary_data, colWidths=[2.5*inch, 1.5*inch])
-                summary_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f1f5f9')),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
-                    ('PADDING', (0, 0), (-1, -1), 8),
-                    ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-                    ('FONTSIZE', (0, 0), (-1, -1), 10),
-                    ('ALIGN', (1, 0), (1, -1), 'CENTER'),
-                ]))
-                story.append(summary_table)
-                story.append(Spacer(1, 30))
-                
-                # Chart Section
-                if chart_path and os.path.exists(chart_path):
-                    story.append(Paragraph("FILE ACTIVITY CHART", heading_style))
-                    try:
-                        chart_img = Image(chart_path, width=6*inch, height=3*inch)
-                        story.append(chart_img)
-                        story.append(Spacer(1, 20))
-                    except Exception as e:
-                        print(f"Error adding chart to PDF: {e}")
-                        story.append(Paragraph("Chart generation failed", normal_style))
-                
-                # File Lists Section
-                story.append(Paragraph("DETAILED FILE CHANGES", heading_style))
-                
-                # Created Files
-                if data['created']:
-                    story.append(Paragraph("Newly Created Files:", subheading_style))
-                    created_list = data['created'][:20]
-                    for file in created_list:
-                        story.append(Paragraph(f"• {file}", normal_style))
-                    if len(data['created']) > 20:
-                        story.append(Paragraph(f"... and {len(data['created']) - 20} more files", normal_style))
-                    story.append(Spacer(1, 10))
-                
-                # Modified Files
-                if data['modified']:
-                    story.append(Paragraph("Modified Files:", subheading_style))
-                    modified_list = data['modified'][:20]
-                    for file in modified_list:
-                        story.append(Paragraph(f"• {file}", normal_style))
-                    if len(data['modified']) > 20:
-                        story.append(Paragraph(f"... and {len(data['modified']) - 20} more files", normal_style))
-                    story.append(Spacer(1, 10))
-                
-                # Deleted Files
-                if data['deleted']:
-                    story.append(Paragraph("Deleted Files:", subheading_style))
-                    deleted_list = data['deleted'][:20]
-                    for file in deleted_list:
-                        story.append(Paragraph(f"• {file}", normal_style))
-                    if len(data['deleted']) > 20:
-                        story.append(Paragraph(f"... and {len(data['deleted']) - 20} more files", normal_style))
-                
-                # Security Status
-                story.append(Spacer(1, 20))
-                story.append(Paragraph("SECURITY STATUS", heading_style))
-                
-                security_status = [
-                    ["Component", "Status", "Details"],
-                    ["Hash Records", 
-                     "SECURE" if not data['tampered_records'] else "COMPROMISED",
-                     "Cryptographically signed and verified" if not data['tampered_records'] else "Signature mismatch detected"],
-                    ["Audit Logs",
-                     "SECURE" if not data['tampered_logs'] else "COMPROMISED",
-                     "Line-by-line HMAC verification passed" if not data['tampered_logs'] else "Log tampering detected"]
-                ]
-                
-                security_table = Table(security_status, colWidths=[1.5*inch, 1.5*inch, 3*inch])
-                security_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3b82f6')),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
-                    ('PADDING', (0, 0), (-1, -1), 8),
-                    ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-                    ('FONTSIZE', (0, 0), (-1, -1), 10),
-                    ('BACKGROUND', (1, 1), (1, 2), 
-                     colors.HexColor('#10b981') if not data['tampered_records'] else colors.HexColor('#ef4444')),
-                    ('BACKGROUND', (1, 2), (1, 2), 
-                     colors.HexColor('#10b981') if not data['tampered_logs'] else colors.HexColor('#ef4444')),
-                    ('TEXTCOLOR', (1, 1), (1, 2), colors.white),
-                ]))
-                story.append(security_table)
-                story.append(Spacer(1, 30))
-                
-                # Footer
-                story.append(Paragraph("Report generated by Secure File Integrity Monitor", normal_style))
-                story.append(Paragraph("Professional Security Edition", normal_style))
-                
-                # Build PDF
-                doc.build(story)
-                
-                # Clean up temp chart file
-                if chart_path and os.path.exists(chart_path):
-                    try:
-                        os.remove(chart_path)
-                    except:
-                        pass
-                
-                self._append_log(f"Comprehensive PDF report exported: {filename}")
-                
-                # Show success message with option to open folder
-                self.root.after(0, lambda: self._show_export_success(filename))
-                
-            except Exception as e:
-                self._append_log(f"PDF report generation failed: {e}")
-                traceback.print_exc()
-                self.root.after(0, lambda: messagebox.showerror("Export Error", 
-                                                               f"Failed to generate PDF report:\n{str(e)}"))
-        
-        # Run in separate thread
-        threading.Thread(target=_generate_report, daemon=True).start()
-    
-    def export_logs_pdf(self):
-        """Export logs as PDF"""
-        if not HAS_REPORTLAB:
-            messagebox.showwarning("PDF Export", 
-                                 "ReportLab not installed. Install with: pip install reportlab")
-            return
-        
-        filename = filedialog.asksaveasfilename(
-            defaultextension=".pdf",
-            filetypes=[("PDF files", "*.pdf"), ("All files", "*.*")],
-            initialfile=f"integrity_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-        )
-        
-        if not filename:
-            return
-        
-        def _generate_logs_pdf():
-            try:
-                self._append_log("Generating logs PDF...")
-                
-                # Create PDF document
-                doc = SimpleDocTemplate(filename, pagesize=A4, topMargin=0.5*inch)
-                styles = getSampleStyleSheet()
-                
-                # Custom styles
-                title_style = ParagraphStyle(
-                    'CustomTitle',
-                    parent=styles['Heading1'],
-                    fontSize=16,
-                    spaceAfter=20,
-                    textColor=colors.HexColor('#3b82f6')
-                )
-                
-                timestamp_style = ParagraphStyle(
-                    'TimestampStyle',
-                    parent=styles['Normal'],
-                    fontSize=9,
-                    textColor=colors.grey,
-                    spaceAfter=3
-                )
-                
-                log_style = ParagraphStyle(
-                    'LogStyle',
-                    parent=styles['Code'],
-                    fontSize=8,
-                    fontName='Courier',
-                    spaceAfter=4,
-                    leftIndent=10
-                )
-                
-                # Content collection
-                story = []
-                
-                # Title Section
-                story.append(Paragraph("SECURITY AUDIT LOGS", title_style))
-                story.append(Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 
-                                      styles['Normal']))
-                story.append(Paragraph(f"Log File: {os.path.abspath(LOG_FILE)}", styles['Normal']))
-                story.append(Spacer(1, 20))
-                
-                # Read log file
-                if os.path.exists(LOG_FILE):
-                    try:
-                        with open(LOG_FILE, 'r', encoding='utf-8') as f:
-                            log_lines = f.readlines()[-1000:]  # Last 1000 lines
+    def _update_button_states(self):
+        """Force button colors to update by toggling state"""
+        # Get all buttons and force color update
+        def update_btn_colors(widget):
+            for child in widget.winfo_children():
+                if isinstance(child, tk.Button):
+                    # Skip theme and special buttons
+                    if child not in [self.theme_btn, self.menu_btn, self.pass_btn, 
+                                self.unlock_btn, self.logout_btn]:
+                        # Force color update by simulating state change
+                        current_bg = child.cget('bg')
+                        current_fg = child.cget('fg')
                         
-                        # Add log entries
-                        for line in log_lines:
-                            line = line.strip()
-                            if line:
-                                # Try to extract timestamp
-                                if ' - ' in line:
-                                    timestamp, message = line.split(' - ', 1)
-                                    story.append(Paragraph(timestamp, timestamp_style))
-                                    story.append(Paragraph(message, log_style))
-                                else:
-                                    story.append(Paragraph(line, log_style))
+                        # Set to new theme colors
+                        if "Start" in child.cget('text'):
+                            child.configure(bg=self.colors['accent_success'])
+                        elif "Stop" in child.cget('text'):
+                            child.configure(bg=self.colors['accent_danger'])
+                        elif "Verify" in child.cget('text'):
+                            child.configure(bg=self.colors['accent_primary'])
+                        elif "Check" in child.cget('text'):
+                            child.configure(bg=self.colors['accent_secondary'])
+                        elif "Settings" in child.cget('text'):
+                            child.configure(bg=self.colors['accent_info'])
+                        elif "Reset" in child.cget('text'):
+                            child.configure(bg=self.colors['accent_warning'])
+                        else:
+                            # For other buttons, use button_bg
+                            child.configure(bg=self.colors['button_bg'], 
+                                        fg=self.colors['text_primary'])
                         
-                        story.append(Spacer(1, 20))
-                        story.append(Paragraph(f"Total log entries: {len(log_lines)}", styles['Normal']))
-                        
-                    except Exception as e:
-                        story.append(Paragraph(f"Error reading log file: {str(e)}", styles['Normal']))
-                else:
-                    story.append(Paragraph("No log file found", styles['Normal']))
+                        # Re-bind hover events
+                        btn_text = child.cget('text')
+                        if "Start" in btn_text:
+                            child.bind("<Enter>", lambda e, b=child: b.configure(
+                                bg=self._lighten_color(self.colors['accent_success'])))
+                            child.bind("<Leave>", lambda e, b=child: b.configure(
+                                bg=self.colors['accent_success']))
+                        elif "Stop" in btn_text:
+                            child.bind("<Enter>", lambda e, b=child: b.configure(
+                                bg=self._lighten_color(self.colors['accent_danger'])))
+                            child.bind("<Leave>", lambda e, b=child: b.configure(
+                                bg=self.colors['accent_danger']))
+                        elif "Verify" in btn_text:
+                            child.bind("<Enter>", lambda e, b=child: b.configure(
+                                bg=self._lighten_color(self.colors['accent_primary'])))
+                            child.bind("<Leave>", lambda e, b=child: b.configure(
+                                bg=self.colors['accent_primary']))
+                        elif "Check" in btn_text:
+                            child.bind("<Enter>", lambda e, b=child: b.configure(
+                                bg=self._lighten_color(self.colors['accent_secondary'])))
+                            child.bind("<Leave>", lambda e, b=child: b.configure(
+                                bg=self.colors['accent_secondary']))
+                        elif "Settings" in btn_text:
+                            child.bind("<Enter>", lambda e, b=child: b.configure(
+                                bg=self._lighten_color(self.colors['accent_info'])))
+                            child.bind("<Leave>", lambda e, b=child: b.configure(
+                                bg=self.colors['accent_info']))
+                        elif "Reset" in btn_text:
+                            child.bind("<Enter>", lambda e, b=child: b.configure(
+                                bg=self._lighten_color(self.colors['accent_warning'])))
+                            child.bind("<Leave>", lambda e, b=child: b.configure(
+                                bg=self.colors['accent_warning']))
+                        else:
+                            # For report buttons
+                            child.bind("<Enter>", lambda e, b=child: b.configure(
+                                bg=self.colors['button_hover']))
+                            child.bind("<Leave>", lambda e, b=child: b.configure(
+                                bg=self.colors['button_bg']))
                 
-                # Footer
-                story.append(Spacer(1, 30))
-                story.append(Paragraph("Generated by Secure File Integrity Monitor", styles['Normal']))
-                story.append(Paragraph("Security Audit Log Export", styles['Normal']))
-                
-                # Build PDF
-                doc.build(story)
-                
-                self._append_log(f"Logs PDF exported: {filename}")
-                
-                # Show success message
-                self.root.after(0, lambda: self._show_export_success(filename))
-                
-            except Exception as e:
-                self._append_log(f"Logs PDF generation failed: {e}")
-                traceback.print_exc()
-                self.root.after(0, lambda: messagebox.showerror("Export Error", 
-                                                               f"Failed to generate logs PDF:\n{str(e)}"))
+                # Recursively update children
+                update_btn_colors(child)
         
-        # Run in separate thread
-        threading.Thread(target=_generate_logs_pdf, daemon=True).start()
-    
-    def _show_export_success(self, filepath):
-        """Show export success dialog with option to open folder"""
-        result = messagebox.askyesno("Export Successful",
-                                    f"Report successfully exported to:\n{filepath}\n\n"
-                                    "Would you like to open the containing folder?")
-        if result:
-            try:
-                folder_path = os.path.dirname(filepath)
-                os.startfile(folder_path)
-            except:
-                # Fallback for Linux/Mac
-                try:
-                    import subprocess
-                    subprocess.run(['xdg-open', folder_path])
-                except:
-                    pass
-
-    # ---------- Core Actions ----------
-    def _browse(self):
-        """Browse for folder"""
-        d = filedialog.askdirectory()
-        if d:
-            self.watch_folder_var.set(d)
-            self.folder_entry.delete(0, tk.END)
-            self.folder_entry.insert(0, d)
-            self._append_log(f"Selected monitor folder: {d}")
-
-    def start_monitor(self):
-        """Start monitoring"""
-        if not FileIntegrityMonitor:
-            messagebox.showerror("Error", "Backend not available.")
-            return
-        if self.monitor_running:
-            messagebox.showinfo("Info", "Monitor already running.")
-            return
-        
-        folder = self.folder_entry.get()
-        if not folder or not os.path.exists(folder):
-            messagebox.showerror("Error", "Please select a valid folder.")
-            return
-
-        def _start():
-            try:
-                # Define the callback wrapper
-                def gui_callback(event_type, path, severity):
-                    self.root.after(0, lambda: self._handle_realtime_event(event_type, path, severity))
-                
-                # Pass the callback to the backend
-                ok = self.monitor.start_monitoring(watch_folder=folder, event_callback=gui_callback)
-                
-                if ok:
-                    self.monitor_running = True
-                    self.status_var.set(f"🟢 Running — {os.path.basename(folder)}")
-                    self._append_log(f"Security monitoring STARTED for: {folder}")
-                    self._show_alert("Monitoring started", 
-                                   f"Started monitoring folder:\n{folder}", 
-                                   "info")
-                    self.reset_session_counts()
-                else:
-                    self._append_log("Monitor failed to start")
-                    messagebox.showerror("Error", "Monitor failed to start.")
-            except Exception as ex:
-                self._append_log(f"Exception starting monitor: {ex}")
-                traceback.print_exc()
-                messagebox.showerror("Error", f"Exception: {ex}")
-
-        threading.Thread(target=_start, daemon=True).start()
-
-    def stop_monitor(self):
-        """Stop monitoring"""
-        if not self.monitor_running:
-            messagebox.showinfo("Info", "Monitor not running.")
-            return
-        try:
-            self.monitor.stop_monitoring()
-            self.monitor_running = False
-            self.status_var.set("🔴 Stopped")
-            self._append_log("Security monitoring STOPPED by user.")
-            self._show_alert("Monitoring Stopped", 
-                           "File integrity monitoring has been stopped.", 
-                           "info")
-        except Exception as ex:
-            self._append_log(f"Exception stopping monitor: {ex}")
-            traceback.print_exc()
-            messagebox.showerror("Error", f"Exception: {ex}")
-
-    def run_verification(self):
-        """Run manual verification with severity tracking"""
-        folder = self.folder_entry.get()
-        if not folder or not os.path.exists(folder):
-            messagebox.showerror("Error", "Choose valid folder first.")
-            return
-
-        def _verify():
-            try:
-                self._append_log("Manual security verification started...")
-                
-                # Run the backend verification
-                summary = self.monitor.run_verification(watch_folder=folder)
-                
-                # Normalize AND SAVE to JSON cache automatically
-                normalized = self.normalize_report_data(summary)
-                
-                # Track file changes with severity
-                self._track_file_changes(normalized)
-
-                # Update UI Status Indicators based on verification results
-                rec_status = "TAMPERED" if normalized['tampered_records'] else "OK"
-                log_status = "TAMPERED" if normalized['tampered_logs'] else "OK"
-                
-                # Update the text variables
-                self.tamper_records_var.set(rec_status)
-                self.tamper_logs_var.set(log_status)
-                
-                # Show tamper alerts with CRITICAL severity if detected
-                if normalized['tampered_records']:
-                    self._show_alert("CRITICAL: Hash Database Tampered!", 
-                                   "File hash records have been tampered with!", 
-                                   "critical")
-                if normalized['tampered_logs']:
-                    self._show_alert("CRITICAL: Log Files Tampered!", 
-                                   "Audit log files have been tampered with!", 
-                                   "critical")
-                
-                # Force the dashboard to refresh colors immediately
-                self.root.after(0, self._update_tamper_indicators)
-                
-                # Show results with severity summary
-                txt = (f"🔍 SECURITY VERIFICATION COMPLETE\n\n"
-                    f"📊 Total monitored: {normalized['total']}\n"
-                    f"🟢 New files: {len(normalized['created'])}\n"
-                    f"🟡 Modified files: {len(normalized['modified'])}\n"
-                    f"🔴 Deleted files: {len(normalized['deleted'])}\n\n"
-                    f"🚨 SECURITY STATUS:\n"
-                    f"🔥 CRITICAL - Hash DB: {'TAMPERED' if normalized['tampered_records'] else 'SECURE'}\n"
-                    f"🔥 CRITICAL - Logs: {'TAMPERED' if normalized['tampered_logs'] else 'SECURE'}\n")
-                
-                messagebox.showinfo("Security Verification Summary", txt)
-                self._append_log("Manual security verification finished.")
-                
-            except Exception as ex:
-                self._append_log(f"Verification error: {ex}")
-                traceback.print_exc()
-                messagebox.showerror("Error", f"Verification failed: {ex}")
-
-        threading.Thread(target=_verify, daemon=True).start()
-
-    def verify_signatures(self):
-        """Verify cryptographic signatures"""
-        rec_ok = None
-        log_ok = None
-        rec_msg = ""
-        log_msg = ""
-        
-        try:
-            if verify_records_signature_on_disk:
-                rec_ok = verify_records_signature_on_disk()
-                rec_msg = "records HMAC OK" if rec_ok else "records HMAC FAILED"
-            else:
-                rec_msg = "No verify_records available"
-        except Exception as ex:
-            rec_ok = False
-            rec_msg = f"Exception: {ex}"
-
-        try:
-            if verify_log_signatures:
-                got = verify_log_signatures()
-                if isinstance(got, tuple):
-                    log_ok, detail = got
-                    log_msg = detail
-                elif isinstance(got, bool):
-                    log_ok = got
-                    log_msg = "log sig OK" if log_ok else "log sig FAILED"
-                else:
-                    log_msg = str(got)
-            else:
-                log_msg = "No verify_log available"
-        except Exception as ex:
-            log_ok = False
-            log_msg = f"Exception: {ex}"
-
-        # Update UI indicators
-        self.tamper_records_var.set("OK" if rec_ok else "TAMPERED" if rec_ok is False else "UNKNOWN")
-        self.tamper_logs_var.set("OK" if log_ok else "TAMPERED" if log_ok is False else "UNKNOWN")
-        
-        # Show alert for tamper detection
-        if rec_ok is False or log_ok is False:
-            self._show_alert("SIGNATURE TAMPER DETECTED!", 
-                           f"Records: {rec_msg}\nLogs: {log_msg}", 
-                           "tampered")
-        elif rec_ok and log_ok:
-            self._show_alert("Signatures Verified", 
-                           "All cryptographic signatures are valid and intact.", 
-                           "info")
-        
-        self._append_log(f"Signature verification: records={rec_msg}, logs={log_msg}")
-
-    def open_settings(self):
-        """Open settings dialog"""
-        win = tk.Toplevel(self.root)
-        win.title("Security Settings")
-        win.geometry("520x300")
-        win.configure(bg=self.colors['bg'])
-        
-        tk.Label(win, text="🔧 Security Configuration (config.json)", 
-                bg=self.colors['bg'], fg=self.colors['text_primary'], font=('Segoe UI', 12, 'bold')).pack(anchor="w", padx=10, pady=(10, 0))
-
-        cfg = dict(CONFIG)
-
-        tk.Label(win, text="📁 Watch folder:", bg=self.colors['bg'], fg=self.colors['text_primary'], font=('Segoe UI', 10)).pack(anchor="w", padx=10, pady=(8, 0))
-        watch_var = tk.StringVar(value=cfg.get("watch_folder", ""))
-        e1 = ttk.Entry(win, textvariable=watch_var, width=70, style='Modern.TEntry')
-        e1.pack(padx=10)
-
-        tk.Label(win, text="⏱️ Verify interval (seconds):", bg=self.colors['bg'], fg=self.colors['text_primary'], font=('Segoe UI', 10)).pack(anchor="w", padx=10, pady=(8, 0))
-        int_var = tk.StringVar(value=str(cfg.get("verify_interval", 1800)))
-        e2 = ttk.Entry(win, textvariable=int_var, width=20, style='Modern.TEntry')
-        e2.pack(padx=10)
-
-        tk.Label(win, text="🔔 Webhook URL (optional):", bg=self.colors['bg'], fg=self.colors['text_primary'], font=('Segoe UI', 10)).pack(anchor="w", padx=10, pady=(8, 0))
-        web_var = tk.StringVar(value=str(cfg.get("webhook_url") or ""))
-        e3 = ttk.Entry(win, textvariable=web_var, width=70, style='Modern.TEntry')
-        e3.pack(padx=10)
-
-        def save_settings():
-            new_cfg = dict(CONFIG)
-            new_cfg["watch_folder"] = watch_var.get()
-            try:
-                new_cfg["verify_interval"] = int(int_var.get())
-            except Exception:
-                messagebox.showerror("Error", "verify_interval must be integer seconds")
-                return
-            new_cfg["webhook_url"] = web_var.get() or None
-            
-            try:
-                # Save to AppData/config/config.json
-                from core.utils import get_app_data_dir
-                app_data = get_app_data_dir()
-                config_dir = os.path.join(app_data, "config")
-                if not os.path.exists(config_dir):
-                    os.makedirs(config_dir)
-                    
-                target_file = os.path.join(config_dir, "config.json")
-                
-                with open(target_file, "w", encoding="utf-8") as f:
-                    json.dump(new_cfg, f, indent=4)
-                
-                # Reload config
-                if load_config:
-                    load_config(target_file)
-                    
-                messagebox.showinfo("Settings", f"Configuration saved to:\n{target_file}")
-                self._show_alert("Settings Updated", "Security configuration has been updated.", "info")
-                win.destroy()
-            except Exception as ex:
-                messagebox.showerror("Error", f"Failed to save config: {ex}")
-
-        btn_frame = ttk.Frame(win)
-        btn_frame.pack(pady=12)
-        
-        ttk.Button(btn_frame, text="💾 Save Settings", command=save_settings, style='Modern.TButton').pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="❌ Cancel", command=win.destroy, style='Modern.TButton').pack(side=tk.LEFT, padx=5)
-
-    # ---------- Helper Methods ----------
-    def _append_log(self, text):
-        """Append text to the log display"""
-        try:
-            self.log_box.configure(state="normal")
-            now = datetime.now().strftime("%H:%M:%S")
-            self.log_box.insert(tk.END, f"[{now}] {text}\n")
-            self.log_box.configure(state="disabled")
-            self.log_box.see(tk.END)
-        except Exception as e:
-            print(f"Error appending to log: {e}")
-
-    def _update_dashboard(self):
-        """Update dashboard with current statistics"""
-        try:
-            # Update total files
-            current_total = 0
-            if self.monitor and hasattr(self.monitor, 'records'):
-                records = self.monitor.records
-                current_total = len(records)
-                self.total_files_var.set(str(current_total))
-            
-            # Update session counts
-            self.created_var.set(str(self.file_tracking['session_created']))
-            self.modified_var.set(str(self.file_tracking['session_modified']))
-            self.deleted_var.set(str(self.file_tracking['session_deleted']))
-
-        except Exception as e:
-            print(f"Dashboard update error: {e}")
-            self.total_files_var.set("0")
-            self.created_var.set("0")
-            self.modified_var.set("0")
-            self.deleted_var.set("0")
-
-        # Update tamper indicators
-        self._update_tamper_indicators()
-
-        # Schedule next update
-        self.root.after(3000, self._update_dashboard)
-
-    def _update_tamper_indicators(self):
-        """Update tamper indicator colors"""
-        if hasattr(self, '_rec_indicator'):
-            try:
-                rec_ok = self.tamper_records_var.get() == "OK"
-                log_ok = self.tamper_logs_var.get() == "OK"
-                
-                rec_bg = (self.colors['indicator_success'] if rec_ok else 
-                         self.colors['indicator_danger'] if self.tamper_records_var.get() == "TAMPERED" else 
-                         self.colors['indicator_info'])
-                log_bg = (self.colors['indicator_success'] if log_ok else 
-                         self.colors['indicator_danger'] if self.tamper_logs_var.get() == "TAMPERED" else 
-                         self.colors['indicator_info'])
-                
-                self._rec_indicator.configure(bg=rec_bg, fg='white')
-                self._log_indicator.configure(bg=log_bg, fg='white')
-            except:
-                pass
-
-    def reset_session_counts(self):
-        """Reset session counts"""
-        self.file_tracking['session_created'] = 0
-        self.file_tracking['session_modified'] = 0
-        self.file_tracking['session_deleted'] = 0
-        
-        self.created_var.set("0")
-        self.modified_var.set("0")
-        self.deleted_var.set("0")
-        self._append_log("Session file counters reset")
-
-    def _track_file_changes(self, data):
-        """Track file changes"""
-        if data:
-            created_count = len(data.get('created', []))
-            modified_count = len(data.get('modified', []))
-            deleted_count = len(data.get('deleted', []))
-            
-            self.file_tracking['session_created'] += created_count
-            self.file_tracking['session_modified'] += modified_count
-            self.file_tracking['session_deleted'] += deleted_count
-            
-            self.created_var.set(str(self.file_tracking['session_created']))
-            self.modified_var.set(str(self.file_tracking['session_modified']))
-            self.deleted_var.set(str(self.file_tracking['session_deleted']))
-            
-            # Show alerts for changes
-            if created_count > 0:
-                self._show_alert(f"{created_count} New Files", 
-                               f"{created_count} new file(s) detected.", 
-                               "created")
-            if modified_count > 0:
-                self._show_alert(f"{modified_count} Modified Files", 
-                               f"{modified_count} file(s) were modified.", 
-                               "modified")
-            if deleted_count > 0:
-                self._show_alert(f"{deleted_count} Deleted Files", 
-                               f"{deleted_count} file(s) were deleted.", 
-                               "deleted")
-
-    def _tail_log_loop(self):
-        """Tail log file"""
-        try:
-            if os.path.exists(LOG_FILE):
-                try:
-                    with open(LOG_FILE, "r", encoding="utf-8") as f:
-                        lines = f.readlines()[-400:]
-                except Exception:
-                    lines = []
-                
-                existing = self.log_box.get("1.0", tk.END)
-                for line in lines:
-                    if line.strip() and (line not in existing):
-                        self.log_box.configure(state="normal")
-                        self.log_box.insert(tk.END, line)
-                        self.log_box.configure(state="disabled")
-                        self.log_box.see(tk.END)
-        except Exception as e:
-            print(f"Error in log tail: {e}")
-        
-        self.root.after(2000, self._tail_log_loop)
-
-    # ---------- Other Methods ----------
-    def view_report(self):
-        """View reports"""
-        report_files = [
-            "reports/report_summary.txt",
-            os.path.join("logs", "activity_reports.txt"),
-            os.path.join("logs", "detailed_reports.txt")
-        ]
-        combined_content = ""
-
-        severity_summary = self.severity_counters
-        combined_content += f"🚨 SECURITY SEVERITY SUMMARY\n"
-        combined_content += f"{'='*60}\n"
-        combined_content += f"CRITICAL Alerts: {severity_summary.get('CRITICAL', 0)}\n"
-        combined_content += f"HIGH Alerts: {severity_summary.get('HIGH', 0)}\n"
-        combined_content += f"MEDIUM Alerts: {severity_summary.get('MEDIUM', 0)}\n"
-        combined_content += f"INFO Alerts: {severity_summary.get('INFO', 0)}\n"
-        combined_content += f"{'='*60}\n\n"
-        
-        for report_file in report_files:
-            if os.path.exists(report_file):
-                try:
-                    with open(report_file, "r", encoding="utf-8") as f:
-                        content = f.read()
-                        combined_content += f"\n{'='*60}\n"
-                        combined_content += f"CONTENT FROM: {report_file}\n"
-                        combined_content += f"{'='*60}\n\n"
-                        combined_content += content + "\n"
-                except Exception as ex:
-                    combined_content += f"Error reading {report_file}: {ex}\n"
-        
-        if combined_content:
-            self._show_text("Combined Security Reports", combined_content)
-        else:
-            messagebox.showinfo("Report", "No report files found.")
-
-    def reset_severity_counters(self):
-        """Reset all severity counters"""
-        if messagebox.askyesno("Reset Counters", "Reset all severity counters to zero?"):
-            self.severity_counters = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'INFO': 0}
-            
-            # Update UI
-            self.critical_var.set("0")
-            self.high_var.set("0")
-            self.medium_var.set("0")
-            self.info_var.set("0")
-            
-            # Save to file
-            try:
-                with open(SEVERITY_COUNTER_FILE, "w", encoding="utf-8") as f:
-                    json.dump(self.severity_counters, f, indent=2)
-                self._append_log("Severity counters reset to zero")
-                self._show_alert("Counters Reset", "All severity counters have been reset to zero.", "info")
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to save counters: {e}")
-
-    def open_reports_folder(self):
-        """Open reports folder"""
-        folder = os.path.abspath(".")
-        try:
-            os.startfile(folder)
-        except Exception:
-            messagebox.showinfo("Info", f"Open folder: {folder}")
-
-    def _handle_realtime_event(self, event_type, path, severity):
-        """Handle real-time events from the backend"""
-        filename = os.path.basename(path)
-        
-        # Update Session Counters
-        if "CREATED" in event_type:
-            self.file_tracking['session_created'] += 1
-            self.created_var.set(str(self.file_tracking['session_created']))
-            # Increment total files
-            current_total = int(self.total_files_var.get())
-            self.total_files_var.set(str(current_total + 1))
-            
-        elif "MODIFIED" in event_type:
-            self.file_tracking['session_modified'] += 1
-            self.modified_var.set(str(self.file_tracking['session_modified']))
-            
-        elif "DELETED" in event_type:
-            self.file_tracking['session_deleted'] += 1
-            self.deleted_var.set(str(self.file_tracking['session_deleted']))
-            # Decrement total files
-            current_total = int(self.total_files_var.get())
-            self.total_files_var.set(str(max(0, current_total - 1)))
-
-        # Trigger the alert popup
-        msg = f"File: {filename}\nPath: {path}"
-        self._show_alert(f"{event_type} Detected", msg, severity.lower())
-
-    def _show_text(self, title, content):
-        """Show text in new window"""
-        w = tk.Toplevel(self.root)
-        w.title(f"🔍 {title}")
-        w.geometry("800x600")
-        w.configure(bg=self.colors['bg'])
-        
-        header = tk.Label(w, text=title, font=('Segoe UI', 12, 'bold'),
-                        bg=self.colors['bg'], fg=self.colors['accent_primary'])
-        header.pack(pady=10)
-        
-        st = scrolledtext.ScrolledText(w, wrap=tk.WORD, 
-                                     bg=self.colors['card_bg'], 
-                                     fg=self.colors['text_primary'],
-                                     font=("Consolas", 10))
-        st.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        st.insert(tk.END, content)
-        st.configure(state="disabled")
-        
-        close_btn = ttk.Button(w, text="Close", command=w.destroy, style='Modern.TButton')
-        close_btn.pack(pady=10)
-
-
-    def _create_side_menu(self):
-        """Create sliding side menu with demo and archive options"""
-        self.menu_width = 250
-        self.menu_visible = False
-        
-        # Create side menu frame
-        self.side_menu = tk.Frame(self.root, bg=self.colors['sidebar_bg'], width=self.menu_width)
-        self.side_menu.place(x=-self.menu_width, y=0, height=self.root.winfo_height(), relheight=1.0)
-        
-        # Menu Title
-        tk.Label(self.side_menu, text="🛡️ SECURITY MENU", 
-                font=('Segoe UI', 14, 'bold'), 
-                bg=self.colors['accent_primary'], 
-                fg='white', 
-                pady=15).pack(fill=tk.X)
-        
-        # Demo Simulation Button
-        demo_btn = tk.Button(self.side_menu, text="🎬 Run Demo Simulation", 
-                            command=self.run_demo_mode,
-                            font=('Segoe UI', 11), 
-                            bg='#8b5cf6',  # Purple
-                            fg='white',
-                            bd=0, 
-                            padx=20, 
-                            pady=15,
-                            cursor="hand2",
-                            anchor='w',
-                            activebackground='#7c3aed')
-        demo_btn.pack(fill=tk.X, pady=(20, 10), padx=10)
-        
-        # Archive & Reset Button
-        archive_btn = tk.Button(self.side_menu, text="🗄️ Archive Logs & Reset", 
-                            command=self.archive_and_reset,
-                            font=('Segoe UI', 11), 
-                            bg='#ef4444',  # Red
-                            fg='white',
-                            bd=0, 
-                            padx=20, 
-                            pady=15,
-                            cursor="hand2",
-                            anchor='w',
-                            activebackground='#dc2626')
-        archive_btn.pack(fill=tk.X, pady=10, padx=10)
-        
-        # Close Menu Button
-        close_btn = tk.Button(self.side_menu, text="✕ Close Menu", 
-                            command=self.toggle_menu,
-                            font=('Segoe UI', 10), 
-                            bg=self.colors['sidebar_bg'], 
-                            fg=self.colors['text_secondary'],
-                            bd=0,
-                            cursor="hand2")
-        close_btn.pack(side=tk.BOTTOM, pady=20)
-
-    def toggle_menu(self):
-        """Toggle the side menu visibility"""
-        if not self.menu_visible:
-            # Show menu
-            self._animate_menu(0)
-            self.menu_visible = True
-        else:
-            # Hide menu
-            self._animate_menu(-self.menu_width)
-            self.menu_visible = False
-
-    def _animate_menu(self, target_x):
-        """Animate menu sliding in/out"""
-        current_x = self.side_menu.winfo_x()
-        
-        if current_x < target_x:
-            step = 30  # Slide right
-        else:
-            step = -30  # Slide left
-        
-        if abs(target_x - current_x) < abs(step):
-            self.side_menu.place(x=target_x)
-            if target_x == -self.menu_width:
-                self.menu_visible = False
-            return
-        
-        new_x = current_x + step
-        self.side_menu.place(x=new_x)
-        self.root.after(10, lambda: self._animate_menu(target_x))
-
-    def run_demo_mode(self):
-        """Execute the demonstration sequence"""
-        self.toggle_menu()  # Close menu first
-        
-        if messagebox.askyesno("Run Demo", "⚠️ Start Demo Simulation?\n\nThis will trigger fake alerts, modify logs, and activate Safe Mode. Real monitoring will continue in background."):
-            
-            # Reset counters for clean visual
-            self.reset_severity_counters()
-            self._append_log("--- STARTING DEMO SIMULATION ---")
-            
-            # Disable buttons to prevent interference
-            self.status_var.set("🎬 DEMO RUNNING...")
-            
-            # Initialize Simulator
-            try:
-                from demo_simulator import DemoSimulator
-            except ImportError:
-                try:
-                    sys.path.append('../core')
-                    from demo_simulator import DemoSimulator
-                except ImportError:
-                    messagebox.showerror("Error", "Demo simulator not available")
-                    return
-            
-            simulator = DemoSimulator(alert_callback=self._show_alert_from_demo)
-            
-            # Run in Thread
-            threading.Thread(target=simulator.run_simulation, daemon=True).start()
-
-    def _show_alert_from_demo(self, title, message, severity):
-        """Bridge function to allow Demo thread to trigger UI alerts"""
-        self.root.after(0, lambda: self._show_alert(title, message, severity))
-
-    def archive_and_reset(self):
-        """Archive current logs and reset UI"""
-        self.toggle_menu()  # Close the menu
-        
-        # Safety Check
-        if self.monitor_running:
-            messagebox.showwarning("Monitor Running", "Please Stop the Monitor before archiving.")
-            return
-
-        # Confirmation
-        confirm = messagebox.askyesno(
-            "Confirm Archive & Reset", 
-            "Are you sure?\n\n"
-            "1. All current logs and reports will be moved to 'config/history'.\n"
-            "2. The current dashboard will be cleared.\n"
-            "3. You can start fresh with a new folder."
-        )
-        
-        if confirm:
-            try:
-                # Call Backend
-                success, msg = integrity_core.archive_session()
-                
-                if success:
-                    # Reset UI Elements
-                    self.log_box.configure(state="normal")
-                    self.log_box.delete("1.0", tk.END)
-                    self.log_box.insert(tk.END, f"[{datetime.now().strftime('%H:%M:%S')}] Session archived.\n")
-                    self.log_box.insert(tk.END, f"[{datetime.now().strftime('%H:%M:%S')}] Ready for new task.\n")
-                    self.log_box.configure(state="disabled")
-                    
-                    # Reset Severity Counters
-                    self.reset_severity_counters()
-                    
-                    # Reset Session Stats
-                    self.reset_session_counts()
-                    self.total_files_var.set("0")
-                    
-                    # Reset Tamper Indicators
-                    self.tamper_records_var.set("UNKNOWN")
-                    self.tamper_logs_var.set("UNKNOWN")
-                    self._update_tamper_indicators()
-                    
-                    messagebox.showinfo("Success", f"System Reset Complete.\n\nOld files saved in:\n{msg}")
-                    self._append_log("System reset successfully.")
-                else:
-                    messagebox.showerror("Error", f"Failed to archive: {msg}")
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to archive: {e}")
+        update_btn_colors(self.root)
 
 
 # ---------- Run ----------

@@ -271,6 +271,10 @@ class ProIntegrityGUI:
         # Theme management
         self.dark_mode = True  # Start with dark theme
         self.colors = DARK_THEME
+
+        # Counter label storage
+        self.file_counter_labels = []
+        self.severity_counter_labels = []
         
         # Alert panel configuration - FIXED POSITIONING
         self.ALERT_PANEL_WIDTH = 350  # Reduced width to avoid overlap
@@ -541,6 +545,10 @@ class ProIntegrityGUI:
         content_frame = tk.Frame(main_container, bg=self.colors['bg'])
         content_frame.pack(fill=tk.BOTH, expand=True)
 
+        # Initialize label storage
+        self.file_counter_labels = []
+        self.severity_counter_labels = []
+
         # ===== LEFT PANEL - Controls and Status =====
         left_panel = tk.Frame(content_frame, bg=self.colors['bg'], width=400)
         left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=False)
@@ -660,10 +668,10 @@ class ProIntegrityGUI:
         dashboard_frame.pack_propagate(False)
         dashboard_frame.configure(height=320)
 
-        # File Statistics Card - IMPORTED FROM BACKUP
+        # File Statistics Card - MODIFIED: Store counter labels
         stats_card = tk.Frame(dashboard_frame, bg=self.colors['card_bg'], width=300,
-                             relief='flat', bd=1, highlightbackground=self.colors['card_border'],
-                             highlightthickness=1)
+                            relief='flat', bd=1, highlightbackground=self.colors['card_border'],
+                            highlightthickness=1)
         stats_card.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         stats_card.pack_propagate(False)
         
@@ -688,10 +696,13 @@ class ProIntegrityGUI:
                     bg=self.colors['card_bg'], fg=self.colors['text_secondary']).pack(side=tk.LEFT)
             
             value_label = tk.Label(stat_frame, textvariable=var, font=('Segoe UI', 14, 'bold'),
-                                  bg=color, fg='white', padx=15, pady=6, relief='flat')
+                                bg=color, fg='white', padx=15, pady=6, relief='flat')
             value_label.pack(side=tk.RIGHT)
-
-        # Severity Dashboard Card - IMPORTED FROM BACKUP
+            
+            # Store the label reference
+            self.file_counter_labels.append((value_label, label, color))
+        
+        # Severity Dashboard Card - MODIFIED: Store severity counter labels
         severity_card = tk.Frame(dashboard_frame, bg=self.colors['card_bg'], width=300,
                                 relief='flat', bd=1, highlightbackground=self.colors['card_border'],
                                 highlightthickness=1)
@@ -719,8 +730,11 @@ class ProIntegrityGUI:
                     bg=self.colors['card_bg'], fg=self.colors['text_secondary']).pack(side=tk.LEFT)
             
             value_label = tk.Label(severity_frame, textvariable=var, font=('Segoe UI', 14, 'bold'),
-                                  bg=color, fg='white', padx=15, pady=6, relief='flat')
+                                bg=color, fg='white', padx=15, pady=6, relief='flat')
             value_label.pack(side=tk.RIGHT)
+        
+            # Store the label reference
+            self.severity_counter_labels.append((value_label, label, color))
 
         # Report Tools Card - IMPORTED FROM BACKUP
         report_card = tk.Frame(dashboard_frame, bg=self.colors['card_bg'], width=300,
@@ -1938,6 +1952,9 @@ class ProIntegrityGUI:
         # Update all widget colors
         self._apply_theme()
 
+        # Update status color specifically
+        self._update_status_color()
+
     def _apply_theme(self):
         """Apply current theme to all widgets"""
         # Update root window
@@ -1946,8 +1963,24 @@ class ProIntegrityGUI:
         # Update all widgets with force refresh
         self._update_widget_colors(self.root)
         
+        # Update counter colors
+        if hasattr(self, 'file_counter_labels') and hasattr(self, 'severity_counter_labels'):
+            self._update_counter_colors()
+        
         # Force update button states (fix hover colors)
         self._update_button_states()
+        
+        # Update status label color
+        if hasattr(self, 'status_label'):
+            current_status = self.status_var.get()
+            if "Running" in current_status or "🟢" in current_status:
+                self.status_label.configure(fg=self.colors['accent_success'])
+            elif "DEMO" in current_status or "SAFE" in current_status:
+                self.status_label.configure(fg=self.colors['accent_danger'])
+            elif "Read-Only" in current_status:
+                self.status_label.configure(fg=self.colors['accent_warning'])
+            else:  # Stopped
+                self.status_label.configure(fg=self.colors['accent_primary'])
         
         # Update menu button colors
         if hasattr(self, 'menu_btn'):
@@ -1960,12 +1993,115 @@ class ProIntegrityGUI:
             for child in self.side_menu.winfo_children():
                 if isinstance(child, tk.Button):
                     if "Demo" in child.cget('text'):
-                        child.configure(bg='#8b5cf6' if self.dark_mode else '#8b5cf6')
+                        child.configure(bg='#8b5cf6')
                     elif "Archive" in child.cget('text'):
-                        child.configure(bg='#ef4444' if self.dark_mode else '#ef4444')
+                        child.configure(bg='#ef4444')
                     elif "Close" in child.cget('text'):
                         child.configure(bg=self.colors['sidebar_bg'], 
                                     fg=self.colors['text_secondary'])
+
+    def _update_counter_colors(self):
+        """Update the colors of counter labels after theme change"""
+        # Update file counter colors
+        for i, (label_widget, label_text, original_color) in enumerate(self.file_counter_labels):
+            # Determine which color to use based on label text
+            if "Total" in label_text:
+                new_color = self.colors['accent_primary']
+            elif "Created" in label_text:
+                new_color = self.colors['accent_success']
+            elif "Modified" in label_text:
+                new_color = self.colors['accent_warning']
+            elif "Deleted" in label_text:
+                new_color = self.colors['accent_danger']
+            else:
+                new_color = original_color
+            
+            # Update the label
+            label_widget.configure(bg=new_color, fg='white')
+        
+        # Update severity counter colors (these are fixed colors, but we need to re-apply them)
+        for label_widget, label_text, color in self.severity_counter_labels:
+            label_widget.configure(bg=color, fg='white')
+
+    def _update_counter_widgets(self, widget):
+        """Recursively find and update counter widget colors"""
+        try:
+            if isinstance(widget, tk.Label):
+                # Check if this is a counter label by its styling
+                text = widget.cget('text')
+                bg = widget.cget('bg')
+                
+                # Check if it's a statistic counter (has specific colors)
+                if bg in [DARK_THEME['accent_primary'], LIGHT_THEME['accent_primary'],
+                        DARK_THEME['accent_success'], LIGHT_THEME['accent_success'],
+                        DARK_THEME['accent_warning'], LIGHT_THEME['accent_warning'],
+                        DARK_THEME['accent_danger'], LIGHT_THEME['accent_danger']]:
+                    
+                    # Determine which color to use based on text content
+                    if "Total" in str(widget.master) or text == "0":  # Total files
+                        widget.configure(bg=self.colors['accent_primary'], fg='white')
+                    elif "Created" in str(widget.master):  # Created files
+                        widget.configure(bg=self.colors['accent_success'], fg='white')
+                    elif "Modified" in str(widget.master):  # Modified files
+                        widget.configure(bg=self.colors['accent_warning'], fg='white')
+                    elif "Deleted" in str(widget.master):  # Deleted files
+                        widget.configure(bg=self.colors['accent_danger'], fg='white')
+            
+            # Recursively check children
+            for child in widget.winfo_children():
+                self._update_counter_widgets(child)
+        except:
+            pass
+
+
+    def _update_severity_counter_colors(self):
+        """Update severity counter colors after theme change"""
+        # Find and update severity counter labels
+        try:
+            # CRITICAL counter
+            if hasattr(self, 'critical_var'):
+                # Find the label showing critical count
+                for widget in self.root.winfo_children():
+                    self._find_and_update_severity_label(widget, "CRITICAL", self.critical_var.get())
+            
+            # Similar for HIGH, MEDIUM, INFO
+            # You would implement similar logic for each severity level
+            # This is a simplified version - you might need to adjust based on your actual widget structure
+            
+        except Exception as e:
+            print(f"Error updating severity colors: {e}")
+
+
+    def _find_and_update_severity_label(self, widget, severity, value):
+        """Find and update a specific severity label"""
+        try:
+            if isinstance(widget, tk.Label):
+                # Check if this is the severity label
+                if severity in widget.cget('text') or widget.cget('textvariable') == getattr(self, f'{severity.lower()}_var', None):
+                    # Update color based on severity
+                    color = SEVERITY_COLORS.get(severity, self.colors['accent_info'])
+                    widget.configure(bg=color, fg='white')
+            
+            # Check children
+            for child in widget.winfo_children():
+                self._find_and_update_severity_label(child, severity, value)
+        except:
+            pass
+
+    def _update_status_color(self):
+        """Update the status label color based on current status"""
+        if not hasattr(self, 'status_label'):
+            return
+        
+        current_status = self.status_var.get()
+        if "Running" in current_status or "🟢" in current_status:
+            self.status_label.configure(fg=self.colors['accent_success'])
+        elif "DEMO" in current_status or "SAFE" in current_status:
+            self.status_label.configure(fg=self.colors['accent_danger'])
+        elif "Read-Only" in current_status:
+            self.status_label.configure(fg=self.colors['accent_warning'])
+        else:  # Stopped or default
+            self.status_label.configure(fg=self.colors['accent_primary'])
 
     def _update_widget_colors(self, widget):
         """Recursively update widget colors"""
@@ -1973,14 +2109,18 @@ class ProIntegrityGUI:
             if isinstance(widget, tk.Frame):
                 if 'card' in str(widget).lower():
                     widget.configure(bg=self.colors['card_bg'],
-                                   highlightbackground=self.colors['card_border'])
+                                highlightbackground=self.colors['card_border'])
                 elif 'header' in str(widget).lower():
                     widget.configure(bg=self.colors['header_bg'])
                 else:
                     widget.configure(bg=self.colors['bg'])
             
             elif isinstance(widget, tk.Label):
-                if 'footer' in str(widget).lower():
+                # Skip counter labels - they're handled separately
+                if widget in [label for label, _, _ in self.file_counter_labels] or \
+                widget in [label for label, _, _ in self.severity_counter_labels]:
+                    pass  # Don't update counter labels here
+                elif 'footer' in str(widget).lower():
                     widget.configure(bg=self.colors['bg'], fg=self.colors['text_muted'])
                 elif 'card' in str(widget).lower() or isinstance(widget.master, tk.Frame) and 'card' in str(widget.master).lower():
                     widget.configure(bg=self.colors['card_bg'], fg=self.colors['text_primary'])
@@ -1993,7 +2133,7 @@ class ProIntegrityGUI:
             
             elif isinstance(widget, scrolledtext.ScrolledText):
                 widget.configure(bg=self.colors['card_bg'], fg=self.colors['text_primary'],
-                               insertbackground=self.colors['text_primary'])
+                            insertbackground=self.colors['text_primary'])
         except:
             pass
         
