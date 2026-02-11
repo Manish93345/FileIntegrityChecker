@@ -5,22 +5,107 @@ Entry point. Displays login screen.
 Features:
 - Admin login with Username/Password
 - Restricted Viewer login (One-click, no password)
+- Brute Force Protection (Lockout after 3 failed attempts)
 """
 
 import sys
-sys.path.append('..')
+import os
+import json
+import time
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 import tkinter as tk
 from tkinter import ttk, messagebox
 from core.auth_manager import auth
 # Import the main class from your GUI file
 from gui.integrity_gui import ProIntegrityGUI
 
+# --- SECURITY CLASS START ---
+class BruteForceGuard:
+    def __init__(self, max_attempts=3, lockout_time=30):
+        self.max_attempts = max_attempts
+        self.lockout_time = lockout_time
+        self.attempts = 0
+        self.lockout_timestamp = 0
+        
+        # Determine safe path for the security file (works for .py and .exe)
+        if getattr(sys, 'frozen', False):
+            # If run as .exe, store next to the executable
+            base_path = os.path.dirname(sys.executable)
+        else:
+            # If run as script, store in current directory
+            base_path = os.path.dirname(os.path.abspath(__file__))
+            
+        self.state_file = os.path.join(base_path, "login_security.json")
+        self._load_state()
+
+    def _load_state(self):
+        """Load attempts from file to persist across restarts"""
+        if os.path.exists(self.state_file):
+            try:
+                with open(self.state_file, 'r') as f:
+                    data = json.load(f)
+                    self.attempts = data.get("attempts", 0)
+                    self.lockout_timestamp = data.get("lockout_timestamp", 0)
+            except:
+                self.reset()
+
+    def _save_state(self):
+        """Save current attempts to file"""
+        try:
+            with open(self.state_file, 'w') as f:
+                json.dump({
+                    "attempts": self.attempts, 
+                    "lockout_timestamp": self.lockout_timestamp
+                }, f)
+        except Exception as e:
+            print(f"Error saving security state: {e}")
+
+    def is_locked_out(self):
+        """Check if user is currently locked out. Returns (bool, seconds_remaining)"""
+        if self.lockout_timestamp > 0:
+            time_passed = time.time() - self.lockout_timestamp
+            if time_passed < self.lockout_time:
+                return True, int(self.lockout_time - time_passed)
+            else:
+                # Lockout expired, reset automatically
+                self.reset()
+                return False, 0
+        return False, 0
+
+    def register_failed_attempt(self):
+        """Increment failure counter"""
+        self.attempts += 1
+        
+        # If we just hit the limit, set the timestamp
+        if self.attempts >= self.max_attempts:
+            self.lockout_timestamp = time.time()
+        
+        self._save_state()
+        return self.attempts
+
+    def reset(self):
+        """Reset counters on successful login"""
+        self.attempts = 0
+        self.lockout_timestamp = 0
+        if os.path.exists(self.state_file):
+            try:
+                os.remove(self.state_file)
+            except:
+                pass
+# --- SECURITY CLASS END ---
+
 class LoginWindow:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("〄 INTEGRITY MONITOR - ACCESS CONTROL")
-        self.root.geometry("450x550")  # Increased height for better visibility
+        self.root.geometry("450x550")
         self.root.resizable(False, False)
+        
+        # Initialize Security Guard
+        self.guard = BruteForceGuard(max_attempts=3, lockout_time=30)
         
         # Dark theme colors
         self.bg_dark = "#0a0a0a"
@@ -154,8 +239,11 @@ class LoginWindow:
         def blink():
             current_color = alert_label.cget("fg")
             new_color = "#ffffff" if current_color == self.error_red else self.error_red
-            alert_label.config(fg=new_color)
-            error_window.after(500, blink)
+            try:
+                alert_label.config(fg=new_color)
+                error_window.after(500, blink)
+            except:
+                pass
         
         blink()
 
@@ -405,6 +493,15 @@ class LoginWindow:
         canvas.config(scrollregion=canvas.bbox("all"))
 
     def _attempt_admin_login(self):
+        # 1. CHECK SECURITY LOCKOUT
+        is_locked, wait_time = self.guard.is_locked_out()
+        
+        if is_locked:
+            self._show_hacker_error("SYSTEM LOCKDOWN", 
+                                  f"Too many failed login attempts.\n\nSecurity protocols have locked this terminal.\nPlease wait {wait_time} seconds before retrying.")
+            return
+
+        # 2. PROCEED WITH LOGIN
         username = self.user_entry.get().strip()
         password = self.pass_entry.get().strip()
         
@@ -420,11 +517,23 @@ class LoginWindow:
                 self._show_hacker_error("UNAUTHORIZED ROLE", 
                                        "This terminal is reserved for ADMINISTRATOR access only.\nYour account does not have sufficient privileges.")
                 return
+                
+            # SUCCESS: Reset guard and launch
+            self.guard.reset()
             self.root.destroy()
             self._launch_main_app(role, username)
         else:
-            self._show_hacker_error("ACCESS DENIED", 
-                                   f"Authentication failed: {msg}\n\nCredentials rejected by security system.\nPlease verify your username and password.")
+            # FAILURE: Register attempt and warn
+            attempts = self.guard.register_failed_attempt()
+            remaining = self.guard.max_attempts - attempts
+            
+            if remaining > 0:
+                self._show_hacker_error("ACCESS DENIED", 
+                                       f"Authentication failed: {msg}\n\nWARNING: {remaining} attempts remaining before system lockdown.")
+            else:
+                self._show_hacker_error("SECURITY ALERT", 
+                                       "Maximum attempts reached.\nSystem locked for 30 seconds.")
+            
             self.pass_entry.delete(0, tk.END)
 
     def _attempt_guest_login(self):

@@ -386,6 +386,14 @@ Structure finalized
         report_data.json, users.json, severity_counters.json, detailed_reports.txt  DONE ✅
         demo video and screenshots in demo folder
 
+
+
+### February 2026 - PHASE 9
+    -> Improved the overall gui to look like security app
+    -> updated menu gui 
+    -> Fixed the alert message box problem to be appering even after in hidden tray
+    -> Fixed logout bug
+
     
 
     

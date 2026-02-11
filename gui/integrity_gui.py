@@ -2877,59 +2877,55 @@ class ProIntegrityGUI:
         self._alert_frame.withdraw()
 
     def _show_alert(self, title, message, level="info"):
-        """Show alert panel with modern styling"""
+        """Show alert panel (if active) or System Tray Notification (if background)"""
         try:
-            # Ensure alert panel exists
+            # 1. Update Severity Counters (Logic remains the same)
+            severity_map = {
+                "info": "INFO", "created": "INFO",
+                "modified": "MEDIUM", "deleted": "MEDIUM",
+                "tampered": "CRITICAL", "high": "HIGH", "critical": "CRITICAL"
+            }
+            severity = severity_map.get(level, "INFO")
+            
+            # Update internal counters
+            if severity in self.severity_counters:
+                self.severity_counters[severity] += 1
+                # Update UI StringVars
+                if severity == "CRITICAL": self.critical_var.set(str(self.severity_counters["CRITICAL"]))
+                elif severity == "HIGH": self.high_var.set(str(self.severity_counters["HIGH"]))
+                elif severity == "MEDIUM": self.medium_var.set(str(self.severity_counters["MEDIUM"]))
+                elif severity == "INFO": self.info_var.set(str(self.severity_counters["INFO"]))
+
+            # 2. CHECK WINDOW STATE
+            # If window is withdrawn (Tray) or Iconic (Minimized), use Tray Notification
+            is_background = (self.root.state() == 'withdrawn' or self.root.state() == 'iconic')
+            
+            if is_background:
+                if hasattr(self, 'tray_icon') and self.tray_icon:
+                    # Send System Notification via Tray Icon
+                    self.tray_icon.notify(message, title)
+                return  # Stop here, do not show the custom UI popup
+
+            # 3. Show Custom UI Popup (Only if window is visible)
             if not hasattr(self, '_alert_frame') or not self._alert_frame:
                 self._create_alert_panel()
             
-            severity_map = {
-                "info": "INFO",
-                "created": "INFO",
-                "modified": "MEDIUM",
-                "deleted": "MEDIUM",
-                "tampered": "CRITICAL",
-                "high": "HIGH",
-                "critical": "CRITICAL"
-            }
-            
-            severity = severity_map.get(level, "INFO")
             severity_color = SEVERITY_COLORS.get(severity, self.colors['accent_info'])
             severity_badge = SEVERITY_BADGES.get(severity, "INFO")
-            
             ts = datetime.now().strftime("%H:%M:%S")
             entry = f"[{ts}] [{severity_badge}] {title}\n{message}\n{'─' * 40}\n"
             
-            # Insert at top with color tag
             self._alert_msg.configure(state="normal")
-            
-            # Configure tag for this severity
             tag_name = f"severity_{severity}"
             self._alert_msg.tag_config(tag_name, foreground=severity_color, 
                                       font=('Segoe UI', 9, 'bold' if severity in ['CRITICAL', 'HIGH'] else 'normal'))
-            
-            # Insert text with tag
             self._alert_msg.insert("1.0", entry, tag_name)
             self._alert_msg.configure(state="disabled")
             
-            # Update meta
             self.alert_count = getattr(self, "alert_count", 0) + 1
             self._alert_counter.configure(text=f"Alerts: {self.alert_count}")
             self._alert_meta.configure(text=f"Last: {severity} @ {ts}")
             
-            # Update severity counter
-            if severity in self.severity_counters:
-                self.severity_counters[severity] += 1
-                if severity == "CRITICAL":
-                    self.critical_var.set(str(self.severity_counters["CRITICAL"]))
-                elif severity == "HIGH":
-                    self.high_var.set(str(self.severity_counters["HIGH"]))
-                elif severity == "MEDIUM":
-                    self.medium_var.set(str(self.severity_counters["MEDIUM"]))
-                elif severity == "INFO":
-                    self.info_var.set(str(self.severity_counters["INFO"]))
-            
-            # Show alert panel with animation
             self._animate_panel_show()
             
         except Exception as e:
@@ -3523,7 +3519,7 @@ class ProIntegrityGUI:
     # ===== OTHER SYSTEM METHODS =====
     
     def logout(self):
-        """Logout and restart application"""
+        """Logout and restart application pointing to the correct path"""
         if messagebox.askyesno("Logout", "Are you sure you want to logout?"):
             # Stop monitor if running
             if self.monitor_running:
@@ -3531,14 +3527,31 @@ class ProIntegrityGUI:
                     self.monitor.stop_monitoring()
                 except: pass
             
+            # Stop tray icon if running
+            if hasattr(self, 'tray_icon') and self.tray_icon:
+                self.tray_icon.stop()
+
             # Destroy current window
             self.root.destroy()
             
+            # Determine correct path for login_gui.py
+            # Since run.py is in root, we look into 'gui' folder
+            login_script = os.path.join("gui", "login_gui.py")
+            
+            # Fallback: Check if we are already inside 'gui' (unlikely with run.py but safe to add)
+            if not os.path.exists(login_script):
+                if os.path.exists("login_gui.py"):
+                    login_script = "login_gui.py"
+            
+            print(f"Restarting login script at: {login_script}")
+
             # Restart login_gui.py
             try:
-                subprocess.Popen([sys.executable, "login_gui.py"])
+                subprocess.Popen([sys.executable, login_script])
             except Exception as e:
                 print(f"Failed to restart login: {e}")
+                # Last resort fallback if pathing is completely wrong
+                messagebox.showerror("Error", f"Could not restart. Please run the app manually.\nError: {e}")
 
     def disable_lockdown(self):
         """Admin override to disable safe mode"""
