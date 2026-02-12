@@ -1,0 +1,35 @@
+2026-02-10 18:45:02 - [🟢 INFO] Log reset. New session started.
+2026-02-12 20:03:07 - [🟢 INFO] INFO: No hash signature found; created new signature.
+2026-02-12 20:03:07 - [🟢 INFO] Startup: records signature OK
+2026-02-12 20:03:07 - [🟢 INFO] Startup: log signature OK
+2026-02-12 20:03:07 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/Photos/New folder
+2026-02-12 20:03:24 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\FreeFire_10_10_2025 18_48_40.png
+2026-02-12 20:03:29 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\IMG_20251223_181902.jpg
+2026-02-12 21:42:04 - [🟢 INFO] Startup: records signature OK
+2026-02-12 21:42:04 - [🟢 INFO] Startup: log signature OK
+2026-02-12 21:42:04 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/Photos/New folder
+2026-02-12 21:42:19 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\FreeFire_09_01_2025 17_28_59.png
+2026-02-12 21:42:39 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\payel.jpg
+2026-02-12 21:42:42 - [🟢 INFO] CREATED: D:\Free_fire\Photos\New folder\payel.jpg
+2026-02-12 21:42:43 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\payel.jpg
+2026-02-12 21:43:04 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-12 21:43:04 - [🟢 INFO] Reports generated: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\report_summary.txt, logs\detailed_reports.txt
+2026-02-12 21:44:30 - [🟢 INFO] Startup: records signature OK
+2026-02-12 21:44:30 - [🟢 INFO] Startup: log signature OK
+2026-02-12 21:44:30 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/Photos/New folder
+2026-02-12 21:44:39 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\IMG_20251223_181839.jpg
+2026-02-12 21:44:44 - [🟢 INFO] CREATED: D:\Free_fire\Photos\New folder\IMG_20251223_181839.jpg
+2026-02-12 21:44:58 - [🟢 INFO] MONITOR_STOPPED
+2026-02-12 22:00:39 - [🟢 INFO] Startup: records signature OK
+2026-02-12 22:00:39 - [🟢 INFO] Startup: log signature OK
+2026-02-12 22:00:39 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/Photos/New folder
+2026-02-12 22:00:50 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\IMG_20251223_181839.jpg
+2026-02-12 22:00:54 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\Screenshot_20250922_081636_com.dts.freefiremax.jpg
+2026-02-12 22:01:15 - [🟢 INFO] MONITOR_STOPPED
+2026-02-12 22:08:39 - [🟢 INFO] [DEMO] New file created in monitored directory (SIMULATED)
+2026-02-12 22:08:41 - [🟡 MEDIUM] [DEMO] Configuration file modified externally (SIMULATED)
+2026-02-12 22:08:43 - [🟠 HIGH] [DEMO] Burst deletion detected: 5 files removed in 1s (SIMULATED)
+2026-02-12 22:08:45 - [🔴 CRITICAL] [DEMO] Cryptographic signature mismatch in hash database (SIMULATED)
+2026-02-12 22:08:46 - [🔴 CRITICAL] 🚨 SAFE MODE ACTIVATED: [DEMO] Critical Tampering Simulation
+2026-02-12 22:08:46 - [🔴 CRITICAL] [DEMO] ⛔ SAFE MODE ENABLED: [DEMO] Critical Tampering Simulation
+2026-02-12 22:08:57 - [🟢 INFO] SAFE MODE DISABLED: Admin Override via GUI

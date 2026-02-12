@@ -385,6 +385,8 @@ class ProIntegrityGUI:
         # Intercept "X" button
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
+
+
     def _configure_styles(self):
         """Configure modern ttk styles"""
         try:
@@ -2621,11 +2623,11 @@ class ProIntegrityGUI:
             
             # Initialize Simulator
             try:
-                from demo_simulator import DemoSimulator
+                from core.demo_simulator import DemoSimulator
             except ImportError:
                 try:
                     sys.path.append('../core')
-                    from demo_simulator import DemoSimulator
+                    from core.demo_simulator import DemoSimulator
                 except ImportError:
                     messagebox.showerror("Error", "Demo simulator not available")
                     return
@@ -2903,8 +2905,8 @@ class ProIntegrityGUI:
             if is_background:
                 if hasattr(self, 'tray_icon') and self.tray_icon:
                     # Send System Notification via Tray Icon
-                    self.tray_icon.notify(message, title)
-                return  # Stop here, do not show the custom UI popup
+                    # self.tray_icon.notify(message, title)
+                    return  # Stop here, do not show the custom UI popup
 
             # 3. Show Custom UI Popup (Only if window is visible)
             if not hasattr(self, '_alert_frame') or not self._alert_frame:

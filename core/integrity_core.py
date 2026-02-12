@@ -265,6 +265,7 @@ def load_config(path=None):
     }
     CONFIG.update(defaults)
 
+
     # 2. Determine Paths
     # External: Next to the EXE (Users can edit this)
     external_config = os.path.join(get_app_data_dir(), "config", "config.json")
@@ -807,12 +808,19 @@ class IntegrityHandler(FileSystemEventHandler):
         self.burst_time_window = 10
 
     def _notify_gui(self, event_type, path, severity):
-        """Helper to send event to GUI if callback exists"""
+        """
+        Notify GUI only if stealth mode is disabled.
+        """
+        if CONFIG.get("stealth_mode", False):
+            return  # 🔒 Silent background mode
+
         if self.callback:
             try:
                 self.callback(event_type, path, severity)
             except Exception as e:
                 print(f"Callback error: {e}")
+
+
 
     def _check_burst_operations(self, event_type):
         """Check for burst operations"""
