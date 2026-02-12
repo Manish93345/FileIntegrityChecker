@@ -3519,39 +3519,52 @@ class ProIntegrityGUI:
     # ===== OTHER SYSTEM METHODS =====
     
     def logout(self):
-        """Logout and restart application pointing to the correct path"""
+        """Logout and restart application safely for both script and EXE modes"""
         if messagebox.askyesno("Logout", "Are you sure you want to logout?"):
-            # Stop monitor if running
+            # 1. Cleanup existing resources
             if self.monitor_running:
                 try:
                     self.monitor.stop_monitoring()
                 except: pass
             
-            # Stop tray icon if running
             if hasattr(self, 'tray_icon') and self.tray_icon:
-                self.tray_icon.stop()
+                try:
+                    self.tray_icon.stop()
+                except: pass
 
-            # Destroy current window
+            # 2. Destroy current window
             self.root.destroy()
-            
-            # Determine correct path for login_gui.py
-            # Since run.py is in root, we look into 'gui' folder
-            login_script = os.path.join("gui", "login_gui.py")
-            
-            # Fallback: Check if we are already inside 'gui' (unlikely with run.py but safe to add)
-            if not os.path.exists(login_script):
-                if os.path.exists("login_gui.py"):
-                    login_script = "login_gui.py"
-            
-            print(f"Restarting login script at: {login_script}")
 
-            # Restart login_gui.py
+            # 3. Restart Logic
             try:
-                subprocess.Popen([sys.executable, login_script])
+                if getattr(sys, 'frozen', False):
+                    # --- EXE MODE RESTART ---
+                    # Create a copy of the current environment
+                    env = os.environ.copy()
+                    
+                    # CRITICAL: Remove PyInstaller's internal path variables.
+                    # This forces the new instance to unpack its own Tcl/Tk libraries.
+                    for key in ['TCL_LIBRARY', 'TK_LIBRARY', '_MEIPASS2']:
+                        if key in env:
+                            del env[key]
+                    
+                    # Launch the EXE again with the CLEAN environment
+                    subprocess.Popen([sys.executable], env=env)
+                    
+                else:
+                    # --- SCRIPT MODE RESTART ---
+                    current_dir = os.path.dirname(os.path.abspath(__file__))
+                    project_root = os.path.dirname(current_dir)
+                    run_script = os.path.join(project_root, "run.py")
+                    
+                    subprocess.Popen([sys.executable, run_script])
+
+                # 4. Kill the current process immediately
+                sys.exit(0)
+
             except Exception as e:
-                print(f"Failed to restart login: {e}")
-                # Last resort fallback if pathing is completely wrong
-                messagebox.showerror("Error", f"Could not restart. Please run the app manually.\nError: {e}")
+                messagebox.showerror("Error", f"Failed to restart: {e}")
+                sys.exit(1)
 
     def disable_lockdown(self):
         """Admin override to disable safe mode"""

@@ -112,4 +112,14 @@ from a simple hash checker to a production-ready security product.
 - Final packaging & deployment
 
 
-## Run this to get the .exe file:-> pyinstaller --noconfirm --onefile --windowed --icon="assets/icons/app_icon.ico" --name="SecureFIM" run.py
+## For exe file 
+  ### Run it in terminal
+  pyinstaller run.py `
+  --onedir `
+  --noconsole `
+  --name SecureFIM `
+  --icon=assets/icons/app_icon.ico `
+  --clean
+
+  
+
