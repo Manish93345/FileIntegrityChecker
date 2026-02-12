@@ -124,6 +124,6 @@ from a simple hash checker to a production-ready security product.
   
   notification issue  DONE ✅
   demo simulator not available  DONE ✅
-  show dashboard directly shown 
+  show dashboard directly shown   DONE ✅
 
 

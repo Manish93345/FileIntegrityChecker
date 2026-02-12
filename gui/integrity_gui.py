@@ -2732,9 +2732,66 @@ class ProIntegrityGUI:
             print(f"CRITICAL TRAY ERROR: {e}")
             self.tray_icon = None
 
+
+    def _authenticate_action(self, action_name):
+        """
+        Helper: Prompts for password.
+        Must only be called from the Main Thread.
+        """
+        if not self.monitor_running:
+            return True
+
+        # Use parent=None or parent=self.root. 
+        password = simpledialog.askstring(
+            f"Security Verification - {action_name}", 
+            f"Monitoring is ACTIVE.\n\nEnter password for '{self.username}' to access dashboard:",
+            parent=self.root, 
+            show='*'
+        )
+
+        if not password:
+            return False
+
+        if auth:
+            # FIX: Unpack 3 values (success, role, message)
+            # We use '_' to ignore the role since we don't need it here
+            success, _, msg = auth.login(self.username, password)
+            
+            if success:
+                return True
+            else:
+                messagebox.showerror("Access Denied", "Incorrect Password.\nEvent has been logged.")
+                self._append_log(f"SECURITY: Failed dashboard access attempt for {self.username}")
+                return False
+        
+        return True
+
     def show_window(self, icon=None, item=None):
-        """Restore the window from tray"""
-        self.root.after(0, self.root.deiconify)
+        """
+        Tray Callback: Restores window.
+        Uses 'after' to jump to the Main Thread for safety.
+        """
+        self.root.after(0, self._perform_auth_and_show)
+
+    def _perform_auth_and_show(self):
+        """
+        Runs on MAIN THREAD. Performs Auth -> Shows Dashboard.
+        """
+        # 1. If already visible, just lift it
+        if self.root.state() == 'normal':
+            self.root.lift()
+            return
+
+        # 2. Authenticate
+        if self._authenticate_action("Show Dashboard"):
+            self.root.deiconify()
+            self._append_log("Dashboard accessed from tray (Verified)")
+            
+            # Optional: Force focus to the window
+            self.root.lift()
+            self.root.focus_force()
+        else:
+            print("Dashboard access denied or cancelled.")
 
     def hide_window(self):
         """Hide window to tray instead of closing"""
@@ -2747,10 +2804,27 @@ class ProIntegrityGUI:
             threading.Thread(target=self.tray_icon.run, daemon=True).start()
 
     def quit_app(self, icon=None, item=None):
-        """Really quit the application"""
+        """
+        Tray Callback: Quits app.
+        Uses 'after' to jump to the Main Thread for safety.
+        """
+        self.root.after(0, self._perform_auth_and_quit)
+
+    def _perform_auth_and_quit(self):
+        """
+        Runs on MAIN THREAD. Performs Auth -> Quits.
+        """
+        # 1. If monitoring is running, require password
+        if self.monitor_running:
+            if not self._authenticate_action("Stop & Exit"):
+                return  # Cancel quit if auth fails or is closed
+
+        # 2. Stop everything safely
         if hasattr(self, 'tray_icon'):
             self.tray_icon.stop()
-        self.root.after(0, self.root.quit)
+        self.root.quit()
+
+    
 
     def on_closing(self):
         """Handle window close request"""

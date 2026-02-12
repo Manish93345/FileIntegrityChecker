@@ -394,6 +394,12 @@ Structure finalized
     -> Fixed the alert message box problem to be appering even after in hidden tray
     -> Fixed logout bug
 
+
+    -> fixed notification issue when minimized
+    -> fixed demo simualator error
+    -> authentication while opening from system tray
+        Session restoration without re-authentication vulnerability.
+
     
 
     

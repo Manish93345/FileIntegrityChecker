@@ -23,3 +23,42 @@
 2026-02-12 22:10:00 - [🟢 INFO] CREATED: D:\Free_fire\Photos\New folder\Screenshot_20250928_151351_com.dts.freefiremax.jpg
 2026-02-12 22:10:00 - [🟢 INFO] CREATED: D:\Free_fire\Photos\New folder\Screenshot_20251221_115811_com.dts.freefiremax.jpg
 2026-02-12 22:10:08 - [🟢 INFO] MONITOR_STOPPED
+2026-02-12 23:11:40 - [🟢 INFO] Startup: records signature OK
+2026-02-12 23:11:40 - [🟢 INFO] Startup: log signature OK
+2026-02-12 23:11:40 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/Photos/New folder
+2026-02-12 23:12:40 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-12 23:12:40 - [🟢 INFO] Reports generated: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\report_summary.txt, logs\detailed_reports.txt
+2026-02-12 23:16:39 - [🟢 INFO] Startup: records signature OK
+2026-02-12 23:16:39 - [🟢 INFO] Startup: log signature OK
+2026-02-12 23:16:39 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/Photos/New folder
+2026-02-12 23:17:39 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-12 23:17:40 - [🟢 INFO] Reports generated: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\report_summary.txt, logs\detailed_reports.txt
+2026-02-12 23:19:16 - [🟢 INFO] Startup: records signature OK
+2026-02-12 23:19:16 - [🟢 INFO] Startup: log signature OK
+2026-02-12 23:19:16 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/Photos/New folder
+2026-02-12 23:38:28 - [🟢 INFO] Startup: records signature OK
+2026-02-12 23:38:29 - [🟢 INFO] Startup: log signature OK
+2026-02-12 23:38:29 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/Photos/New folder
+2026-02-12 23:39:29 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-12 23:39:29 - [🟢 INFO] Reports generated: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\report_summary.txt, logs\detailed_reports.txt
+2026-02-12 23:40:29 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-12 23:40:29 - [🟢 INFO] Reports generated: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\report_summary.txt, logs\detailed_reports.txt
+2026-02-12 23:41:29 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-12 23:41:29 - [🟢 INFO] Reports generated: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\report_summary.txt, logs\detailed_reports.txt
+2026-02-12 23:42:29 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-12 23:42:29 - [🟢 INFO] Reports generated: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\report_summary.txt, logs\detailed_reports.txt
+2026-02-12 23:43:29 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-12 23:43:30 - [🟢 INFO] Reports generated: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\report_summary.txt, logs\detailed_reports.txt
+2026-02-12 23:44:30 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-12 23:44:30 - [🟢 INFO] Reports generated: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\report_summary.txt, logs\detailed_reports.txt
+2026-02-12 23:59:37 - [🟢 INFO] Startup: records signature OK
+2026-02-12 23:59:37 - [🟢 INFO] Startup: log signature OK
+2026-02-12 23:59:37 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/Photos/New folder
+2026-02-13 00:00:03 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\IMG_20251223_181839.jpg
+2026-02-13 00:00:03 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\Screenshot_20250928_151351_com.dts.freefiremax.jpg
+2026-02-13 00:00:03 - [🟠 HIGH] Multiple deletes detected: 3 files
+2026-02-13 00:00:03 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\Screenshot_20251221_115811_com.dts.freefiremax.jpg
+2026-02-13 00:00:06 - [🟢 INFO] CREATED: D:\Free_fire\Photos\New folder\IMG_20251223_181839.jpg
+2026-02-13 00:00:06 - [🟢 INFO] CREATED: D:\Free_fire\Photos\New folder\Screenshot_20250928_151351_com.dts.freefiremax.jpg
+2026-02-13 00:00:06 - [🟢 INFO] CREATED: D:\Free_fire\Photos\New folder\Screenshot_20251221_115811_com.dts.freefiremax.jpg
+2026-02-13 00:00:30 - [🟢 INFO] MONITOR_STOPPED
