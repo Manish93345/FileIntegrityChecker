@@ -36,9 +36,7 @@ Name: "startupicon"; Description: "Start automatically with Windows"; GroupDescr
 
 [Files]
 ; Install EVERYTHING from dist\SecureFIM
-Source: "D:\Study\LISA_PROJECT\FileIntegrityChecker\dist\SecureFIM\*"; 
-DestDir: "{app}"; 
-Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "D:\Study\LISA_PROJECT\FileIntegrityChecker\dist\SecureFIM\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -47,6 +45,6 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Name: "{userstartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: startupicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}";
-Description: "Launch {#MyAppName}";
-Flags: nowait postinstall skipifsilent
+[Run]
+Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
+
