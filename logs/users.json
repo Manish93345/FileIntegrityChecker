@@ -1,0 +1,14 @@
+{
+    "admin": {
+        "hash": "af7ca25a64ba7104417ef7ab0557dd1e9cbd1eee1adb9e4d5a25bc310084d463",
+        "salt": "8c7e1f5bb6674b388c61f2001a686a18",
+        "role": "admin",
+        "tier": "premium"
+    },
+    "user": {
+        "hash": "cfac98503168f9a8e275bb3f252434e55f5428d32656da08fdf50485dd39b94d",
+        "salt": "f19c92dda2134a2e96f37a8604a07a18",
+        "role": "user",
+        "tier": "free"
+    }
+}

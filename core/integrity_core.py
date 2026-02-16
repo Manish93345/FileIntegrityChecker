@@ -633,62 +633,58 @@ def send_webhook_safe(event_type, message, file_path=None):
                        event_type="WEBHOOK_FAIL", severity="MEDIUM")
 
 # ------------------ Verification & Summary ------------------
-def verify_all_files_and_update(records=None, watch_folder=None):
+def verify_all_files_and_update(records=None, watch_folders=None):
     """
-    Full scan: verify all files in watch_folder against records.
-    Update records for new/modified files and remove deleted ones.
-    Returns a summary dict including tamper flags.
+    Full scan: verify all files in multiple watch_folders against records.
     """
     print("DEBUG: Starting verify_all_files_and_update")
     
-    if watch_folder is None:
-        watch_folder = CONFIG["watch_folder"]
+    # Support list of folders
+    if watch_folders is None:
+        watch_folders = CONFIG.get("watch_folders", [])
+        if not watch_folders and CONFIG.get("watch_folder"):
+            watch_folders = [CONFIG["watch_folder"]]
+            
     if records is None:
         records = load_hash_records()
-    
-    print(f"DEBUG: Watch folder: {watch_folder}")
-    print(f"DEBUG: Initial records count: {len(records)}")
     
     seen = set()
     created = []
     modified = []
     skipped = []
     
-    # Scan all files
-    for root, _, files in os.walk(watch_folder):
-        for fn in files:
-            if is_ignored_filename(fn):
-                continue
-            path = os.path.abspath(os.path.join(root, fn))
-            seen.add(path)
-            h = generate_file_hash(path)
-            if h is None:
-                skipped.append(path)
-                continue
-            old_hash = records.get(path, {}).get("hash")
-            if not old_hash:
-                records[path] = {"hash": h, "last_checked": now_pretty()}
-                created.append(path)
-                print(f"DEBUG: Created: {path}")
-            elif old_hash != h:
-                records[path] = {"hash": h, "last_checked": now_pretty()}
-                modified.append(path)
-                print(f"DEBUG: Modified: {path}")
-            else:
-                records[path]["last_checked"] = now_pretty()
+    # Scan all files across ALL folders
+    for folder in watch_folders:
+        if not os.path.exists(folder):
+            continue
+            
+        for root, _, files in os.walk(folder):
+            for fn in files:
+                if is_ignored_filename(fn):
+                    continue
+                path = os.path.abspath(os.path.join(root, fn))
+                seen.add(path)
+                h = generate_file_hash(path)
+                if h is None:
+                    skipped.append(path)
+                    continue
+                old_hash = records.get(path, {}).get("hash")
+                if not old_hash:
+                    records[path] = {"hash": h, "last_checked": now_pretty()}
+                    created.append(path)
+                elif old_hash != h:
+                    records[path] = {"hash": h, "last_checked": now_pretty()}
+                    modified.append(path)
+                else:
+                    records[path]["last_checked"] = now_pretty()
     
-    # detect deleted
+    # detect deleted (files in records but not in seen)
     deleted = [p for p in list(records.keys()) if p not in seen and not is_ignored_filename(os.path.basename(p))]
     for p in deleted:
         records.pop(p, None)
-        print(f"DEBUG: Deleted: {p}")
     
-    print(f"DEBUG: Created: {len(created)}, Modified: {len(modified)}, Deleted: {len(deleted)}, Skipped: {len(skipped)}")
-    
-    # save updated records & signature
     save_hash_records(records)
     
-    # verify signatures now
     records_ok = verify_records_signature_on_disk()
     logs_ok, logs_detail = verify_log_signatures()
     
@@ -704,7 +700,6 @@ def verify_all_files_and_update(records=None, watch_folder=None):
         "logs_detail": logs_detail
     }
     
-    print(f"DEBUG: Summary prepared, calling write_report_summary")
     write_report_summary(summary)
     return summary
 
@@ -769,10 +764,17 @@ def write_report_summary(summary):
 
 # ------------------ Watchdog event handler ------------------
 class IntegrityHandler(FileSystemEventHandler):
-    def __init__(self, watch_folder=None, callback=None):  # <--- FIXED: Added callback support
+    def __init__(self, watch_folders=None, callback=None):  # Changed to watch_folders
         super().__init__()
-        self.watch_folder = watch_folder or CONFIG["watch_folder"]
-        self.callback = callback  # <--- Store the GUI callback
+        
+        # Fallback logic for configs
+        if not watch_folders:
+            watch_folders = CONFIG.get("watch_folders", [])
+            if not watch_folders and CONFIG.get("watch_folder"):
+                watch_folders = [CONFIG["watch_folder"]]
+                
+        self.watch_folders = watch_folders
+        self.callback = callback
         self.records = load_hash_records()
         
         # Verify signatures on startup
@@ -781,27 +783,28 @@ class IntegrityHandler(FileSystemEventHandler):
         ok_logs, detail = verify_log_signatures()
         append_log_line("Startup: log signature OK" if ok_logs else f"Startup: log signature FAILED ({detail})")
         
-        # Ensure log files exist
         if not os.path.exists(LOG_FILE):
             atomic_write_text(LOG_FILE, f"{now_pretty()} - Log started\n")
         if not os.path.exists(LOG_SIG_FILE):
             atomic_write_text(LOG_SIG_FILE, "")
 
-        # Initial scan to populate missing files
+        # Initial scan to populate missing files for ALL folders
         initial_added = False
-        for root, _, files in os.walk(self.watch_folder):
-            for fn in files:
-                if is_ignored_filename(fn): continue
-                path = os.path.abspath(os.path.join(root, fn))
-                if path not in self.records:
-                    h = generate_file_hash(path)
-                    if h:
-                        self.records[path] = {"hash": h, "last_checked": now_pretty()}
-                        initial_added = True
+        for folder in self.watch_folders:
+            if not os.path.exists(folder): continue
+            for root, _, files in os.walk(folder):
+                for fn in files:
+                    if is_ignored_filename(fn): continue
+                    path = os.path.abspath(os.path.join(root, fn))
+                    if path not in self.records:
+                        h = generate_file_hash(path)
+                        if h:
+                            self.records[path] = {"hash": h, "last_checked": now_pretty()}
+                            initial_added = True
+                            
         if initial_added:
             save_hash_records(self.records)
 
-        # Burst detection variables
         self.recent_deletes = []
         self.recent_events = []
         self.burst_threshold = 5
@@ -916,44 +919,47 @@ class FileIntegrityMonitor:
         self.handler = None
         self.verifier_thread = None
         self.running = False
-        self.current_watch_folder = None
+        self.current_watch_folders = [] # Changed to plural
 
-    def start_monitoring(self, watch_folder=None, event_callback=None):
-        """Start the file integrity monitoring"""
+    def start_monitoring(self, watch_folders=None, event_callback=None):
         if not load_config():
             return False
 
-        # Use provided watch_folder or from config
-        self.current_watch_folder = watch_folder or CONFIG["watch_folder"]
-        wf = self.current_watch_folder
+        # Support list of folders
+        folders_to_watch = watch_folders or CONFIG.get("watch_folders", [])
+        if not folders_to_watch and CONFIG.get("watch_folder"):
+            folders_to_watch = [CONFIG["watch_folder"]]
+
+        # Validate existence
+        valid_folders = [f for f in folders_to_watch if os.path.exists(f)]
         
-        if not os.path.exists(wf):
-            print(f"[ERROR] Watch folder does not exist: {wf}")
+        if not valid_folders:
+            print("[ERROR] No valid watch folders found.")
             return False
 
-        # ensure log files exist
+        self.current_watch_folders = valid_folders 
+
         if not os.path.exists(LOG_FILE):
             atomic_write_text(LOG_FILE, f"{now_pretty()} - Log started\n")
         if not os.path.exists(LOG_SIG_FILE):
             atomic_write_text(LOG_SIG_FILE, "")
 
-        # --- FIX IS HERE: Pass 'event_callback' to the Handler ---
-        self.handler = IntegrityHandler(watch_folder=wf, callback=event_callback)
-        
         self.observer = Observer()
-        self.observer.schedule(self.handler, wf, recursive=True)
-        self.observer.start()
+        self.handler = IntegrityHandler(watch_folders=valid_folders, callback=event_callback)
+        
+        # Schedule the observer for EACH folder
+        for folder in valid_folders:
+            self.observer.schedule(self.handler, folder, recursive=True)
+            append_log_line(f"MONITOR_STARTED: {folder}")
 
-        # Start periodic verification thread
+        self.observer.start()
         self.running = True
         self.verifier_thread = threading.Thread(target=self._periodic_verifier_loop, daemon=True)
         self.verifier_thread.start()
 
-        append_log_line(f"MONITOR_STARTED: {wf}")
         return True
 
     def stop_monitoring(self):
-        """Stop the file integrity monitoring"""
         self.running = False
         if self.observer:
             self.observer.stop()
@@ -963,43 +969,38 @@ class FileIntegrityMonitor:
         append_log_line("MONITOR_STOPPED")
 
     def _periodic_verifier_loop(self):
-        """Periodic verification loop"""
         while self.running:
             time.sleep(CONFIG["verify_interval"])
             try:
                 rotate_logs_if_needed()
                 append_log_line("PERIODIC_VERIFICATION_START")
                 
-                # Run the actual verification
                 if self.handler:
-                    summary = verify_all_files_and_update(self.handler.records, self.current_watch_folder)
+                    summary = verify_all_files_and_update(self.handler.records, self.current_watch_folders)
                 else:
-                    summary = verify_all_files_and_update(None, self.current_watch_folder)
+                    summary = verify_all_files_and_update(None, self.current_watch_folders)
                 
-                # Optional webhook with numeric summary
                 send_webhook_safe("PERIODIC_SUMMARY", "Periodic verification completed", None)
                 
             except Exception as e:
                 append_log_line(f"ERROR in periodic verification: {e}")
 
-    def run_verification(self, watch_folder=None):
-        """Run one-time verification and return summary"""
+    def run_verification(self, watch_folders=None):
         print("DEBUG: run_verification called")
-        # Use provided watch_folder, current folder, or from config
-        target_folder = watch_folder or self.current_watch_folder or CONFIG["watch_folder"]
-        
+        target_folders = watch_folders or self.current_watch_folders or CONFIG.get("watch_folders", [])
+        if not target_folders and CONFIG.get("watch_folder"):
+            target_folders = [CONFIG["watch_folder"]]
+            
         append_log_line("MANUAL_VERIFICATION_STARTED")
         
         if self.handler:
-            result = verify_all_files_and_update(self.handler.records, target_folder)
+            result = verify_all_files_and_update(self.handler.records, target_folders)
         else:
-            result = verify_all_files_and_update(None, target_folder)
+            result = verify_all_files_and_update(None, target_folders)
         
-        print(f"DEBUG: run_verification returning: {result}")
         return result
 
     def get_summary(self):
-        """Get the last summary from report file"""
         try:
             if os.path.exists(REPORT_SUMMARY_FILE):
                 with open(REPORT_SUMMARY_FILE, "r", encoding="utf-8") as f:

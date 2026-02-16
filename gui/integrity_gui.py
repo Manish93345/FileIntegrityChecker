@@ -19,6 +19,7 @@ import pystray
 from PIL import Image as PILImage
 from pystray import MenuItem as item
 from core.utils import get_app_data_dir, get_base_path
+from core.subscription_manager import subscription_manager
 
 
 APP_DATA = get_app_data_dir()
@@ -556,26 +557,51 @@ class ProIntegrityGUI:
         left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=False)
         left_panel.pack_propagate(False)
 
-        # Folder Selection Card
+        # --- NEW MULTI-FOLDER SELECTION CARD ---
         folder_card = tk.Frame(left_panel, bg=self.colors['card_bg'], 
-                              relief='flat', bd=1, highlightbackground=self.colors['card_border'],
-                              highlightthickness=1)
+                               relief='flat', bd=1, highlightbackground=self.colors['card_border'],
+                               highlightthickness=1)
         folder_card.pack(fill=tk.X, pady=(0, 15))
         
-        tk.Label(folder_card, text="📁 Monitor Folder", font=('Segoe UI', 12, 'bold'),
+        tk.Label(folder_card, text="📁 Protected Directories", font=('Segoe UI', 12, 'bold'),
                 bg=self.colors['card_bg'], fg=self.colors['text_primary']).pack(anchor='w', padx=20, pady=(15, 10))
         
-        # Folder input with icon
-        folder_input_frame = tk.Frame(folder_card, bg=self.colors['card_bg'])
-        folder_input_frame.pack(fill=tk.X, padx=20, pady=(0, 15))
+        # Listbox and Scrollbar Frame
+        list_frame = tk.Frame(folder_card, bg=self.colors['card_bg'])
+        list_frame.pack(fill=tk.X, padx=20, pady=(0, 10))
+
+        # 1. The Listbox (Replaces the text entry)
+        self.folder_listbox = tk.Listbox(list_frame, height=3, selectmode=tk.SINGLE,
+                                         bg=self.colors['input_bg'], fg=self.colors['text_primary'],
+                                         relief='solid', bd=1, highlightbackground=self.colors['input_border'])
+        self.folder_listbox.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # Scrollbar for Listbox
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.folder_listbox.yview)
+        scrollbar.pack(side=tk.LEFT, fill=tk.Y, padx=(2, 0))
+        self.folder_listbox.config(yscrollcommand=scrollbar.set)
         
-        self.folder_entry = ttk.Entry(folder_input_frame, font=('Segoe UI', 10), style='Modern.TEntry')
-        self.folder_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
-        self.folder_entry.insert(0, self.watch_folder_var.get())
-        
-        browse_btn = ttk.Button(folder_input_frame, text="Browse", 
-                               command=self._browse, width=10, style='Modern.TButton')
-        browse_btn.pack(side=tk.RIGHT)
+        # Load existing folders from config
+        from core.integrity_core import CONFIG
+        current_folders = CONFIG.get("watch_folders", [])
+        if not current_folders and CONFIG.get("watch_folder"):
+             current_folders = [CONFIG["watch_folder"]]
+        for f in current_folders:
+            self.folder_listbox.insert(tk.END, f)
+
+        # 2. Add/Remove Buttons
+        btn_frame_folders = tk.Frame(folder_card, bg=self.colors['card_bg'])
+        btn_frame_folders.pack(fill=tk.X, padx=20, pady=(0, 15))
+
+        self.add_folder_btn = tk.Button(btn_frame_folders, text="➕ Add Folder", command=self._add_folder_gui,
+                                        font=('Segoe UI', 9, 'bold'), bg=self.colors['accent_success'], fg='white',
+                                        bd=0, padx=10, pady=5, cursor="hand2")
+        self.add_folder_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 5))
+
+        self.remove_folder_btn = tk.Button(btn_frame_folders, text="➖ Remove", command=self._remove_folder_gui,
+                                           font=('Segoe UI', 9, 'bold'), bg=self.colors['accent_danger'], fg='white',
+                                           bd=0, padx=10, pady=5, cursor="hand2")
+        self.remove_folder_btn.pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=(5, 0))
 
         # Status Card
         status_card = tk.Frame(left_panel, bg=self.colors['card_bg'],
@@ -1559,8 +1585,53 @@ class ProIntegrityGUI:
             self.folder_entry.insert(0, d)
             self._append_log(f"Selected monitor folder: {d}")
 
+
+    def _add_folder_gui(self):
+        """Add a folder to the list (with Premium Check)"""
+        current_count = self.folder_listbox.size()
+        
+        # 1. FETCH USER TIER AND LIMITS
+        user_tier = auth.get_user_tier(self.username)
+        limit = subscription_manager.get_folder_limit(user_tier)
+
+        # 2. ENFORCE PREMIUM GATING
+        if current_count >= limit:
+            if user_tier == "free":
+                messagebox.showwarning(
+                    "⭐ Premium Feature", 
+                    f"The Free Plan is limited to {limit} folder.\n\n"
+                    "Please upgrade to a PRO License to monitor up to 5 directories simultaneously!"
+                )
+            else:
+                messagebox.showwarning("Limit Reached", f"PRO maximum of {limit} folders reached.")
+            return
+
+        # 3. ADD FOLDER
+        folder = filedialog.askdirectory()
+        if folder:
+            existing = self.folder_listbox.get(0, tk.END)
+            if folder in existing:
+                messagebox.showinfo("Info", "This folder is already being monitored.")
+                return
+            
+            self.folder_listbox.insert(tk.END, folder)
+            self._save_folders_to_config()
+
+    def _remove_folder_gui(self):
+        """Remove selected folder"""
+        selection = self.folder_listbox.curselection()
+        if selection:
+            self.folder_listbox.delete(selection[0])
+            self._save_folders_to_config()
+
+    def _save_folders_to_config(self):
+        """Save the listbox items to memory so start_monitor can use them"""
+        folders = list(self.folder_listbox.get(0, tk.END))
+        from core.integrity_core import CONFIG
+        CONFIG["watch_folders"] = folders
+
     def start_monitor(self):
-        """Start monitoring - IMPORTED FROM BACKUP"""
+        """Start monitoring"""
         if not FileIntegrityMonitor:
             messagebox.showerror("Error", "Backend not available.")
             return
@@ -1568,26 +1639,26 @@ class ProIntegrityGUI:
             messagebox.showinfo("Info", "Monitor already running.")
             return
         
-        folder = self.folder_entry.get()
-        if not folder or not os.path.exists(folder):
-            messagebox.showerror("Error", "Please select a valid folder.")
+        # GET ALL FOLDERS FROM LISTBOX
+        folders = list(self.folder_listbox.get(0, tk.END))
+        if not folders:
+            messagebox.showerror("Error", "Please add at least one valid folder.")
             return
 
         def _start():
             try:
-                # Define the callback wrapper
                 def gui_callback(event_type, path, severity):
                     self.root.after(0, lambda: self._handle_realtime_event(event_type, path, severity))
                 
-                # Pass the callback to the backend
-                ok = self.monitor.start_monitoring(watch_folder=folder, event_callback=gui_callback)
+                # PASS THE LIST OF FOLDERS
+                ok = self.monitor.start_monitoring(watch_folders=folders, event_callback=gui_callback)
                 
                 if ok:
                     self.monitor_running = True
-                    self.status_var.set(f"🟢 Running — {os.path.basename(folder)}")
-                    self._append_log(f"Security monitoring STARTED for: {folder}")
+                    self.status_var.set(f"🟢 Running — {len(folders)} Folders")
+                    self._append_log(f"Security monitoring STARTED for {len(folders)} folders.")
                     self._show_alert("Monitoring started", 
-                                   f"Started monitoring folder:\n{folder}", 
+                                   f"Started monitoring {len(folders)} folders.", 
                                    "info")
                     self.reset_session_counts()
                 else:

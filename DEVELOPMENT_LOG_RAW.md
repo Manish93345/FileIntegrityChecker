@@ -402,4 +402,16 @@ Structure finalized
 
     
 
+### Moving to implement premium features
+    subscription_manager.py :-> Its only job is to handle premium logic.
+
+    PHASE 1: 
+        Created subscritption_manager.py
+        Updated auth_manager.py
+
+    PHASE 2:
+        Modified the following files
+            integrity_core.py
+            integrity_gui.py
+
     
