@@ -100,15 +100,10 @@ class BruteForceGuard:
 class LoginWindow:
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("〄 INTEGRITY MONITOR - ACCESS CONTROL")
-        self.root.geometry("450x550")
-        self.root.resizable(False, False)
-        
-        # Initialize Security Guard
-        self.guard = BruteForceGuard(max_attempts=3, lockout_time=30)
+        self.root.title("FMSecure Security Monitor")
         
         # Dark theme colors
-        self.bg_dark = "#0a0a0a"
+        
         self.bg_darker = "#050505"
         self.bg_panel = "#111111"
         self.accent_green = "#00ff00"
@@ -119,9 +114,24 @@ class LoginWindow:
         self.border_color = "#333333"
         self.input_bg = "#1a1a1a"
         self.error_red = "#ff4444"
+        self.root.geometry("450x650") 
+        self.root.configure(bg="#0a0a0a")
+        self.root.resizable(False, False)
+        self.bg_dark = "#0a0a0a"
+        
+        # Initialize Security Guard
+        self.guard = BruteForceGuard(max_attempts=3, lockout_time=30)
+
+        # --- THE SMART ROUTER ---
+        if not auth.has_users():
+            self._build_register_ui()  # Show Registration on first run
+        else:
+            self._build_login_ui()     # Show Login normally
+        
+        
         
         # Configure root window
-        self.root.configure(bg=self.bg_dark)
+        # self.root.configure(bg=self.bg_dark)
         
         # Center the window
         self._center_window()
@@ -129,7 +139,6 @@ class LoginWindow:
         # Configure styles
         self._configure_styles()
         
-        self._build_ui()
         
     def _configure_styles(self):
         self.style = ttk.Style()
@@ -247,7 +256,9 @@ class LoginWindow:
         
         blink()
 
-    def _build_ui(self):
+    def _build_login_ui(self):
+        for widget in self.root.winfo_children():
+            widget.destroy()
         # Main container with padding
         main_container = tk.Frame(self.root, bg=self.bg_dark)
         main_container.pack(fill=tk.BOTH, expand=True)
@@ -491,6 +502,67 @@ class LoginWindow:
         # Make sure all content is visible
         scrollable_frame.update_idletasks()
         canvas.config(scrollregion=canvas.bbox("all"))
+
+    def _build_register_ui(self):
+        """Builds the First-Time Setup / Registration Screen"""
+        # Clear anything currently on the window
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        main_frame = tk.Frame(self.root, bg="#1e1e1e", padx=40, pady=40)
+        main_frame.pack(expand=True, fill=tk.BOTH)
+
+        # Header
+        tk.Label(main_frame, text="🛡️", font=('Segoe UI', 40), bg="#1e1e1e", fg="#00a8ff").pack(pady=(0, 10))
+        tk.Label(main_frame, text="First-Time Setup", font=('Segoe UI', 20, 'bold'), bg="#1e1e1e", fg="#ffffff").pack()
+        tk.Label(main_frame, text="Register your admin account to continue", font=('Segoe UI', 10), bg="#1e1e1e", fg="#a0a0a0").pack(pady=(0, 20))
+
+        # Helper to create styled inputs
+        def create_input(parent, label_text, is_password=False):
+            frame = tk.Frame(parent, bg="#1e1e1e")
+            frame.pack(fill=tk.X, pady=5)
+            tk.Label(frame, text=label_text, font=('Segoe UI', 10), bg="#1e1e1e", fg="#a0a0a0").pack(anchor='w')
+            entry = ttk.Entry(frame, font=('Segoe UI', 12), show="•" if is_password else "")
+            entry.pack(fill=tk.X, pady=(5, 0))
+            return entry
+
+        # Input Fields
+        self.reg_user_entry = create_input(main_frame, "Username:")
+        self.reg_user_entry.insert(0, "admin") # Default suggestion
+        self.reg_email_entry = create_input(main_frame, "Registered Email:")
+        self.reg_pass_entry = create_input(main_frame, "Password:", is_password=True)
+        self.reg_confirm_entry = create_input(main_frame, "Confirm Password:", is_password=True)
+
+        # Register Button
+        tk.Button(main_frame, text="Create Account", command=self._attempt_register,
+                  font=('Segoe UI', 12, 'bold'), bg="#00a8ff", fg="white", bd=0, pady=10, cursor="hand2").pack(fill=tk.X, pady=(25, 0))
+
+    def _attempt_register(self):
+        """Handle the registration button click"""
+        username = self.reg_user_entry.get().strip()
+        email = self.reg_email_entry.get().strip()
+        password = self.reg_pass_entry.get()
+        confirm = self.reg_confirm_entry.get()
+
+        # Validation
+        if not username or not email or not password:
+            messagebox.showerror("Error", "All fields are required.")
+            return
+        if password != confirm:
+            messagebox.showerror("Error", "Passwords do not match.")
+            return
+        if "@" not in email or "." not in email:
+            messagebox.showerror("Error", "Please enter a valid email address.")
+            return
+
+        # Send to Auth Manager
+        success, msg = auth.register_user(username, email, password, role="admin")
+        
+        if success:
+            messagebox.showinfo("Success", "Account created successfully! You can now log in.")
+            self._build_login_ui() # Instantly switch to the login screen!
+        else:
+            messagebox.showerror("Registration Failed", msg)
 
     def _attempt_admin_login(self):
         # 1. CHECK SECURITY LOCKOUT

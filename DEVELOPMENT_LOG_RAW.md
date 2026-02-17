@@ -420,4 +420,14 @@ Structure finalized
         core/license_manager.py
         core/license_verifier.py
 
+
+
+### Implementing premium features that bind with email
+    PHASE 1: 
+        rewrite core/auth_manager.py
+
+    Phase 2: The First-Time Setup Screen.
+        Step 1: Add the Registration UI to login_gui.py and update the init method
+        Part 2: Changes in integrity_gui.py
+
     

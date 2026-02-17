@@ -1,8 +1,9 @@
 {
-    "admin": {
-        "hash": "0b9938b0299e9f109e1062a0dd9d5c32a8bfef0667659700ffc113d494b4fd28",
-        "salt": "3a64b079e2634e9581dcce74aa0df474",
+    "lisa": {
+        "hash": "9bd8ba5a675a82401f4b450359175dfca10ab696ffb18a2e7d7a9ca2755b0c77",
+        "salt": "49f1cd0ba3904066a64ab2486f39d383",
         "role": "admin",
-        "license_key": "PREMIUM-2123-D51DCB5647C14534"
+        "registered_email": "lisajaanu@gmail.com",
+        "license_key": "PREMIUM-EBBE-CF021900878DD4C8"
     }
 }

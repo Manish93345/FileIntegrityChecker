@@ -1632,8 +1632,8 @@ class ProIntegrityGUI:
                     self.upgrade_btn.pack_forget()
                     
                 # Optional: Update the subtitle
-                if hasattr(self, 'subtitle'):
-                    self.subtitle.config(text="PRO License Verified", fg=self.colors['accent_success'])
+                # if hasattr(self, 'subtitle'):
+                #     self.subtitle.config(text="PRO License Verified", fg=self.colors['accent_success'])
             else:
                 messagebox.showerror("Activation Failed", msg)
 
@@ -1683,22 +1683,44 @@ class ProIntegrityGUI:
         CONFIG["watch_folders"] = folders
 
     def _show_activation_dialog(self):
-        """Popup to enter license key"""
+        """Popup to enter the commercial license key (Account-Based)"""
+        # 1. Fetch the already registered email from the database
+        user_data = auth.users.get(self.username, {})
+        registered_email = user_data.get("registered_email", "")
+        
+        if not registered_email:
+            messagebox.showerror("Error", "No registered email found for this account. Please contact support.")
+            return
+
+        # 2. Ask for the License Key ONLY
         key = simpledialog.askstring(
-            "Activate Premium", 
-            "Enter your Product License Key:\n(Purchased from FMSecure website)",
+            "Activate FMSecure PRO", 
+            f"Account: {registered_email}\n\nEnter your PRO License Key:\n(Purchased from FMSecure website)",
             parent=self.root
         )
         
-        if key:
-            success, msg = auth.activate_license(self.username, key)
-            if success:
-                messagebox.showinfo("Activation Successful", msg)
-                self.status_var.set("⭐ Premium Active")
-                # Refresh UI to unlock features immediately
-                self.title_text.config(text="FMSecure PRO") # Optional visual update
-            else:
-                messagebox.showerror("Activation Failed", msg)
+        if not key: return # User cancelled
+        clean_key = key.strip()
+        
+        # 3. Send to Auth Manager
+        success, msg = auth.activate_license(self.username, clean_key)
+        
+        if success:
+            messagebox.showinfo("Activation Successful! 🎉", msg)
+            self.status_var.set("⭐ Premium Active")
+            
+            # Hide the upgrade button instantly
+            if hasattr(self, 'upgrade_btn') and self.upgrade_btn.winfo_exists():
+                self.upgrade_btn.pack_forget()
+                
+            # Update the visual footer to show who owns the license
+            if hasattr(self, 'footer_label'):
+                self.footer_label.config(
+                    text=f"🔐 FMSecure PRO • Licensed to: {registered_email}", 
+                    fg=self.colors['accent_success']
+                )
+        else:
+            messagebox.showerror("Activation Failed", msg)
 
     def start_monitor(self):
         """Start monitoring"""
@@ -2316,8 +2338,11 @@ class ProIntegrityGUI:
         self._append_log(f"Logged in as restricted viewer: {self.username}")
         self.status_var.set("🔒 Read-Only Mode")
         
-        # Disable Folder Entry
-        self.folder_entry.configure(state='disabled')
+        # --- FIX: Disable the new Multi-Folder Buttons instead of folder_entry ---
+        if hasattr(self, 'add_folder_btn'):
+            self.add_folder_btn.configure(state='disabled')
+        if hasattr(self, 'remove_folder_btn'):
+            self.remove_folder_btn.configure(state='disabled')
         
         # Define Restricted Actions
         restricted_actions = [
