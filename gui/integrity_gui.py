@@ -465,6 +465,14 @@ class ProIntegrityGUI:
         header_frame = tk.Frame(main_container, bg=self.colors['header_bg'], height=80)
         header_frame.pack(fill=tk.X, pady=(0, 20))
         header_frame.pack_propagate(False)
+        # Upgrade Button (Only show if Free)
+        # current_tier = auth.get_user_tier(self.username)
+        # if current_tier == "free":
+        #     self.upgrade_btn = tk.Button(btn_frame, text="⭐ Upgrade", 
+        #                                command=self._show_activation_dialog,
+        #                                font=('Segoe UI', 10, 'bold'), 
+        #                                bg="#ffd700", fg="black") # Gold color
+        #     self.upgrade_btn.pack(side=tk.LEFT, padx=10)
         
         # Menu Button
         self.menu_btn = tk.Button(header_frame, text="☰", 
@@ -507,6 +515,22 @@ class ProIntegrityGUI:
         # Control buttons
         btn_frame = tk.Frame(control_frame, bg=self.colors['header_bg'])
         btn_frame.pack(side=tk.RIGHT)
+
+
+        # --- NEW: PRO UPGRADE BUTTON ---
+        # Check their tier dynamically based on their license key
+        current_tier = auth.get_user_tier(self.username)
+        
+        if current_tier == "free":
+            self.upgrade_btn = tk.Button(btn_frame, text="⭐ Upgrade to PRO", 
+                                       command=self._show_activation_dialog,
+                                       font=('Segoe UI', 10, 'bold'), 
+                                       bg="#ffd700", fg="#000000", # Gold color
+                                       bd=0, padx=15, pady=2, cursor="hand2")
+            self.upgrade_btn.pack(side=tk.LEFT, padx=(0, 15))
+            # Slight hover effect for the gold button
+            self.upgrade_btn.bind("<Enter>", lambda e: self.upgrade_btn.configure(bg="#ffea00"))
+            self.upgrade_btn.bind("<Leave>", lambda e: self.upgrade_btn.configure(bg="#ffd700"))
         
         # Theme toggle
         self.theme_btn = tk.Button(btn_frame, text="🌙" if self.dark_mode else "☀️", 
@@ -1586,6 +1610,34 @@ class ProIntegrityGUI:
             self._append_log(f"Selected monitor folder: {d}")
 
 
+    def _show_activation_dialog(self):
+        """Popup to enter the commercial license key"""
+        key = simpledialog.askstring(
+            "Activate FMSecure PRO", 
+            "Enter your PRO License Key:\n(Purchased from the FMSecure website)",
+            parent=self.root
+        )
+        
+        if key:
+            # Clean up the key just in case they accidentally copied a space
+            clean_key = key.strip()
+            success, msg = auth.activate_license(self.username, clean_key)
+            
+            if success:
+                messagebox.showinfo("Activation Successful! 🎉", msg)
+                self.status_var.set("⭐ Premium Active")
+                
+                # Hide the upgrade button instantly without needing a restart
+                if hasattr(self, 'upgrade_btn') and self.upgrade_btn.winfo_exists():
+                    self.upgrade_btn.pack_forget()
+                    
+                # Optional: Update the subtitle
+                if hasattr(self, 'subtitle'):
+                    self.subtitle.config(text="PRO License Verified", fg=self.colors['accent_success'])
+            else:
+                messagebox.showerror("Activation Failed", msg)
+
+
     def _add_folder_gui(self):
         """Add a folder to the list (with Premium Check)"""
         current_count = self.folder_listbox.size()
@@ -1629,6 +1681,24 @@ class ProIntegrityGUI:
         folders = list(self.folder_listbox.get(0, tk.END))
         from core.integrity_core import CONFIG
         CONFIG["watch_folders"] = folders
+
+    def _show_activation_dialog(self):
+        """Popup to enter license key"""
+        key = simpledialog.askstring(
+            "Activate Premium", 
+            "Enter your Product License Key:\n(Purchased from FMSecure website)",
+            parent=self.root
+        )
+        
+        if key:
+            success, msg = auth.activate_license(self.username, key)
+            if success:
+                messagebox.showinfo("Activation Successful", msg)
+                self.status_var.set("⭐ Premium Active")
+                # Refresh UI to unlock features immediately
+                self.title_text.config(text="FMSecure PRO") # Optional visual update
+            else:
+                messagebox.showerror("Activation Failed", msg)
 
     def start_monitor(self):
         """Start monitoring"""

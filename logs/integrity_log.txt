@@ -1,16 +1,6 @@
-2026-02-17 00:14:33 - [🟢 INFO] Log reset. New session started.
-2026-02-17 00:14:58 - [🟢 INFO] INFO: No hash signature found; created new signature.
-2026-02-17 00:14:58 - [🟢 INFO] Startup: records signature OK
-2026-02-17 00:14:58 - [🟢 INFO] Startup: log signature OK
-2026-02-17 00:14:59 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/Photos
-2026-02-17 00:14:59 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/kaushal
-2026-02-17 00:15:10 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\Screenshot_20260105_232252_com.dts.freefiremax.jpg
-2026-02-17 00:15:11 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\Screenshot_20260107_233117_com.dts.freefiremax.jpg
-2026-02-17 00:15:24 - [🟢 INFO] CREATED: D:\Free_fire\kaushal\Screenshot_20250928_151351_com.dts.freefiremax.jpg
-2026-02-17 00:15:24 - [🟢 INFO] CREATED: D:\Free_fire\kaushal\downloaded-yamuna.jpg
-2026-02-17 00:15:33 - [🟡 MEDIUM] MODIFIED: D:\Free_fire\kaushal\downloaded-yamuna.jpg
-2026-02-17 00:15:39 - [🟡 MEDIUM] DELETED: D:\Free_fire\kaushal\Screenshot_20250928_151351_com.dts.freefiremax.jpg
-2026-02-17 00:15:39 - [🟡 MEDIUM] DELETED: D:\Free_fire\kaushal\downloaded-yamuna.jpg
-2026-02-17 00:15:55 - [🟢 INFO] MONITOR_STOPPED
-2026-02-17 00:15:59 - [🟢 INFO] PERIODIC_VERIFICATION_START
-2026-02-17 00:15:59 - [🟢 INFO] Reports generated: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\report_summary.txt, logs\detailed_reports.txt
+2026-02-17 01:00:10 - Log started
+2026-02-17 01:00:10 - [🟢 INFO] INFO: No hash signature found; created new signature.
+2026-02-17 01:00:10 - [🟢 INFO] Startup: records signature OK
+2026-02-17 01:00:10 - [🟢 INFO] Startup: log signature OK
+2026-02-17 01:00:10 - [🟢 INFO] MONITOR_STARTED: C:/Users/kumar/Downloads/Mahadev
+2026-02-17 01:00:12 - [🟢 INFO] MONITOR_STOPPED

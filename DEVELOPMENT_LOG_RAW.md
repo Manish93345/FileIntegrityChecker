@@ -414,4 +414,10 @@ Structure finalized
             integrity_core.py
             integrity_gui.py
 
+### Creating liscense for the premium user
+    PHASE 1:
+        license_generator.py -> (Keep this safe!)  DO NOT include it in the installer
+        core/license_manager.py
+        core/license_verifier.py
+
     

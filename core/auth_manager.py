@@ -12,6 +12,7 @@ import os
 import hashlib
 import uuid
 from core.utils import get_app_data_dir
+from core.license_verifier import license_verifier
 
 # Use the safe path for storage
 USERS_DB_FILE = os.path.join(get_app_data_dir(), "logs", "users.json")
@@ -21,12 +22,7 @@ DEFAULT_USERS = {
     "admin": {
         "password": "admin123", 
         "role": "admin",
-        "tier": "premium"  # Admin gets PRO features by default
-    },
-    "user": {
-        "password": "user123",
-        "role": "user",
-        "tier": "free"     # Standard users start on Free
+        "license_key": ""  # No key initially
     }
 }
 
@@ -63,7 +59,7 @@ class AuthManager:
                 "hash": h,
                 "salt": s,
                 "role": data["role"],
-                "tier": data["tier"]
+                "license_key": data.get("license_key", "")  # Safe dictionary fetch
             }
         self._save_db()
 
@@ -95,9 +91,36 @@ class AuthManager:
             return False, None, "Invalid Password"
 
     def get_user_tier(self, username):
-        """Get the subscription tier for a user (free/premium)"""
+        """
+        Calculate tier based on the stored license key.
+        This prevents users from just editing 'tier': 'premium' in the JSON.
+        """
         user = self.users.get(username, {})
-        return user.get("tier", "free")  # Default to free if missing
+        key = user.get("license_key", "")
+        
+        if not key:
+            return "free"
+            
+        is_valid, tier = license_verifier.verify_license(username, key)
+        
+        if is_valid:
+            return tier
+        else:
+            return "free"
+
+    def activate_license(self, username, key):
+        """Attempt to activate a license key"""
+        if username not in self.users:
+            return False, "User not found"
+            
+        is_valid, tier = license_verifier.verify_license(username, key)
+        
+        if is_valid:
+            self.users[username]["license_key"] = key
+            self._save_db()
+            return True, f"Success! Upgraded to {tier.upper()} Plan."
+        else:
+            return False, "Invalid License Key."
 
     def upgrade_user(self, username, new_tier="premium"):
         """Upgrade a user's subscription"""

@@ -1,14 +1,8 @@
 {
     "admin": {
-        "hash": "af7ca25a64ba7104417ef7ab0557dd1e9cbd1eee1adb9e4d5a25bc310084d463",
-        "salt": "8c7e1f5bb6674b388c61f2001a686a18",
+        "hash": "0b9938b0299e9f109e1062a0dd9d5c32a8bfef0667659700ffc113d494b4fd28",
+        "salt": "3a64b079e2634e9581dcce74aa0df474",
         "role": "admin",
-        "tier": "premium"
-    },
-    "user": {
-        "hash": "cfac98503168f9a8e275bb3f252434e55f5428d32656da08fdf50485dd39b94d",
-        "salt": "f19c92dda2134a2e96f37a8604a07a18",
-        "role": "user",
-        "tier": "free"
+        "license_key": "PREMIUM-2123-D51DCB5647C14534"
     }
 }
