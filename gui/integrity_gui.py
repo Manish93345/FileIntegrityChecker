@@ -516,6 +516,8 @@ class ProIntegrityGUI:
         btn_frame = tk.Frame(control_frame, bg=self.colors['header_bg'])
         btn_frame.pack(side=tk.RIGHT)
 
+        self.top_btn_frame = btn_frame
+
 
         # --- NEW: PRO UPGRADE BUTTON ---
         # Check their tier dynamically based on their license key
@@ -525,12 +527,17 @@ class ProIntegrityGUI:
             self.upgrade_btn = tk.Button(btn_frame, text="⭐ Upgrade to PRO", 
                                        command=self._show_activation_dialog,
                                        font=('Segoe UI', 10, 'bold'), 
-                                       bg="#ffd700", fg="#000000", # Gold color
+                                       bg="#ffd700", fg="#000000", 
                                        bd=0, padx=15, pady=2, cursor="hand2")
             self.upgrade_btn.pack(side=tk.LEFT, padx=(0, 15))
-            # Slight hover effect for the gold button
             self.upgrade_btn.bind("<Enter>", lambda e: self.upgrade_btn.configure(bg="#ffea00"))
             self.upgrade_btn.bind("<Leave>", lambda e: self.upgrade_btn.configure(bg="#ffd700"))
+        else:
+            # If they are already premium, show a sleek gold text badge instead of a button
+            self.pro_badge = tk.Label(btn_frame, text="⭐ PRO ACTIVE", 
+                                      font=('Segoe UI', 10, 'bold'), 
+                                      bg=self.colors['header_bg'], fg="#ffd700")
+            self.pro_badge.pack(side=tk.LEFT, padx=(0, 15))
         
         # Theme toggle
         self.theme_btn = tk.Button(btn_frame, text="🌙" if self.dark_mode else "☀️", 
@@ -668,10 +675,10 @@ class ProIntegrityGUI:
         
         for i, (text, command, color) in enumerate(buttons):
             btn = tk.Button(action_card, text=text, command=command,
-                          font=('Segoe UI', 10, 'bold'), bg=color, fg='white',
-                          bd=0, padx=20, pady=10, cursor="hand2",
+                          font=('Segoe UI', 9, 'bold'), bg=color, fg='white',
+                          bd=0, padx=18, pady=9, cursor="hand2",
                           activebackground=color)
-            btn.pack(fill=tk.X, padx=20, pady=5)
+            btn.pack(fill=tk.X, padx=17, pady=4)
             btn.bind("<Enter>", lambda e, b=btn: b.configure(bg=self._lighten_color(color)))
             btn.bind("<Leave>", lambda e, b=btn, c=color: b.configure(bg=c))
 
@@ -1627,13 +1634,23 @@ class ProIntegrityGUI:
                 messagebox.showinfo("Activation Successful! 🎉", msg)
                 self.status_var.set("⭐ Premium Active")
                 
-                # Hide the upgrade button instantly without needing a restart
+                # 1. Destroy the upgrade button completely
                 if hasattr(self, 'upgrade_btn') and self.upgrade_btn.winfo_exists():
-                    self.upgrade_btn.pack_forget()
+                    self.upgrade_btn.destroy()
                     
-                # Optional: Update the subtitle
-                # if hasattr(self, 'subtitle'):
-                #     self.subtitle.config(text="PRO License Verified", fg=self.colors['accent_success'])
+                # 2. Inject the sleek PRO badge exactly where the button used to be
+                self.pro_badge = tk.Label(self.top_btn_frame, text="⭐ PRO ACTIVE", 
+                                        font=('Segoe UI', 10, 'bold'), 
+                                        bg=self.colors['header_bg'], fg="#ffd700")
+                # Pack it before the theme toggle button so it sits on the far left
+                self.pro_badge.pack(side=tk.LEFT, padx=(0, 15), before=self.theme_btn)
+                    
+                # Update the visual footer
+                if hasattr(self, 'footer_label'):
+                    self.footer_label.config(
+                        text=f"🔐 FMSecure PRO • Licensed to: {registered_email}", 
+                        fg=self.colors['accent_success']
+                    )
             else:
                 messagebox.showerror("Activation Failed", msg)
 
@@ -1684,6 +1701,10 @@ class ProIntegrityGUI:
 
     def _show_activation_dialog(self):
         """Popup to enter the commercial license key (Account-Based)"""
+        # --- THE FIX: Force memory to sync with the fresh users.json file ---
+        if auth:
+            auth._load_users()
+            
         # 1. Fetch the already registered email from the database
         user_data = auth.users.get(self.username, {})
         registered_email = user_data.get("registered_email", "")
@@ -1711,9 +1732,15 @@ class ProIntegrityGUI:
             
             # Hide the upgrade button instantly
             if hasattr(self, 'upgrade_btn') and self.upgrade_btn.winfo_exists():
-                self.upgrade_btn.pack_forget()
+                self.upgrade_btn.destroy()
                 
-            # Update the visual footer to show who owns the license
+            # Inject the sleek PRO badge exactly where the button used to be
+            self.pro_badge = tk.Label(self.top_btn_frame, text="⭐ PRO ACTIVE", 
+                                      font=('Segoe UI', 10, 'bold'), 
+                                      bg=self.colors['header_bg'], fg="#ffd700")
+            self.pro_badge.pack(side=tk.LEFT, padx=(0, 15), before=self.theme_btn)
+                
+            # Update the visual footer
             if hasattr(self, 'footer_label'):
                 self.footer_label.config(
                     text=f"🔐 FMSecure PRO • Licensed to: {registered_email}", 
