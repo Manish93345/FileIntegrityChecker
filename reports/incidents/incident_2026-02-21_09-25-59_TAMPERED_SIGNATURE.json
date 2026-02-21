@@ -1,0 +1,69 @@
+{
+  "incident": {
+    "event_type": "TAMPERED_SIGNATURE",
+    "severity": "CRITICAL",
+    "message": "Signature mismatch: D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\logs\\integrity_log.txt",
+    "affected_file": "D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\logs\\integrity_log.txt",
+    "timestamp": "2026-02-21T09:25:59.063233",
+    "human_timestamp": "2026-02-21T09:25:59.063233"
+  },
+  "system_state": {
+    "time": "2026-02-21T09:25:59.063252",
+    "safe_mode": true,
+    "monitoring_active": {
+      "status": "unknown",
+      "details": "Monitoring status check not implemented"
+    },
+    "config": {
+      "error": "Config not available"
+    },
+    "disk_usage": {
+      "total_gb": 294.15,
+      "used_gb": 267.75,
+      "free_gb": 26.41,
+      "free_percent": 8.98
+    },
+    "critical_files": {
+      "logs/integrity_log.txt": {
+        "exists": true,
+        "size": 832,
+        "modified": "2026-02-21T09:25:59.046302"
+      },
+      "hash_records.json": {
+        "exists": false,
+        "size": 0,
+        "modified": null
+      },
+      "config.json": {
+        "exists": false,
+        "size": 0,
+        "modified": null
+      },
+      "severity_counters.json": {
+        "exists": false,
+        "size": 0,
+        "modified": null
+      }
+    }
+  },
+  "recent_events": [
+    "2026-02-21 09:24:58 - Log started",
+    "2026-02-21 09:24:58 - [\ud83d\udfe2 INFO] INFO: No hash signature found; created new signature.",
+    "2026-02-21 09:24:58 - [\ud83d\udfe2 INFO] Startup: records signature OK",
+    "2026-02-21 09:24:58 - [\ud83d\udfe2 INFO] Startup: log signature OK",
+    "2026-02-21 09:24:58 - [\ud83d\udfe2 INFO] MONITOR_STARTED: D:/Free_fire/Photos/New folder",
+    "2026-02-21 09:25:41 - [\ud83d\udfe1 MEDIUM] RENAMED: File RENAMED from 'yamuna.jpg' to 'friend.jpg'",
+    "2026-02-21 09:25:58 - [\ud83d\udfe2 INFO] PERIODIC_VERIFICATION_START",
+    "2026-02-21 09:25:59 - [\ud83d\udd34 CRITICAL] AUTO_RESPONSE_CRITICAL: Signature mismatch: D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\logs\\integrity_log.txt - ACTIVATING SAFE MODE",
+    "2026-02-21 09:25:59 - [\ud83d\udd34 CRITICAL] \ud83d\udea8 SAFE MODE ACTIVATED: TAMPERED_SIGNATURE: Signature mismatch: D:\\Study\\LISA_PROJECT\\FileIntegrityChecker\\logs\\integrity_log.txt"
+  ],
+  "file_hashes": {
+    "logs/integrity_log.txt": "7be62f7ab3613837",
+    "hash_records.json": "File not found",
+    "config.json": "File not found"
+  },
+  "process_info": {
+    "error": "psutil not installed"
+  },
+  "additional_data": {}
+}

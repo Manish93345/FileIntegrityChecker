@@ -1,0 +1,21 @@
+2026-02-21 09:55:55 - [🟢 INFO] Log reset. New session started.
+2026-02-21 09:56:08 - [🟢 INFO] INFO: No hash signature found; created new signature.
+2026-02-21 09:56:08 - [🟢 INFO] Startup: records signature OK
+2026-02-21 09:56:08 - [🟢 INFO] Startup: log signature OK
+2026-02-21 09:56:08 - [🟢 INFO] ERROR_HASH: D:\Free_fire\Photos\New folder\8 November 2025_manish&Yamuna.jpg (name 'detailed' is not defined)
+2026-02-21 09:56:08 - [🟢 INFO] ERROR_HASH: D:\Free_fire\Photos\New folder\FreeFire_09_01_2025 17_29_04.png (name 'detailed' is not defined)
+2026-02-21 09:56:08 - [🟢 INFO] ERROR_HASH: D:\Free_fire\Photos\New folder\FreeFire_09_01_2025 17_29_39.png (name 'detailed' is not defined)
+2026-02-21 09:56:08 - [🟢 INFO] ERROR_HASH: D:\Free_fire\Photos\New folder\FreeFire_10_10_2025 18_48_12.png (name 'detailed' is not defined)
+2026-02-21 09:56:08 - [🟢 INFO] ERROR_HASH: D:\Free_fire\Photos\New folder\payel.jpg (name 'detailed' is not defined)
+2026-02-21 09:56:08 - [🟢 INFO] ERROR_HASH: D:\Free_fire\Photos\New folder\Screenshot_20250922_081636_com.dts.freefiremax.jpg (name 'detailed' is not defined)
+2026-02-21 09:56:08 - [🟢 INFO] ERROR_HASH: D:\Free_fire\Photos\New folder\Screenshot_20250928_151351_com.dts.freefiremax.jpg (name 'detailed' is not defined)
+2026-02-21 09:56:08 - [🟢 INFO] ERROR_HASH: D:\Free_fire\Photos\New folder\Screenshot_20250928_151423_com.dts.freefiremax.jpg (name 'detailed' is not defined)
+2026-02-21 09:56:08 - [🟢 INFO] ERROR_HASH: D:\Free_fire\Photos\New folder\Screenshot_20251108_134932_com.dts.freefiremax.jpg (name 'detailed' is not defined)
+2026-02-21 09:56:08 - [🟢 INFO] ERROR_HASH: D:\Free_fire\Photos\New folder\Screenshot_20251116_235151_com.dts.freefiremax.jpg (name 'detailed' is not defined)
+2026-02-21 09:56:08 - [🟢 INFO] ERROR_HASH: D:\Free_fire\Photos\New folder\Screenshot_20251221_115811_com.dts.freefiremax.jpg (name 'detailed' is not defined)
+2026-02-21 09:56:08 - [🟢 INFO] ERROR_HASH: D:\Free_fire\Photos\New folder\Screenshot_20260105_224627_com.dts.freefiremax.jpg (name 'detailed' is not defined)
+2026-02-21 09:56:08 - [🟢 INFO] ERROR_HASH: D:\Free_fire\Photos\New folder\Screenshot_20260105_232157_com.dts.freefiremax.jpg (name 'detailed' is not defined)
+2026-02-21 09:56:08 - [🟢 INFO] ERROR_HASH: D:\Free_fire\Photos\New folder\Screenshot_20260105_232553_com.dts.freefiremax.jpg (name 'detailed' is not defined)
+2026-02-21 09:56:08 - [🟢 INFO] ERROR_HASH: D:\Free_fire\Photos\New folder\yamuna.jpg (name 'detailed' is not defined)
+2026-02-21 09:56:08 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/Photos/New folder
+2026-02-21 09:56:12 - [🟢 INFO] MONITOR_STOPPED

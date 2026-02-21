@@ -1,0 +1,22 @@
+2026-02-21 09:26:46 - [🟢 INFO] Log reset. New session started.
+2026-02-21 09:26:54 - [🟢 INFO] INFO: No hash signature found; created new signature.
+2026-02-21 09:26:54 - [🟢 INFO] Startup: records signature OK
+2026-02-21 09:26:54 - [🟢 INFO] Startup: log signature OK
+2026-02-21 09:26:54 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/Photos/New folder
+2026-02-21 09:26:59 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-21 09:26:59 - [🟢 INFO] Reports generated: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\report_summary.txt, logs\detailed_reports.txt
+2026-02-21 09:27:54 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-21 09:27:55 - [🟢 INFO] Reports generated: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\report_summary.txt, logs\detailed_reports.txt
+2026-02-21 09:27:59 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-21 09:27:59 - [🟢 INFO] Reports generated: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\report_summary.txt, logs\detailed_reports.txt
+2026-02-21 09:28:48 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\payel.jpg
+2026-02-21 09:28:51 - [🟢 INFO] CREATED: D:\Free_fire\Photos\New folder\payel.jpg
+2026-02-21 09:28:55 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-21 09:28:55 - [🟢 INFO] Reports generated: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\report_summary.txt, logs\detailed_reports.txt
+2026-02-21 09:28:59 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-21 09:28:59 - [🟢 INFO] Reports generated: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\report_summary.txt, logs\detailed_reports.txt
+2026-02-21 09:29:04 - [🟢 INFO] MONITOR_STOPPED
+2026-02-21 09:29:55 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-21 09:29:55 - [🟢 INFO] Reports generated: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\report_summary.txt, logs\detailed_reports.txt
+2026-02-21 09:29:59 - [🟢 INFO] PERIODIC_VERIFICATION_START
+2026-02-21 09:30:00 - [🟢 INFO] Reports generated: D:\Study\LISA_PROJECT\FileIntegrityChecker\logs\report_summary.txt, logs\detailed_reports.txt

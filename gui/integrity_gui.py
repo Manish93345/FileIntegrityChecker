@@ -285,6 +285,8 @@ class ProIntegrityGUI:
         self.ALERT_SHOW_MS = 5000
         self.alert_visible = False
         self.alert_hide_after_id = None
+
+        self.renamed_var = tk.StringVar(value="0")
         
         # Report tracking - ADDED FROM BACKUP
         self.report_data = {
@@ -356,6 +358,7 @@ class ProIntegrityGUI:
             'session_created': 0,
             'session_modified': 0,
             'session_deleted': 0,
+            'session_renamed': 0,
             'current_files': set()
         }
 
@@ -744,18 +747,19 @@ class ProIntegrityGUI:
             ("Total Files:", self.total_files_var, self.colors['accent_primary']),
             ("Created:", self.created_var, self.colors['accent_success']),
             ("Modified:", self.modified_var, self.colors['accent_warning']),
+            ("Renamed:", self.renamed_var, self.colors['accent_secondary']),
             ("Deleted:", self.deleted_var, self.colors['accent_danger']),
         ]
         
         for label, var, color in stats_data:
             stat_frame = tk.Frame(stats_content, bg=self.colors['card_bg'])
-            stat_frame.pack(fill=tk.X, pady=8)
+            stat_frame.pack(fill=tk.X, pady=7)
             
-            tk.Label(stat_frame, text=label, font=('Segoe UI', 10),
+            tk.Label(stat_frame, text=label, font=('Segoe UI', 8),
                     bg=self.colors['card_bg'], fg=self.colors['text_secondary']).pack(side=tk.LEFT)
             
-            value_label = tk.Label(stat_frame, textvariable=var, font=('Segoe UI', 14, 'bold'),
-                                bg=color, fg='white', padx=15, pady=6, relief='flat')
+            value_label = tk.Label(stat_frame, textvariable=var, font=('Segoe UI', 12, 'bold'),
+                                bg=color, fg='white', padx=12, pady=5, relief='flat')
             value_label.pack(side=tk.RIGHT)
             
             # Store the label reference
@@ -2003,10 +2007,12 @@ class ProIntegrityGUI:
         self.file_tracking['session_created'] = 0
         self.file_tracking['session_modified'] = 0
         self.file_tracking['session_deleted'] = 0
+        self.file_tracking['session_renamed'] = 0
         
         self.created_var.set("0")
         self.modified_var.set("0")
         self.deleted_var.set("0")
+        self.renamed_var.set("0")
         self._append_log("Session file counters reset")
 
     def view_report(self):
@@ -2087,6 +2093,10 @@ class ProIntegrityGUI:
         elif "MODIFIED" in event_type:
             self.file_tracking['session_modified'] += 1
             self.modified_var.set(str(self.file_tracking['session_modified']))
+
+        elif "RENAMED" in event_type:  
+            self.file_tracking['session_renamed'] += 1
+            self.renamed_var.set(str(self.file_tracking['session_renamed']))
             
         elif "DELETED" in event_type:
             self.file_tracking['session_deleted'] += 1

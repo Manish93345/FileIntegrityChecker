@@ -572,32 +572,41 @@ def is_ignored_filename(name):
 
 def generate_file_hash(path):
     """
-    Chunked hashing with retries for transient lock conditions.
+    Chunked hashing + Advanced Metadata (Windows Attributes & Timestamps)
     """
-    # skip if filename matches ignore/temp patterns
     fn = os.path.basename(path)
     if is_ignored_filename(fn):
         return None
-    chunk_size = CONFIG["hash_chunk_size"]
-    retries = CONFIG["hash_retries"]
-    delay = CONFIG["hash_retry_delay"]
-    algo = getattr(hashlib, CONFIG["hash_algo"])
+        
+    chunk_size = CONFIG.get("hash_chunk_size", 65536)
+    retries = CONFIG.get("hash_retries", 3)
+    delay = CONFIG.get("hash_retry_delay", 0.5)
+    algo_name = CONFIG.get("hash_algo", "sha256")
+    
     for attempt in range(1, retries + 1):
         try:
-            h = algo()
+            algo = getattr(hashlib, algo_name)()
             with open(path, "rb") as f:
                 while True:
                     chunk = f.read(chunk_size)
-                    if not chunk:
-                        break
-                    h.update(chunk)
-            return h.hexdigest()
-        except (PermissionError, FileNotFoundError) as e:
-            # transient lock or file disappeared — retry a few times
+                    if not chunk: break
+                    algo.update(chunk)
+            content_hash = algo.hexdigest()
+            
+            stats = os.stat(path)
+            attributes = getattr(stats, 'st_file_attributes', stats.st_mode)
+            mtime = stats.st_mtime
+            
+            meta_string = f"{attributes}_{mtime}"
+            final_hash = hashlib.sha256(f"{content_hash}|{meta_string}".encode()).hexdigest()
+            
+            # ALWAYS return the detailed dictionary
+            return {"hash": final_hash, "content": content_hash, "attrs": attributes}
+            
+        except (PermissionError, FileNotFoundError):
             if attempt < retries:
                 time.sleep(delay)
                 continue
-            append_log_line(f"SKIP_HASH: {path} ({e})")
             return None
         except Exception as e:
             append_log_line(f"ERROR_HASH: {path} ({e})")
@@ -664,16 +673,20 @@ def verify_all_files_and_update(records=None, watch_folders=None):
                     continue
                 path = os.path.abspath(os.path.join(root, fn))
                 seen.add(path)
-                h = generate_file_hash(path)
-                if h is None:
+                
+                details = generate_file_hash(path)
+                if details is None:
                     skipped.append(path)
                     continue
+                    
+                h = details["hash"]
                 old_hash = records.get(path, {}).get("hash")
+                
                 if not old_hash:
-                    records[path] = {"hash": h, "last_checked": now_pretty()}
+                    records[path] = {"hash": h, "content": details["content"], "attrs": details["attrs"], "last_checked": now_pretty()}
                     created.append(path)
                 elif old_hash != h:
-                    records[path] = {"hash": h, "last_checked": now_pretty()}
+                    records[path] = {"hash": h, "content": details["content"], "attrs": details["attrs"], "last_checked": now_pretty()}
                     modified.append(path)
                 else:
                     records[path]["last_checked"] = now_pretty()
@@ -797,9 +810,14 @@ class IntegrityHandler(FileSystemEventHandler):
                     if is_ignored_filename(fn): continue
                     path = os.path.abspath(os.path.join(root, fn))
                     if path not in self.records:
-                        h = generate_file_hash(path)
-                        if h:
-                            self.records[path] = {"hash": h, "last_checked": now_pretty()}
+                        details = generate_file_hash(path)
+                        if details:
+                            self.records[path] = {
+                                "hash": details["hash"], 
+                                "content": details["content"], 
+                                "attrs": details["attrs"], 
+                                "last_checked": now_pretty()
+                            }
                             initial_added = True
                             
         if initial_added:
@@ -853,34 +871,64 @@ class IntegrityHandler(FileSystemEventHandler):
         path = os.path.abspath(event.src_path)
         if is_ignored_filename(os.path.basename(path)): return
         
-        h = generate_file_hash(path)
-        if h:
-            self.records[path] = {"hash": h, "last_checked": now_pretty()}
+        details = generate_file_hash(path)
+        if details:
+            self.records[path] = {
+                "hash": details["hash"], 
+                "content": details["content"], 
+                "attrs": details["attrs"], 
+                "last_checked": now_pretty()
+            }
             self.save_records()
             append_log_line(f"CREATED: {path}", event_type="CREATED", severity="INFO")
             send_webhook_safe("CREATED", "New file created", path)
-            self._notify_gui("CREATED", path, "INFO") # <--- NOTIFY GUI
+            self._notify_gui("CREATED", path, "INFO")
 
     def on_modified(self, event):
         if event.is_directory: return
         path = os.path.abspath(event.src_path)
         if is_ignored_filename(os.path.basename(path)): return
         
-        h = generate_file_hash(path)
-        if not h: return
+        details = generate_file_hash(path)
+        if not details: return
         
-        old_hash = self.records.get(path, {}).get("hash")
+        h = details["hash"]
+        new_content = details["content"]
+        new_attrs = details["attrs"]
+        
+        old_record = self.records.get(path, {})
+        old_hash = old_record.get("hash")
+        
         if not old_hash:
-            self.records[path] = {"hash": h, "last_checked": now_pretty()}
+            self.records[path] = {"hash": h, "content": new_content, "attrs": new_attrs, "last_checked": now_pretty()}
             self.save_records()
             append_log_line(f"CREATED_ON_MODIFY: {path}", event_type="CREATED_ON_MODIFY", severity="INFO")
-            self._notify_gui("CREATED", path, "INFO") # <--- NOTIFY GUI
+            self._notify_gui("CREATED", path, "INFO")
+            
         elif old_hash != h:
-            self.records[path] = {"hash": h, "last_checked": now_pretty()}
+            old_content = old_record.get("content")
+            old_attrs = old_record.get("attrs")
+            
+            log_detail = ""
+            if old_content and old_content == new_content:
+                if old_attrs is not None and new_attrs is not None:
+                    was_hidden = bool(int(old_attrs) & 2)
+                    is_hidden = bool(int(new_attrs) & 2)
+                    
+                    if was_hidden != is_hidden:
+                        state = "Hidden" if is_hidden else "Unhidden"
+                        log_detail = f" (Property changed: File marked as {state})"
+                    else:
+                        log_detail = " (Properties/Metadata changed)"
+            elif old_content and old_content != new_content:
+                log_detail = " (Content modified)"
+            
+            self.records[path] = {"hash": h, "content": new_content, "attrs": new_attrs, "last_checked": now_pretty()}
             self.save_records()
-            append_log_line(f"MODIFIED: {path}", event_type="MODIFIED", severity="MEDIUM")
-            send_webhook_safe("MODIFIED", "File content changed", path)
-            self._notify_gui("MODIFIED", path, "MEDIUM") # <--- NOTIFY GUI
+            
+            append_log_line(f"MODIFIED: {path}{log_detail}", event_type="MODIFIED", severity="MEDIUM")
+            send_webhook_safe("MODIFIED", f"File modified{log_detail}", path)
+            self._notify_gui("MODIFIED", path, "MEDIUM")
 
     def on_deleted(self, event):
         if event.is_directory: return
@@ -911,6 +959,50 @@ class IntegrityHandler(FileSystemEventHandler):
             self._notify_gui("DELETED", path, "MEDIUM") # <--- NOTIFY GUI
         
         self._check_burst_operations("DELETE")
+
+    
+    def on_moved(self, event):
+        """Handle file renames with 'Safe Save' / Editor awareness"""
+        if event.is_directory: return
+        
+        src_path = os.path.abspath(event.src_path)
+        dest_path = os.path.abspath(event.dest_path)
+        
+        src_ignored = is_ignored_filename(os.path.basename(src_path))
+        dest_ignored = is_ignored_filename(os.path.basename(dest_path))
+        
+        # 1. Entirely temporary operation -> Ignore
+        if src_ignored and dest_ignored:
+            return
+            
+        # 2. Valid file renamed to Temp file (Editor "Safe Save" backup)
+        # We ignore this rename. When the editor finishes saving the new file 
+        # in the original spot, on_modified will catch it perfectly.
+        if not src_ignored and dest_ignored:
+            return
+            
+        # 3. Temp file renamed to Valid file (Editor finishing a download/save)
+        # We route this straight to the modification handler.
+        if src_ignored and not dest_ignored:
+            class MockEvent:
+                src_path = dest_path
+                is_directory = False
+            self.on_modified(MockEvent())
+            return
+            
+        # 4. TRUE RENAME (User explicitly renamed a valid file to another valid name)
+        if src_path in self.records:
+            # Transfer the entire detailed record to the new path
+            old_record = self.records.pop(src_path)
+            old_record["last_checked"] = now_pretty()
+            self.records[dest_path] = old_record
+            self.save_records()
+            
+            # Log and Notify
+            msg = f"File RENAMED from '{os.path.basename(src_path)}' to '{os.path.basename(dest_path)}'"
+            append_log_line(f"RENAMED: {msg}", event_type="RENAMED", severity="MEDIUM")
+            send_webhook_safe("RENAMED", msg, dest_path)
+            self._notify_gui("RENAMED", dest_path, "MEDIUM")
 
 # ------------------ Monitor Controller ------------------
 class FileIntegrityMonitor:
