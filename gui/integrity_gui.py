@@ -20,6 +20,7 @@ from PIL import Image as PILImage
 from pystray import MenuItem as item
 from core.utils import get_app_data_dir, get_base_path
 from core.subscription_manager import subscription_manager
+from core.integrity_core import get_decrypted_logs
 
 
 APP_DATA = get_app_data_dir()
@@ -1001,7 +1002,7 @@ class ProIntegrityGUI:
             if os.path.exists(LOG_FILE):
                 try:
                     with open(LOG_FILE, "r", encoding="utf-8") as f:
-                        lines = f.readlines()[-400:]
+                        lines = get_decrypted_logs()[-400:]
                 except Exception:
                     lines = []
                 
@@ -1548,7 +1549,7 @@ class ProIntegrityGUI:
                 if os.path.exists(LOG_FILE):
                     try:
                         with open(LOG_FILE, 'r', encoding='utf-8') as f:
-                            log_lines = f.readlines()[-1000:]  # Last 1000 lines
+                            log_lines = get_decrypted_logs()[-1000:]  # Last 1000 lines
                         
                         # Add log entries
                         for line in log_lines:

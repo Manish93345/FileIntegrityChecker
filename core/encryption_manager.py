@@ -59,5 +59,16 @@ class EncryptionManager:
             print(f"CRITICAL: Failed to decrypt {filepath} - Possible tampering! Error: {e}")
             return None
 
+    def encrypt_string(self, text):
+        """Encrypt a single string of text (Used for log lines)"""
+        return self.fernet.encrypt(text.encode('utf-8')).decode('utf-8')
+
+    def decrypt_string(self, encrypted_text):
+        """Decrypt a single string of text"""
+        try:
+            return self.fernet.decrypt(encrypted_text.encode('utf-8')).decode('utf-8')
+        except Exception:
+            return "[TAMPERED/UNREADABLE LOG ENTRY]"
+
 # Create a global instance to be used across the app
 crypto_manager = EncryptionManager()

@@ -16,6 +16,7 @@ import traceback
 import shutil
 from datetime import datetime
 import concurrent.futures
+from core.encryption_manager import crypto_manager
 
 SEVERITY_COUNTER_FILE = os.path.join("logs", "severity_counters.json")
 
@@ -189,9 +190,9 @@ if not os.path.exists(log_dir):
 DEFAULT_CONFIG = {}
 
 # 2. UPDATE ALL FILE PATHS TO USE 'log_dir'
-HASH_RECORD_FILE = os.path.join(log_dir, "hash_records.json")
+HASH_RECORD_FILE = os.path.join(log_dir, "hash_records.dat")
 HASH_SIGNATURE_FILE = os.path.join(log_dir, "hash_records.sig")
-LOG_FILE = os.path.join(log_dir, "integrity_log.txt")
+LOG_FILE = os.path.join(log_dir, "integrity_log.dat")
 LOG_SIG_FILE = os.path.join(log_dir, "integrity_log.sig")
 REPORT_SUMMARY_FILE = os.path.join(log_dir, "report_summary.txt")
 SEVERITY_COUNTER_FILE = os.path.join(log_dir, "severity_counters.json")
@@ -302,34 +303,25 @@ def load_config(path=None):
     return True
 
 # ------------------ Logging & Log HMAC (per-line) ------------------
-def append_log_line(message, event_type=None, severity=None):
-    """Append log line and sign it"""
+def append_log_line(message, event_type="INFO", severity="INFO"):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # 1. Format the plain text message
+    plain_text_log = f"{timestamp} - [ {event_type} ] {message}\n"
+    
+    # 2. Encrypt the string
+    encrypted_log = crypto_manager.encrypt_string(plain_text_log)
+    
+    # 3. Append the encrypted string to the file
     try:
-        os.makedirs(os.path.dirname(os.path.abspath(LOG_FILE)) or ".", exist_ok=True)
-        
-        if severity is None:
-            if event_type:
-                severity = get_severity(event_type)
-            else:
-                severity = "INFO"
-        
-        emoji = SEVERITY_LEVELS.get(severity, {}).get("color", "⚪")
-        line = f"{now_pretty()} - [{emoji} {severity}] {message}"
-        
         with open(LOG_FILE, "a", encoding="utf-8") as f:
-            f.write(line + "\n")
-            f.flush()
-            os.fsync(f.fileno())
-        
-        # Consistent signing format
-        sig_line = f"{line}|UNKNOWN|{severity}"
-        append_log_signature(sig_line)
-        
-        update_severity_counter(severity)
-        print(f"DEBUG: Logging - Severity: {severity}, Event: {event_type}")
+            f.write(encrypted_log + "\n")
+            
+        # Optional: Print plain text to terminal for your own debugging
+        print(plain_text_log.strip()) 
         
     except Exception as e:
-        print(f"Log Error: {e}")
+        print(f"Failed to write encrypted log: {e}")
 
 
 def update_severity_counter(severity):
@@ -435,22 +427,25 @@ def generate_records_hmac(records_dict):
     return hmac.new(key, raw, h).hexdigest()
 
 def save_hash_records(records):
-    atomic_write_json(HASH_RECORD_FILE, records)
-    sig = generate_records_hmac(records)
-    atomic_write_text(HASH_SIGNATURE_FILE, sig)
+    """Save the file baseline to the encrypted vault."""
+    try:
+        crypto_manager.encrypt_json(records, HASH_RECORD_FILE)
+        # Note: Fernet AES has built-in HMAC authentication. 
+        # You no longer technically need a separate .sig file for this database!
+    except Exception as e:
+        print(f"Error saving encrypted hash records: {e}")
 
 def load_hash_records():
+    """Load the file baseline from the encrypted vault."""
     if not os.path.exists(HASH_RECORD_FILE):
-        atomic_write_json(HASH_RECORD_FILE, {})
-        atomic_write_text(HASH_SIGNATURE_FILE, "")
         return {}
-    try:
-        with open(HASH_RECORD_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data if isinstance(data, dict) else dict(data)
-    except json.JSONDecodeError:
-        append_log_line("WARNING: hash_records.json corrupted or invalid JSON — resetting to {}")
+        
+    data = crypto_manager.decrypt_json(HASH_RECORD_FILE)
+    if data is None:
+        # Decryption failed! The file was tampered with.
+        print("CRITICAL SECURITY ALERT: hash_records.dat corrupted or tampered with!")
         return {}
+    return data
 
 def load_hash_signature():
     if not os.path.exists(HASH_SIGNATURE_FILE):
@@ -1209,3 +1204,30 @@ def archive_session():
     except Exception as e:
         traceback.print_exc()
         return False, str(e)
+
+
+def get_decrypted_logs():
+    """Reads the encrypted log file and returns a list of readable plain-text strings."""
+    if not os.path.exists(LOG_FILE):
+        return []
+    
+    plain_lines = []
+    try:
+        with open(LOG_FILE, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line: 
+                    continue
+                
+                # Fernet AES tokens ALWAYS start with 'gAAAA'. 
+                if line.startswith("gAAAA"):
+                    # Decrypt the backend security logs
+                    decrypted_text = crypto_manager.decrypt_string(line)
+                    plain_lines.append(decrypted_text)
+                else:
+                    # Allow normal plain-text logs (like "Security monitoring STARTED") to pass through
+                    plain_lines.append(line)
+                    
+        return plain_lines
+    except Exception as e:
+        return [f"Error reading logs: {e}"]
