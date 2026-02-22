@@ -15,6 +15,7 @@ import threading
 import traceback
 import shutil
 from datetime import datetime
+import concurrent.futures
 
 SEVERITY_COUNTER_FILE = os.path.join("logs", "severity_counters.json")
 
@@ -662,19 +663,26 @@ def verify_all_files_and_update(records=None, watch_folders=None):
     modified = []
     skipped = []
     
-    # Scan all files across ALL folders
+    # 1. Gather all files
+    paths_to_scan = []
     for folder in watch_folders:
-        if not os.path.exists(folder):
-            continue
-            
+        if not os.path.exists(folder): continue
         for root, _, files in os.walk(folder):
             for fn in files:
-                if is_ignored_filename(fn):
-                    continue
+                if is_ignored_filename(fn): continue
                 path = os.path.abspath(os.path.join(root, fn))
                 seen.add(path)
-                
-                details = generate_file_hash(path)
+                paths_to_scan.append(path)
+
+    # 2. Parallel Processing
+    max_threads = min(32, (os.cpu_count() or 1) * 4)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
+        future_to_path = {executor.submit(generate_file_hash, p): p for p in paths_to_scan}
+        
+        for future in concurrent.futures.as_completed(future_to_path):
+            path = future_to_path[future]
+            try:
+                details = future.result()
                 if details is None:
                     skipped.append(path)
                     continue
@@ -690,6 +698,8 @@ def verify_all_files_and_update(records=None, watch_folders=None):
                     modified.append(path)
                 else:
                     records[path]["last_checked"] = now_pretty()
+            except Exception as exc:
+                skipped.append(path)
     
     # detect deleted (files in records but not in seen)
     deleted = [p for p in list(records.keys()) if p not in seen and not is_ignored_filename(os.path.basename(p))]
@@ -802,15 +812,38 @@ class IntegrityHandler(FileSystemEventHandler):
             atomic_write_text(LOG_SIG_FILE, "")
 
         # Initial scan to populate missing files for ALL folders
-        initial_added = False
+        # Initial scan to populate missing files for ALL folders
+        paths_to_hash = []
+        
+        # 1. Quickly gather all file paths first (Disk is fast at listing files)
         for folder in self.watch_folders:
             if not os.path.exists(folder): continue
             for root, _, files in os.walk(folder):
                 for fn in files:
                     if is_ignored_filename(fn): continue
                     path = os.path.abspath(os.path.join(root, fn))
+                    
+                    # Only queue files that aren't already in the database
                     if path not in self.records:
-                        details = generate_file_hash(path)
+                        paths_to_hash.append(path)
+
+        # 2. Hash files concurrently (CPU/SSD multi-core processing)
+        initial_added = False
+        if paths_to_hash:
+            append_log_line(f"Starting parallel baseline scan for {len(paths_to_hash)} new files...")
+            
+            # Use a ThreadPool to process multiple files at the exact same time
+            max_threads = min(32, (os.cpu_count() or 1) * 4) 
+            
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
+                # Submit all files to the thread pool
+                future_to_path = {executor.submit(generate_file_hash, p): p for p in paths_to_hash}
+                
+                # As each file finishes hashing, save it to the database
+                for future in concurrent.futures.as_completed(future_to_path):
+                    path = future_to_path[future]
+                    try:
+                        details = future.result()
                         if details:
                             self.records[path] = {
                                 "hash": details["hash"], 
@@ -819,7 +852,11 @@ class IntegrityHandler(FileSystemEventHandler):
                                 "last_checked": now_pretty()
                             }
                             initial_added = True
-                            
+                    except Exception as exc:
+                        print(f"File {path} generated an exception: {exc}")
+                        
+            append_log_line("Parallel baseline scan completed.")
+
         if initial_added:
             save_hash_records(self.records)
 

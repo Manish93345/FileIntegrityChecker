@@ -1,13 +1,8 @@
-2026-02-21 10:20:15 - [🟢 INFO] Log reset. New session started.
-2026-02-21 10:20:34 - [🟢 INFO] INFO: No hash signature found; created new signature.
-2026-02-21 10:20:34 - [🟢 INFO] Startup: records signature OK
-2026-02-21 10:20:35 - [🟢 INFO] Startup: log signature OK
-2026-02-21 10:20:35 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/Photos/New folder
-2026-02-21 10:20:49 - [🟡 MEDIUM] DELETED: D:\Free_fire\Photos\New folder\yamuna_or_divya.jpg
-2026-02-21 10:20:53 - [🟢 INFO] CREATED: D:\Free_fire\Photos\New folder\yamuna_or_divya.jpg
-2026-02-21 10:21:00 - [🟡 MEDIUM] RENAMED: File RENAMED from 'yamuna_or_divya.jpg' to 'yamuna.jpg'
-2026-02-21 10:21:21 - [🟡 MEDIUM] MODIFIED: D:\Free_fire\Photos\New folder\8 November 2025_manish&Yamuna.jpg (Content modified)
-2026-02-21 10:21:21 - [🟡 MEDIUM] MODIFIED: D:\Free_fire\Photos\New folder\8 November 2025_manish&Yamuna.jpg (Content modified)
-2026-02-21 10:21:34 - [🟡 MEDIUM] MODIFIED: D:\Free_fire\Photos\New folder\payel.jpg (Property changed: File marked as Hidden)
-2026-02-21 10:21:48 - [🟡 MEDIUM] MODIFIED: D:\Free_fire\Photos\New folder\payel.jpg (Property changed: File marked as Unhidden)
-2026-02-21 10:22:16 - [🟢 INFO] MONITOR_STOPPED
+2026-02-21 12:43:10 - [🟢 INFO] Log reset. New session started.
+2026-02-21 12:43:52 - [🟢 INFO] INFO: No hash signature found; created new signature.
+2026-02-21 12:43:52 - [🟢 INFO] Startup: records signature OK
+2026-02-21 12:43:52 - [🟢 INFO] Startup: log signature OK
+2026-02-21 12:43:52 - [🟢 INFO] Starting parallel baseline scan for 275 new files...
+2026-02-21 12:44:58 - [🟢 INFO] Parallel baseline scan completed.
+2026-02-21 12:44:58 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire
+2026-02-21 12:45:13 - [🟢 INFO] MONITOR_STOPPED

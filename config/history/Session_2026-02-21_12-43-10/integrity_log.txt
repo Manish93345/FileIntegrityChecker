@@ -1,0 +1,7 @@
+2026-02-21 11:51:37 - [🟢 INFO] Log reset. New session started.
+2026-02-21 11:52:44 - [🟢 INFO] INFO: No hash signature found; created new signature.
+2026-02-21 11:52:44 - [🟢 INFO] Startup: records signature OK
+2026-02-21 11:52:44 - [🟢 INFO] Startup: log signature OK
+2026-02-21 11:55:00 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire
+2026-02-21 11:55:14 - [🟢 INFO] MONITOR_STOPPED
+2026-02-21 12:34:00 - [🟢 INFO] PERIODIC_VERIFICATION_START

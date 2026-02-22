@@ -3,16 +3,18 @@
 auth_manager.py
 Backend logic for Authentication System.
 Handles user storage, password hashing (SHA-256 + Salt), role, and LICENSE VERIFICATION.
+Now secured with AES-128 Encryption at rest.
 """
 
-import json
 import os
 import hashlib
 import uuid
 from core.utils import get_app_data_dir
 from core.license_verifier import license_verifier
+from core.encryption_manager import crypto_manager  # <-- NEW ENCRYPTION MANAGER
 
-USERS_DB_FILE = os.path.join(get_app_data_dir(), "logs", "users.json")
+# Changed extension to .dat for binary encrypted storage
+USERS_DB_FILE = os.path.join(get_app_data_dir(), "logs", "users.dat")
 
 class AuthManager:
     def __init__(self):
@@ -27,25 +29,30 @@ class AuthManager:
         return hashed, salt
 
     def _load_users(self):
-        """Load users from JSON. If missing, it starts empty."""
+        """Load users from the encrypted vault."""
         if not os.path.exists(USERS_DB_FILE):
-            self._save_db() # Create empty file
+            self._save_db() # Create empty encrypted file
+            return
+            
+        # Decrypt the binary file back into a dictionary
+        decrypted_data = crypto_manager.decrypt_json(USERS_DB_FILE)
         
-        try:
-            with open(USERS_DB_FILE, 'r') as f:
-                self.users = json.load(f)
-        except Exception as e:
-            print(f"Auth DB Error: {e}. Starting fresh.")
+        if decrypted_data is None:
+            # If decryption fails (tampering detected), wipe and start fresh
+            print("SECURITY ALERT: users.dat is corrupted or tampered with. Starting fresh.")
             self.users = {}
             self._save_db()
+        else:
+            self.users = decrypted_data
 
     def _save_db(self):
+        """Save users to the encrypted vault"""
         try:
             os.makedirs(os.path.dirname(USERS_DB_FILE), exist_ok=True)
-            with open(USERS_DB_FILE, 'w') as f:
-                json.dump(self.users, f, indent=4)
+            # Pass the dictionary directly to our encrypter
+            crypto_manager.encrypt_json(self.users, USERS_DB_FILE)
         except Exception as e:
-            print(f"Error saving auth db: {e}")
+            print(f"Error saving encrypted auth db: {e}")
 
     def has_users(self):
         """Check if any users exist. Used by GUI to trigger First-Time Registration."""
