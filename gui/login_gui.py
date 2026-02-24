@@ -21,6 +21,7 @@ from tkinter import ttk, messagebox
 from core.auth_manager import auth
 # Import the main class from your GUI file
 from gui.integrity_gui import ProIntegrityGUI
+from core.email_service import email_service
 
 # --- SECURITY CLASS START ---
 class BruteForceGuard:
@@ -405,6 +406,14 @@ class LoginWindow:
                                  pady=8,
                                  cursor="hand2")
         self.login_btn.pack(fill=tk.X, pady=(0, 10))
+
+        # --- NEW: Forgot Password Link ---
+        self.forgot_btn = tk.Button(login_frame, text="Forgot Password?", 
+                                    command=self._build_forgot_pass_ui, 
+                                    bg=self.bg_panel, fg=self.accent_blue, 
+                                    bd=0, cursor="hand2", font=("Consolas", 9, "underline"),
+                                    activebackground=self.bg_panel, activeforeground=self.accent_cyan)
+        self.forgot_btn.pack(pady=(0, 5))
         
         # Separator with terminal style
         sep_frame = tk.Frame(scrollable_frame, bg=self.bg_dark, height=20)
@@ -540,7 +549,7 @@ class LoginWindow:
     def _attempt_register(self):
         """Handle the registration button click"""
         username = self.reg_user_entry.get().strip()
-        email = self.reg_email_entry.get().strip()
+        email = self.reg_email_entry.get().strip().lower()
         password = self.reg_pass_entry.get()
         confirm = self.reg_confirm_entry.get()
 
@@ -555,14 +564,62 @@ class LoginWindow:
             messagebox.showerror("Error", "Please enter a valid email address.")
             return
 
-        # Send to Auth Manager
-        success, msg = auth.register_user(username, email, password, role="admin")
+        # --- NEW: SEND OTP BEFORE REGISTERING ---
+        success, msg = email_service.send_otp_email(email, "verification")
         
         if success:
-            messagebox.showinfo("Success", "Account created successfully! You can now log in.")
-            self._build_login_ui() # Instantly switch to the login screen!
+            messagebox.showinfo("OTP Sent", f"A 6-digit verification code has been sent to:\n{email}")
+            self._build_otp_ui(username, email, password) # Switch to OTP Screen
         else:
-            messagebox.showerror("Registration Failed", msg)
+            messagebox.showerror("Email Error", f"Could not send email. Please check your network or App Password.\n\n{msg}")
+
+
+    def _build_otp_ui(self, username, email, password):
+        """Builds the OTP Verification Screen"""
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        main_frame = tk.Frame(self.root, bg="#1e1e1e", padx=40, pady=40)
+        main_frame.pack(expand=True, fill=tk.BOTH)
+
+        # Header
+        tk.Label(main_frame, text="📧", font=('Segoe UI', 40), bg="#1e1e1e", fg="#00a8ff").pack(pady=(0, 10))
+        tk.Label(main_frame, text="Verify Your Email", font=('Segoe UI', 20, 'bold'), bg="#1e1e1e", fg="#ffffff").pack()
+        tk.Label(main_frame, text=f"Enter the 6-digit code sent to\n{email}", font=('Segoe UI', 10), bg="#1e1e1e", fg="#a0a0a0", justify=tk.CENTER).pack(pady=(0, 20))
+
+        # OTP Input
+        frame = tk.Frame(main_frame, bg="#1e1e1e")
+        frame.pack(fill=tk.X, pady=5)
+        self.otp_entry = ttk.Entry(frame, font=('Segoe UI', 20, 'bold'), justify='center')
+        self.otp_entry.pack(fill=tk.X, pady=(5, 0))
+
+        def verify_and_create():
+            otp = self.otp_entry.get().strip()
+            if not otp:
+                messagebox.showerror("Error", "Please enter the OTP.")
+                return
+            
+            # Check the OTP using our new service
+            is_valid, msg = email_service.verify_otp(email, otp)
+            if is_valid:
+                # OTP is correct, NOW we create the account in the database
+                success, auth_msg = auth.register_user(username, email, password, role="admin")
+                if success:
+                    messagebox.showinfo("Success", "Account created successfully! You can now log in.")
+                    self._build_login_ui()
+                else:
+                    messagebox.showerror("Registration Failed", auth_msg)
+            else:
+                messagebox.showerror("Verification Failed", msg)
+
+        # Buttons
+        tk.Button(main_frame, text="Verify & Create Account", command=verify_and_create,
+                  font=('Segoe UI', 12, 'bold'), bg="#00a8ff", fg="white", bd=0, pady=10, cursor="hand2").pack(fill=tk.X, pady=(25, 0))
+        tk.Button(main_frame, text="Cancel & Go Back", command=self._build_register_ui,
+                  font=('Segoe UI', 10), bg="#1e1e1e", fg="#a0a0a0", bd=0, cursor="hand2").pack(fill=tk.X, pady=(10, 0))
+
+
+    
 
     def _attempt_admin_login(self):
         # 1. CHECK SECURITY LOCKOUT
@@ -613,6 +670,108 @@ class LoginWindow:
         self.root.destroy()
         # Pass role='user' to trigger restrictions in main app
         self._launch_main_app(role='user', username='RestrictedViewer')
+
+    def _build_forgot_pass_ui(self):
+        """Builds the email entry screen for password recovery"""
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        main_frame = tk.Frame(self.root, bg=self.bg_dark, padx=40, pady=40)
+        main_frame.pack(expand=True, fill=tk.BOTH)
+
+        tk.Label(main_frame, text="🔐", font=('Segoe UI', 40), bg=self.bg_dark, fg=self.accent_blue).pack(pady=(0, 10))
+        tk.Label(main_frame, text="Password Recovery", font=('Courier New', 18, 'bold'), bg=self.bg_dark, fg=self.accent_cyan).pack()
+        tk.Label(main_frame, text="Enter your registered email address", font=('Consolas', 10), bg=self.bg_dark, fg=self.text_secondary).pack(pady=(0, 20))
+
+        frame = tk.Frame(main_frame, bg=self.bg_dark)
+        frame.pack(fill=tk.X, pady=5)
+        self.fp_email_entry = ttk.Entry(frame, font=('Consolas', 12))
+        self.fp_email_entry.pack(fill=tk.X, pady=(5, 0))
+
+        def send_reset_code():
+            email = self.fp_email_entry.get().strip().lower()
+            if not email:
+                messagebox.showerror("Error", "Please enter your email.")
+                return
+            
+            # 1. Check if this email actually exists in our database
+            target_username = None
+            for user, data in auth.users.items():
+                if data.get("registered_email") == email:
+                    target_username = user
+                    break
+            
+            if not target_username:
+                messagebox.showerror("Security Notice", "No account found with this email.")
+                return
+
+            # 2. Send the OTP
+            success, msg = email_service.send_otp_email(email, "reset")
+            if success:
+                messagebox.showinfo("OTP Sent", f"A password reset code has been sent to {email}")
+                self._build_reset_pass_ui(target_username, email)
+            else:
+                messagebox.showerror("Error", msg)
+
+        tk.Button(main_frame, text="[ SEND RECOVERY CODE ]", command=send_reset_code,
+                  font=('Consolas', 10, 'bold'), bg="#002200", fg=self.accent_green, bd=1, highlightbackground=self.accent_green, cursor="hand2", pady=8).pack(fill=tk.X, pady=(25, 0))
+        
+        tk.Button(main_frame, text="< Back to Login", command=self._build_login_ui,
+                  font=('Consolas', 10), bg=self.bg_dark, fg=self.text_secondary, bd=0, cursor="hand2").pack(fill=tk.X, pady=(10, 0))
+
+    def _build_reset_pass_ui(self, username, email):
+        """Builds the screen to enter the OTP and new password"""
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        main_frame = tk.Frame(self.root, bg=self.bg_dark, padx=40, pady=40)
+        main_frame.pack(expand=True, fill=tk.BOTH)
+
+        tk.Label(main_frame, text="🔓", font=('Segoe UI', 40), bg=self.bg_dark, fg=self.accent_green).pack(pady=(0, 10))
+        tk.Label(main_frame, text="Reset Password", font=('Courier New', 18, 'bold'), bg=self.bg_dark, fg=self.accent_cyan).pack()
+        tk.Label(main_frame, text=f"Account: {username}", font=('Consolas', 10), bg=self.bg_dark, fg=self.accent_green).pack(pady=(0, 20))
+
+        def create_input(label_text, is_password=False):
+            frame = tk.Frame(main_frame, bg=self.bg_dark)
+            frame.pack(fill=tk.X, pady=5)
+            tk.Label(frame, text=label_text, font=('Consolas', 10), bg=self.bg_dark, fg=self.text_secondary).pack(anchor='w')
+            entry = ttk.Entry(frame, font=('Consolas', 12), show="•" if is_password else "")
+            entry.pack(fill=tk.X, pady=(2, 0))
+            return entry
+
+        self.rp_otp_entry = create_input("6-Digit OTP Code:")
+        self.rp_pass_entry = create_input("New Password:", True)
+        self.rp_confirm_entry = create_input("Confirm Password:", True)
+
+        def execute_reset():
+            otp = self.rp_otp_entry.get().strip()
+            new_pass = self.rp_pass_entry.get()
+            confirm = self.rp_confirm_entry.get()
+
+            if not otp or not new_pass or not confirm:
+                messagebox.showerror("Error", "All fields are required.")
+                return
+            if new_pass != confirm:
+                messagebox.showerror("Error", "Passwords do not match.")
+                return
+            
+            # Verify OTP
+            is_valid, msg = email_service.verify_otp(email, otp)
+            if is_valid:
+                # Commit new password to the encrypted database
+                success, auth_msg = auth.update_password(username, new_pass)
+                if success:
+                    messagebox.showinfo("Success", "Password reset successfully! You can now log in.")
+                    self._build_login_ui()
+                else:
+                    messagebox.showerror("Error", auth_msg)
+            else:
+                messagebox.showerror("Verification Failed", msg)
+
+        tk.Button(main_frame, text="[ COMMIT NEW PASSWORD ]", command=execute_reset,
+                  font=('Consolas', 10, 'bold'), bg="#002200", fg=self.accent_green, bd=1, highlightbackground=self.accent_green, cursor="hand2", pady=8).pack(fill=tk.X, pady=(25, 0))
+        tk.Button(main_frame, text="Cancel", command=self._build_login_ui,
+                  font=('Consolas', 10), bg=self.bg_dark, fg=self.text_secondary, bd=0, cursor="hand2").pack(fill=tk.X, pady=(10, 0))
 
     def _launch_main_app(self, role, username):
         # Create the main application root
