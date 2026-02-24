@@ -917,10 +917,43 @@ class IntegrityHandler(FileSystemEventHandler):
             self._notify_gui("CREATED", path, "INFO")
 
     def on_modified(self, event):
+        """Catches modification events and queues them to prevent spam during file transfers"""
         if event.is_directory: return
         path = os.path.abspath(event.src_path)
         if is_ignored_filename(os.path.basename(path)): return
         
+        # 1. Initialize the debounce timer dictionary if it doesn't exist
+        if not hasattr(self, 'modified_timers'):
+            self.modified_timers = {}
+            
+        # 2. If a timer is already running for this file, cancel it (reset the clock)
+        if path in self.modified_timers:
+            self.modified_timers[path].cancel()
+            
+        # 3. Start a new 2.0 second countdown
+        timer = threading.Timer(2.0, self._process_stable_modification, args=[path])
+        self.modified_timers[path] = timer
+        timer.start()
+
+    def _process_stable_modification(self, path):
+        """Only runs when the file has stopped emitting modification events"""
+        
+        # 1. STABILITY CHECK: Make absolutely sure the file size has stopped growing
+        try:
+            size1 = os.path.getsize(path)
+            time.sleep(1.0)
+            size2 = os.path.getsize(path)
+            if size1 != size2:
+                # The file is still actively downloading/transferring!
+                # Re-queue the timer and wait again.
+                timer = threading.Timer(2.0, self._process_stable_modification, args=[path])
+                self.modified_timers[path] = timer
+                timer.start()
+                return
+        except OSError:
+            return # The file was deleted mid-transfer, abort.
+            
+        # 2. THE FILE IS STABLE! Now we safely perform the heavy hashing logic.
         details = generate_file_hash(path)
         if not details: return
         
