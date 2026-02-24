@@ -12,6 +12,7 @@ import sys
 import os
 import json
 import time
+import threading
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 if project_root not in sys.path:
@@ -547,7 +548,7 @@ class LoginWindow:
                   font=('Segoe UI', 12, 'bold'), bg="#00a8ff", fg="white", bd=0, pady=10, cursor="hand2").pack(fill=tk.X, pady=(25, 0))
 
     def _attempt_register(self):
-        """Handle the registration button click"""
+        """Handle the registration button click with Threaded Loading State"""
         username = self.reg_user_entry.get().strip()
         email = self.reg_email_entry.get().strip().lower()
         password = self.reg_pass_entry.get()
@@ -564,15 +565,40 @@ class LoginWindow:
             messagebox.showerror("Error", "Please enter a valid email address.")
             return
 
-        # --- NEW: SEND OTP BEFORE REGISTERING ---
-        success, msg = email_service.send_otp_email(email, "verification")
+        # --- 1. CREATE THE UI LOADER ---
+        self.root.config(cursor="watch") # Change mouse to loading spinner
         
-        if success:
-            messagebox.showinfo("OTP Sent", f"A 6-digit verification code has been sent to:\n{email}")
-            self._build_otp_ui(username, email, password) # Switch to OTP Screen
-        else:
-            messagebox.showerror("Email Error", f"Could not send email. Please check your network or App Password.\n\n{msg}")
+        # Create a sleek popup loader
+        loader = tk.Toplevel(self.root)
+        loader.overrideredirect(True) # Remove windows borders
+        # Center it over the main window
+        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - 100
+        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - 40
+        loader.geometry(f"200x80+{x}+{y}")
+        loader.configure(bg="#1e1e1e", highlightbackground="#00a8ff", highlightthickness=2)
+        tk.Label(loader, text="⏳ Sending OTP...", font=('Segoe UI', 12, 'bold'), bg="#1e1e1e", fg="#00a8ff").pack(expand=True)
+        loader.update() # Force UI to draw it immediately
 
+        # --- 2. BACKGROUND THREAD TASK ---
+        def _send_email_task():
+            success, msg = email_service.send_otp_email(email, "verification")
+            
+            # --- 3. RETURN TO MAIN UI THREAD ---
+            def _update_gui():
+                self.root.config(cursor="") # Reset mouse
+                loader.destroy() # Remove popup
+                
+                if success:
+                    messagebox.showinfo("OTP Sent", f"A 6-digit verification code has been sent to:\n{email}")
+                    self._build_otp_ui(username, email, password) # Switch to OTP Screen
+                else:
+                    messagebox.showerror("Email Error", f"Could not send email.\n\n{msg}")
+            
+            # Safely tell Tkinter to run _update_gui on the main thread
+            self.root.after(0, _update_gui)
+
+        # Start the background thread so the UI doesn't freeze!
+        threading.Thread(target=_send_email_task, daemon=True).start()
 
     def _build_otp_ui(self, username, email, password):
         """Builds the OTP Verification Screen"""
@@ -694,7 +720,6 @@ class LoginWindow:
                 messagebox.showerror("Error", "Please enter your email.")
                 return
             
-            # 1. Check if this email actually exists in our database
             target_username = None
             for user, data in auth.users.items():
                 if data.get("registered_email") == email:
@@ -705,13 +730,36 @@ class LoginWindow:
                 messagebox.showerror("Security Notice", "No account found with this email.")
                 return
 
-            # 2. Send the OTP
-            success, msg = email_service.send_otp_email(email, "reset")
-            if success:
-                messagebox.showinfo("OTP Sent", f"A password reset code has been sent to {email}")
-                self._build_reset_pass_ui(target_username, email)
-            else:
-                messagebox.showerror("Error", msg)
+            # --- 1. CREATE THE UI LOADER ---
+            self.root.config(cursor="watch")
+            loader = tk.Toplevel(self.root)
+            loader.overrideredirect(True)
+            x = self.root.winfo_x() + (self.root.winfo_width() // 2) - 125
+            y = self.root.winfo_y() + (self.root.winfo_height() // 2) - 40
+            loader.geometry(f"250x80+{x}+{y}")
+            loader.configure(bg="#111111", highlightbackground="#00ff00", highlightthickness=2)
+            tk.Label(loader, text="⏳ Routing Secure OTP...", font=('Courier New', 11, 'bold'), bg="#111111", fg="#00ff00").pack(expand=True)
+            loader.update()
+
+            # --- 2. BACKGROUND THREAD TASK ---
+            def _send_reset_task():
+                success, msg = email_service.send_otp_email(email, "reset")
+                
+                # --- 3. RETURN TO MAIN UI THREAD ---
+                def _update_gui():
+                    self.root.config(cursor="")
+                    loader.destroy()
+                    
+                    if success:
+                        messagebox.showinfo("OTP Sent", f"A password reset code has been sent to {email}")
+                        self._build_reset_pass_ui(target_username, email)
+                    else:
+                        messagebox.showerror("Error", msg)
+                
+                self.root.after(0, _update_gui)
+
+            # Start thread
+            threading.Thread(target=_send_reset_task, daemon=True).start()
 
         tk.Button(main_frame, text="[ SEND RECOVERY CODE ]", command=send_reset_code,
                   font=('Consolas', 10, 'bold'), bg="#002200", fg=self.accent_green, bd=1, highlightbackground=self.accent_green, cursor="hand2", pady=8).pack(fill=tk.X, pady=(25, 0))
