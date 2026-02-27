@@ -122,8 +122,5 @@ from a simple hash checker to a production-ready security product.
   --clean
 
   
-  notification issue  DONE ✅
-  demo simulator not available  DONE ✅
-  show dashboard directly shown   DONE ✅
 
 

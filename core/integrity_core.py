@@ -1176,12 +1176,12 @@ class FileIntegrityMonitor:
 
 def archive_session():
     """
-    Archive logs and reset safely with SIGNATURES.
+    Archive logs and reset safely with SIGNATURES and ENCRYPTION.
     """
     try:
         # 1. Setup paths
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        history_base = os.path.join(DATA_ROOT, "config", "history") # Use DATA_ROOT
+        history_base = os.path.join(DATA_ROOT, "config", "history")
         if not os.path.exists(history_base):
             os.makedirs(history_base)
             
@@ -1189,12 +1189,13 @@ def archive_session():
         if not os.path.exists(session_folder):
             os.makedirs(session_folder)
 
-        # Files to move
+        # --- FIX 1: Update file extensions to look for the new encrypted .dat files ---
         files_to_archive = [
-            "integrity_log.txt",
+            "integrity_log.dat",      # Updated from .txt
             "integrity_log.sig",
-            "hash_records.json",
+            "hash_records.dat",       # Updated from .json
             "hash_records.sig",
+            "report_summary.txt",     # Added missing summary file
             "detailed_reports.txt",
             "report_data.json",
             "severity_counters.json"
@@ -1202,24 +1203,23 @@ def archive_session():
 
         # 2. Move files
         for filename in files_to_archive:
-            src = os.path.join(log_dir, filename) # Use log_dir variable
+            src = os.path.join(log_dir, filename)
             if os.path.exists(src):
                 dst = os.path.join(session_folder, filename)
                 shutil.move(src, dst)
                 print(f"Archived: {filename}")
 
-        # 3. RE-INITIALIZE SAFELY (The Fix)
+        # 3. RE-INITIALIZE SAFELY (Encryption Aware)
         
-        # Clear files first
+        # Clear log and signature files by making them empty
         open(LOG_FILE, "w").close() 
         open(LOG_SIG_FILE, "w").close()
-        open(HASH_RECORD_FILE, "w").close()
         open(HASH_SIGNATURE_FILE, "w").close()
 
-        # Reset JSONs
-        with open(HASH_RECORD_FILE, "w", encoding="utf-8") as f:
-            json.dump({}, f)
+        # --- FIX 2: Properly encrypt an empty dictionary to reset the database ---
+        save_hash_records({})
         
+        # Reset counters
         empty_counters = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "INFO": 0}
         with open(SEVERITY_COUNTER_FILE, "w", encoding="utf-8") as f:
             json.dump(empty_counters, f)
