@@ -721,6 +721,29 @@ class ProIntegrityGUI:
             else:
                 self._log_indicator = indicator
 
+        # --- NEW: ACTIVE DEFENSE TOGGLE (Premium Feature) ---
+        # Add a sleek visual separator line
+        sep = tk.Frame(security_content, height=1, bg=self.colors['card_border'])
+        sep.pack(fill=tk.X, pady=15)
+        
+        ad_frame = tk.Frame(security_content, bg=self.colors['card_bg'])
+        ad_frame.pack(fill=tk.X, pady=5)
+        
+        tk.Label(ad_frame, text="🛡️ Active Defense:", font=('Segoe UI', 10, 'bold'),
+                bg=self.colors['card_bg'], fg=self.colors['text_primary']).pack(side=tk.LEFT)
+        
+        # Read the initial state from memory
+        initial_state = CONFIG.get("active_defense", False)
+        self.ad_btn_text = tk.StringVar(value="ON" if initial_state else "OFF")
+        btn_color = self.colors['accent_success'] if initial_state else self.colors['text_muted']
+        
+        # Create the toggle button
+        self.ad_toggle_btn = tk.Button(ad_frame, textvariable=self.ad_btn_text, 
+                                     command=self._toggle_active_defense,
+                                     font=('Segoe UI', 9, 'bold'), bg=btn_color, fg='white',
+                                     bd=0, padx=15, pady=2, cursor="hand2")
+        self.ad_toggle_btn.pack(side=tk.RIGHT)
+
         # ===== RIGHT PANEL - Dashboard and Logs =====
         right_panel = tk.Frame(content_frame, bg=self.colors['bg'])
         right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(20, 0))
@@ -1989,6 +2012,55 @@ class ProIntegrityGUI:
         
         ttk.Button(btn_frame, text="💾 Save Settings", command=save_settings, style='Modern.TButton').pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="❌ Cancel", command=win.destroy, style='Modern.TButton').pack(side=tk.LEFT, padx=5)
+
+
+    def _toggle_active_defense(self):
+        """Toggle Active Defense with Premium Validation"""
+        
+        # 1. VERIFY PRO LICENSE FIRST
+        current_tier = auth.get_user_tier(self.username)
+        if current_tier == "free":
+            messagebox.showwarning(
+                "⭐ Premium Feature", 
+                "Active Defense (Auto-Healing) is a PRO feature.\n\n"
+                "Upgrade to automatically intercept ransomware and instantly restore tampered files from the secure vault!"
+            )
+            return
+            
+        # 2. Toggle the state in memory
+        current_state = CONFIG.get("active_defense", False)
+        new_state = not current_state
+        CONFIG["active_defense"] = new_state
+        
+        # 3. Update the UI appearance
+        if new_state:
+            self.ad_btn_text.set("ON")
+            self.ad_toggle_btn.configure(bg=self.colors['accent_success'])
+            self._append_log("🛡️ Active Defense ENABLED. Files will be auto-restored.")
+        else:
+            self.ad_btn_text.set("OFF")
+            self.ad_toggle_btn.configure(bg=self.colors['text_muted'])
+            self._append_log("🛡️ Active Defense DISABLED.")
+            
+        # 4. Save to config.json so it survives a reboot
+        try:
+            from core.utils import get_app_data_dir
+            app_data = get_app_data_dir()
+            target_file = os.path.join(app_data, "config", "config.json")
+            
+            # Load the existing file, update the one key, and save
+            if os.path.exists(target_file):
+                with open(target_file, "r", encoding="utf-8") as f:
+                    file_cfg = json.load(f)
+            else:
+                file_cfg = dict(CONFIG)
+                
+            file_cfg["active_defense"] = new_state
+            
+            with open(target_file, "w", encoding="utf-8") as f:
+                json.dump(file_cfg, f, indent=4)
+        except Exception as e:
+            print(f"Error saving Active Defense state: {e}")
 
     # ===== HELPER METHODS FROM BACKUP =====
     

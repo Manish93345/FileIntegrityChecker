@@ -17,6 +17,8 @@ import shutil
 from datetime import datetime
 import concurrent.futures
 from core.encryption_manager import crypto_manager
+from core.encryption_manager import crypto_manager
+from core.vault_manager import vault  # <-- NEW: Import the Vault
 
 SEVERITY_COUNTER_FILE = os.path.join("logs", "severity_counters.json")
 
@@ -263,7 +265,12 @@ def load_config(path=None):
         "hash_chunk_size": 65536,
         "hash_retries": 3,
         "hash_retry_delay": 0.5,
-        "ignore_filenames": ["hash_records.json", "integrity_log.txt", "integrity_log.sig", "hash_records.sig", "report_summary.txt"]
+        "ignore_filenames": ["hash_records.dat", "integrity_log.dat", "integrity_log.sig", "hash_records.sig", "report_summary.txt"],
+        
+        # --- NEW: ACTIVE DEFENSE RULES ---
+        "active_defense": False, # Will be toggled by the GUI
+        "vault_max_size_mb": 10,
+        "vault_allowed_exts": [".txt", ".json", ".py", ".html", ".js", ".css", ".php", ".ini", ".conf", ".jsx"]
     }
     CONFIG.update(defaults)
 
@@ -847,8 +854,15 @@ class IntegrityHandler(FileSystemEventHandler):
                                 "last_checked": now_pretty()
                             }
                             initial_added = True
+
+                            # --- NEW: BACKUP THE SAFE BASELINE ---
+                            if CONFIG.get("active_defense", False):
+                                vault.backup_file(path, 
+                                                  CONFIG.get("vault_max_size_mb", 10), 
+                                                  CONFIG.get("vault_allowed_exts", None))
                     except Exception as exc:
                         print(f"File {path} generated an exception: {exc}")
+                    
                         
             append_log_line("Parallel baseline scan completed.")
 
@@ -971,6 +985,13 @@ class IntegrityHandler(FileSystemEventHandler):
             self._notify_gui("CREATED", path, "INFO")
             
         elif old_hash != h:
+            # --- NEW: ACTIVE DEFENSE INTERCEPT ---
+            if CONFIG.get("active_defense", False):
+                success, msg = vault.restore_file(path)
+                if success:
+                    append_log_line(f"RESTORED: {path} (Malware modification reverted!)", event_type="RESTORED", severity="INFO")
+                    self._notify_gui("RESTORED", path, "INFO")
+                    return # Stop here! Do not update the DB with the hacker's hash!
             old_content = old_record.get("content")
             old_attrs = old_record.get("attrs")
             
@@ -1014,6 +1035,13 @@ class IntegrityHandler(FileSystemEventHandler):
         
         # Individual Logic
         if path in self.records:
+            # --- NEW: ACTIVE DEFENSE INTERCEPT ---
+            if CONFIG.get("active_defense", False):
+                success, msg = vault.restore_file(path)
+                if success:
+                    append_log_line(f"RESTORED: {path} (Malicious deletion reverted!)", event_type="RESTORED", severity="INFO")
+                    self._notify_gui("RESTORED", path, "INFO")
+                    return # Stop here! Do not remove the file from the database!
             self.records.pop(path, None)
             self.save_records()
             append_log_line(f"DELETED: {path}", event_type="DELETED", severity="MEDIUM")
