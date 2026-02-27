@@ -25,5 +25,6 @@
     "watch_folders": [
         "D:/Free_fire/Photos/New folder"
     ],
-    "active_defense": true
+    "active_defense": true,
+    "ransomware_killswitch": true
 }

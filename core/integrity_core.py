@@ -19,6 +19,7 @@ import concurrent.futures
 from core.encryption_manager import crypto_manager
 from core.encryption_manager import crypto_manager
 from core.vault_manager import vault  # <-- NEW: Import the Vault
+from core.lockdown_manager import lockdown  # <-- NEW: Import the Killswitch
 
 SEVERITY_COUNTER_FILE = os.path.join("logs", "severity_counters.json")
 
@@ -270,7 +271,8 @@ def load_config(path=None):
         # --- NEW: ACTIVE DEFENSE RULES ---
         "active_defense": False, # Will be toggled by the GUI
         "vault_max_size_mb": 10,
-        "vault_allowed_exts": [".txt", ".json", ".py", ".html", ".js", ".css", ".php", ".ini", ".conf", ".jsx"]
+        "vault_allowed_exts": [".txt", ".json", ".py", ".html", ".js", ".css", ".php", ".ini", ".conf", ".jsx"],
+        "ransomware_killswitch": False
     }
     CONFIG.update(defaults)
 
@@ -324,6 +326,9 @@ def append_log_line(message, event_type="INFO", severity="INFO"):
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(encrypted_log + "\n")
             
+        # --- THE FIX: Update the math counters so the GUI dashboard refreshes ---
+        update_severity_counter(severity)
+        
         # Optional: Print plain text to terminal for your own debugging
         print(plain_text_log.strip()) 
         
@@ -890,23 +895,40 @@ class IntegrityHandler(FileSystemEventHandler):
 
 
     def _check_burst_operations(self, event_type):
-        """Check for burst operations"""
+        """Check for burst operations (Ransomware Heuristics)"""
         current_time = time.time()
         # Clean old events
         self.recent_events = [t for t in self.recent_events if current_time - t < self.burst_time_window]
         self.recent_events.append(current_time)
         
-        # Check for burst
+        # Check for burst (Default is 5 events in 10 seconds)
         if len(self.recent_events) >= self.burst_threshold:
             severity = "HIGH"
             message = f"Burst operation detected: {len(self.recent_events)} events in {self.burst_time_window} seconds"
+            
+            # --- NEW: RANSOMWARE KILLSWITCH EXECUTION ---
+            if CONFIG.get("ransomware_killswitch", False):
+                severity = "CRITICAL" # Escalate to critical immediately
+                message = f"🚨 RANSOMWARE BEHAVIOR DETECTED! ({len(self.recent_events)} rapid edits)"
+                
+                # Instantly lock down ALL monitored folders to stop the virus
+                for folder in self.watch_folders:
+                    success, msg = lockdown.trigger_killswitch(folder)
+                    if success:
+                        message += f"\n[KILLSWITCH ENGAGED] Write access revoked for: {folder}"
+                    else:
+                        message += f"\n[KILLSWITCH ERROR] Could not lock {folder}: {msg}"
+            
+            # Log the event and notify the GUI
             append_log_line(message, event_type="BURST_OPERATION", severity=severity)
             send_webhook_safe("BURST_OPERATION", message, None)
             
-            self._notify_gui("BURST_OPERATION", "Multiple Files", severity) # <--- NOTIFY GUI
+            self._notify_gui("BURST_OPERATION", "Multiple Files", severity)
             
+            # Reset the recent events so we don't spam the killswitch command
             self.recent_events = []
             return True
+            
         return False
 
     def save_records(self):
@@ -919,6 +941,17 @@ class IntegrityHandler(FileSystemEventHandler):
         
         details = generate_file_hash(path)
         if details:
+            # --- FIX: GHOST CREATION INTERCEPT ---
+            # If the file is already in our DB with the exact same hash, 
+            # this is just the Vault restoring a file. Ignore the OS alert!
+            old_record = self.records.get(path)
+            if old_record and old_record.get("content") == details["content"]:
+                self.records[path]["attrs"] = details["attrs"]
+                self.records[path]["last_checked"] = now_pretty()
+                self.save_records()
+                return # Stop here! Do not log a duplicate creation.
+
+            # Normal creation logic
             self.records[path] = {
                 "hash": details["hash"], 
                 "content": details["content"], 
@@ -926,6 +959,13 @@ class IntegrityHandler(FileSystemEventHandler):
                 "last_checked": now_pretty()
             }
             self.save_records()
+            
+            if CONFIG.get("active_defense", False):
+                from core.vault_manager import vault
+                vault.backup_file(path, 
+                                  CONFIG.get("vault_max_size_mb", 10), 
+                                  CONFIG.get("vault_allowed_exts", None))
+                                  
             append_log_line(f"CREATED: {path}", event_type="CREATED", severity="INFO")
             send_webhook_safe("CREATED", "New file created", path)
             self._notify_gui("CREATED", path, "INFO")
@@ -993,16 +1033,16 @@ class IntegrityHandler(FileSystemEventHandler):
             # --- THE INFINITE LOOP FIX: ACTIVE DEFENSE INTERCEPT ---
             # ONLY trigger Active Defense if the actual file CONTENT changed.
             # (If just the 'mtime' metadata changed, we ignore it to prevent loops!)
+            # --- THE INFINITE LOOP FIX: ACTIVE DEFENSE INTERCEPT ---
             if old_content and old_content != new_content:
                 if CONFIG.get("active_defense", False):
+                    from core.vault_manager import vault
                     success, msg = vault.restore_file(path)
                     if success:
                         append_log_line(f"RESTORED: {path} (Malware modification reverted!)", event_type="RESTORED", severity="INFO")
                         self._notify_gui("RESTORED", path, "INFO")
                         
-                        # PREVENT THE LOOP: The restored file now has a brand new 'mtime' from Windows.
-                        # We MUST update the database right now, or the next Watchdog event will get confused!
-                        time.sleep(0.5) # Give Windows a moment to release the file lock
+                        time.sleep(0.5) 
                         restored_details = generate_file_hash(path)
                         if restored_details:
                             self.records[path] = {
@@ -1012,8 +1052,12 @@ class IntegrityHandler(FileSystemEventHandler):
                                 "last_checked": now_pretty()
                             }
                             self.save_records()
+                            
+                        # --- FIX: KILLSWITCH BYPASS ---
+                        # Report this attack to the burst tracker BEFORE we return!
+                        self._check_burst_operations("MODIFY")
+                        
                         return # Stop here! Do not log a normal modification.
-
             # ... (Existing log_detail logic for metadata or normal modifications)
             log_detail = ""
             if old_content and old_content == new_content:
@@ -1055,21 +1099,26 @@ class IntegrityHandler(FileSystemEventHandler):
         
         # Individual Logic
         if path in self.records:
-            # --- NEW: ACTIVE DEFENSE INTERCEPT ---
+            # --- ACTIVE DEFENSE INTERCEPT ---
             if CONFIG.get("active_defense", False):
+                from core.vault_manager import vault
                 success, msg = vault.restore_file(path)
                 if success:
                     append_log_line(f"RESTORED: {path} (Malicious deletion reverted!)", event_type="RESTORED", severity="INFO")
                     self._notify_gui("RESTORED", path, "INFO")
+                    
+                    # --- FIX: KILLSWITCH BYPASS ---
+                    # Report this attack to the burst tracker BEFORE we return!
+                    self._check_burst_operations("DELETE")
+                    
                     return # Stop here! Do not remove the file from the database!
+            
+            # Normal deletion logic (if Active Defense is OFF)
             self.records.pop(path, None)
             self.save_records()
             append_log_line(f"DELETED: {path}", event_type="DELETED", severity="MEDIUM")
             send_webhook_safe("DELETED", "File deleted", path)
-            self._notify_gui("DELETED", path, "MEDIUM") # <--- NOTIFY GUI
-        else:
-            append_log_line(f"DELETED_UNTRACKED: {path}", event_type="DELETED_UNTRACKED", severity="MEDIUM")
-            self._notify_gui("DELETED", path, "MEDIUM") # <--- NOTIFY GUI
+            self._notify_gui("DELETED", path, "MEDIUM")
         
         self._check_burst_operations("DELETE")
 

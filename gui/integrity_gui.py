@@ -689,6 +689,21 @@ class ProIntegrityGUI:
                                      bd=0, padx=12, pady=2, cursor="hand2")
         self.ad_toggle_btn.grid(row=3, column=1, sticky="e", pady=(10, 4))
 
+
+        # 5. Ransomware Killswitch Toggle
+        tk.Label(sys_sec_content, text="🛑 Ransomware Killswitch:", font=('Segoe UI', 10, 'bold'),
+                bg=self.colors['card_bg'], fg=self.colors['text_primary']).grid(row=4, column=0, sticky="w", pady=4)
+        
+        ks_state = CONFIG.get("ransomware_killswitch", False)
+        self.ks_btn_text = tk.StringVar(value="ON" if ks_state else "OFF")
+        ks_color = self.colors['accent_success'] if ks_state else self.colors['text_muted']
+        
+        self.ks_toggle_btn = tk.Button(sys_sec_content, textvariable=self.ks_btn_text, 
+                                     command=self._toggle_killswitch,
+                                     font=('Segoe UI', 8, 'bold'), bg=ks_color, fg='white',
+                                     bd=0, padx=12, pady=2, cursor="hand2")
+        self.ks_toggle_btn.grid(row=4, column=1, sticky="e", pady=4)
+
         # ===== ACTION BUTTONS CARD (Moved below Security) =====
         action_card = tk.Frame(left_panel, bg=self.colors['card_bg'],
                               relief='flat', bd=1, highlightbackground=self.colors['card_border'],
@@ -2038,6 +2053,52 @@ class ProIntegrityGUI:
                 json.dump(file_cfg, f, indent=4)
         except Exception as e:
             print(f"Error saving Active Defense state: {e}")
+
+    def _toggle_killswitch(self):
+        """Toggle Ransomware Killswitch with Premium Validation"""
+        # 1. VERIFY PRO LICENSE
+        current_tier = auth.get_user_tier(self.username)
+        if current_tier == "free":
+            messagebox.showwarning(
+                "⭐ Premium Feature", 
+                "The Ransomware Killswitch is a PRO feature.\n\n"
+                "Upgrade to automatically detect burst-encryption and lock down the OS to stop ransomware!"
+            )
+            return
+            
+        # 2. Toggle the state in memory
+        current_state = CONFIG.get("ransomware_killswitch", False)
+        new_state = not current_state
+        CONFIG["ransomware_killswitch"] = new_state
+        
+        # 3. Update the UI appearance
+        if new_state:
+            self.ks_btn_text.set("ON")
+            self.ks_toggle_btn.configure(bg=self.colors['accent_success'])
+            self._append_log("🛑 Ransomware Killswitch ENABLED. Burst-protection active.")
+        else:
+            self.ks_btn_text.set("OFF")
+            self.ks_toggle_btn.configure(bg=self.colors['text_muted'])
+            self._append_log("🛑 Ransomware Killswitch DISABLED.")
+            
+        # 4. Save to config.json so it survives a reboot
+        try:
+            from core.utils import get_app_data_dir
+            app_data = get_app_data_dir()
+            target_file = os.path.join(app_data, "config", "config.json")
+            
+            if os.path.exists(target_file):
+                with open(target_file, "r", encoding="utf-8") as f:
+                    file_cfg = json.load(f)
+            else:
+                file_cfg = dict(CONFIG)
+                
+            file_cfg["ransomware_killswitch"] = new_state
+            
+            with open(target_file, "w", encoding="utf-8") as f:
+                json.dump(file_cfg, f, indent=4)
+        except Exception as e:
+            print(f"Error saving Killswitch state: {e}")
 
     # ===== HELPER METHODS FROM BACKUP =====
     
@@ -3990,15 +4051,34 @@ class ProIntegrityGUI:
                 sys.exit(1)
 
     def disable_lockdown(self):
-        """Admin override to disable safe mode"""
+        """Admin override to disable safe mode AND release Ransomware folder locks"""
         if self.user_role != 'admin':
-            messagebox.showerror("Access Denied", "Only Admins can disable Safe Mode.")
+            messagebox.showerror("Access Denied", "Only Admins can release security lockdowns.")
             return
             
-        if messagebox.askyesno("Confirm Unlock", "Are you sure the system is secure?\nThis will re-enable monitoring controls."):
+        if messagebox.askyesno("Confirm Unlock", "Are you sure the system is secure?\n\nThis will release OS-level folder locks and re-enable monitoring controls."):
+            
+            # --- NEW: Release OS-Level Ransomware Locks ---
+            try:
+                from core.lockdown_manager import lockdown
+                from core.integrity_core import CONFIG
+                
+                # Get active folders
+                folders = list(self.folder_listbox.get(0, tk.END))
+                if not folders and CONFIG.get("watch_folders"):
+                    folders = CONFIG.get("watch_folders")
+                    
+                for folder in folders:
+                    success, msg = lockdown.remove_lockdown(folder)
+                    if success:
+                        self._append_log(f"🔓 OS-Level permissions restored for: {folder}")
+            except Exception as e:
+                print(f"Error removing OS lockdown: {e}")
+            
+            # --- Existing Safe Mode Logic ---
             success = safe_mode.disable_safe_mode("Admin Override via GUI")
             if success:
-                messagebox.showinfo("Unlocked", "Safe Mode disabled. System returned to normal.")
+                messagebox.showinfo("Unlocked", "System returned to normal. Folder permissions restored.")
                 self.status_var.set("🔴 Stopped")
                 self.status_label.configure(foreground=self.colors['text_primary'])
             else:
