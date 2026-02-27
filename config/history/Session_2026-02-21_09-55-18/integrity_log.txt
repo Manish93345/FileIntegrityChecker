@@ -1,9 +1,0 @@
-2026-02-21 09:43:55 - [🟢 INFO] Log reset. New session started.
-2026-02-21 09:44:17 - [🟢 INFO] INFO: No hash signature found; created new signature.
-2026-02-21 09:44:17 - [🟢 INFO] Startup: records signature OK
-2026-02-21 09:44:17 - [🟢 INFO] Startup: log signature OK
-2026-02-21 09:44:17 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/Photos/New folder
-2026-02-21 09:44:28 - [🟡 MEDIUM] RENAMED: File RENAMED from 'friend.jpg' to 'yamuna.jpg'
-2026-02-21 09:44:46 - [🟡 MEDIUM] MODIFIED: D:\Free_fire\Photos\New folder\payel.jpg
-2026-02-21 09:45:26 - [🟡 MEDIUM] MODIFIED: D:\Free_fire\Photos\New folder\payel.jpg
-2026-02-21 09:49:44 - [🟢 INFO] MONITOR_STOPPED

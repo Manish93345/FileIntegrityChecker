@@ -1239,14 +1239,17 @@ def archive_session():
         return False, str(e)
 
 
-def get_decrypted_logs():
+def get_decrypted_logs(target_file=None):
     """Reads the encrypted log file and returns a list of readable plain-text strings."""
-    if not os.path.exists(LOG_FILE):
+    # If no specific file is requested, default to the active log
+    path_to_read = target_file if target_file else LOG_FILE
+    
+    if not os.path.exists(path_to_read):
         return []
     
     plain_lines = []
     try:
-        with open(LOG_FILE, "r", encoding="utf-8") as f:
+        with open(path_to_read, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line: 
@@ -1258,7 +1261,7 @@ def get_decrypted_logs():
                     decrypted_text = crypto_manager.decrypt_string(line)
                     plain_lines.append(decrypted_text)
                 else:
-                    # Allow normal plain-text logs (like "Security monitoring STARTED") to pass through
+                    # Allow normal plain-text logs to pass through
                     plain_lines.append(line)
                     
         return plain_lines

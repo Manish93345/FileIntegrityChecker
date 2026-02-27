@@ -2743,10 +2743,104 @@ class ProIntegrityGUI:
             self.root.after(300, lambda: self.menu_title.configure(text=original_text + '█'))
 
     def _open_audit_logs(self):
-        """Open audit logs viewer"""
-        self.toggle_menu()
-        # Implementation for audit logs viewer
-        self._append_log("Accessing security audit logs...")
+        """Open the Secure Audit Logs viewer"""
+        self.toggle_menu() # Close the side menu
+        
+        if self.user_role != 'admin':
+            messagebox.showerror("Access Denied", "Only administrators can view historical audit logs.")
+            return
+            
+        self._append_log("Accessing secure audit logs vault...")
+
+        # Create the Viewer Window
+        viewer = tk.Toplevel(self.root)
+        viewer.title("📁 Secure Audit Log Vault")
+        viewer.geometry("1000x600")
+        viewer.configure(bg=self.colors['bg'])
+        viewer.transient(self.root)
+        
+        # Header
+        header = tk.Frame(viewer, bg=self.colors['header_bg'])
+        header.pack(fill=tk.X, pady=(0, 10))
+        tk.Label(header, text="🔐 DECRYPTED AUDIT VAULT", font=('Segoe UI', 14, 'bold'), 
+                 bg=self.colors['header_bg'], fg=self.colors['accent_primary']).pack(pady=15)
+
+        # Main Layout: Left (Sessions), Right (Decrypted Content)
+        main_pane = tk.PanedWindow(viewer, orient=tk.HORIZONTAL, bg=self.colors['bg'], sashwidth=5)
+        main_pane.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+
+        # Left Side: Session List
+        left_frame = tk.Frame(main_pane, bg=self.colors['card_bg'])
+        main_pane.add(left_frame, minsize=250)
+        
+        tk.Label(left_frame, text="Archived Sessions", font=('Segoe UI', 10, 'bold'), 
+                 bg=self.colors['card_bg'], fg=self.colors['text_primary']).pack(pady=5)
+                 
+        session_listbox = tk.Listbox(left_frame, bg=self.colors['input_bg'], fg=self.colors['text_primary'], 
+                                     font=('Consolas', 10), selectbackground=self.colors['accent_primary'])
+        session_listbox.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Right Side: Log Content
+        right_frame = tk.Frame(main_pane, bg=self.colors['card_bg'])
+        main_pane.add(right_frame, minsize=500)
+        
+        tk.Label(right_frame, text="Decrypted Log Content", font=('Segoe UI', 10, 'bold'), 
+                 bg=self.colors['card_bg'], fg=self.colors['text_primary']).pack(pady=5)
+                 
+        log_display = scrolledtext.ScrolledText(right_frame, bg="#0a0a0a", fg="#00ff00", 
+                                                font=('Consolas', 9), state="disabled")
+        log_display.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Load available sessions from the history folder
+        from core.utils import get_app_data_dir
+        history_dir = os.path.join(get_app_data_dir(), "config", "history")
+        
+        session_paths = {} # To map listbox names to actual folder paths
+        
+        if os.path.exists(history_dir):
+            # Sort folders so newest is at the top
+            folders = sorted(os.listdir(history_dir), reverse=True)
+            for f_name in folders:
+                folder_path = os.path.join(history_dir, f_name)
+                if os.path.isdir(folder_path):
+                    # Format the name to look nice
+                    display_name = f_name.replace("Session_", "").replace("_", " ")
+                    session_listbox.insert(tk.END, f"📂 {display_name}")
+                    session_paths[f"📂 {display_name}"] = folder_path
+
+        def on_session_select(event):
+            selection = session_listbox.curselection()
+            if not selection: return
+            
+            selected_name = session_listbox.get(selection[0])
+            folder_path = session_paths.get(selected_name)
+            
+            if folder_path:
+                target_log = os.path.join(folder_path, "integrity_log.dat")
+                
+                log_display.configure(state="normal")
+                log_display.delete("1.0", tk.END)
+                
+                if os.path.exists(target_log):
+                    log_display.insert(tk.END, f"--- DECRYPTING FILE: {target_log} ---\n\n")
+                    
+                    # Call our upgraded backend bridge!
+                    decrypted_lines = get_decrypted_logs(target_file=target_log)
+                    
+                    for line in decrypted_lines:
+                        log_display.insert(tk.END, line + "\n")
+                else:
+                    log_display.insert(tk.END, "❌ No encrypted log file found in this archive.")
+                    
+                log_display.configure(state="disabled")
+
+        # Bind the click event
+        session_listbox.bind('<<ListboxSelect>>', on_session_select)
+        
+        # Close button
+        tk.Button(viewer, text="Close Vault", command=viewer.destroy, 
+                  bg=self.colors['button_bg'], fg=self.colors['text_primary'], 
+                  font=('Segoe UI', 10)).pack(pady=10)
 
     def _open_crypto_tools(self):
         """Open cryptographic tools panel"""

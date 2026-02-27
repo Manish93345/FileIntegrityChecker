@@ -1,4 +1,0 @@
-2026-01-27 14:24:36 - [INFO] Log reset. New session started.
-2026-01-27 14:24:45 - [🟢 INFO] SAFE MODE DISABLED: Admin Override via GUI
-2026-01-27 14:25:11 - [🟢 INFO] PERIODIC_VERIFICATION_START
-2026-01-27 14:25:11 - [🟢 INFO] Reports generated: reports/report_summary.txt, logs\detailed_reports.txt

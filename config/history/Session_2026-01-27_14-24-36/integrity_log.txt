@@ -1,9 +1,0 @@
-2026-01-27 14:23:38 - [INFO] Log reset. New session started.
-2026-01-27 14:24:04 - [🟢 INFO] MANUAL_VERIFICATION_STARTED
-2026-01-27 14:24:04 - [🟢 INFO] Reports generated: reports/report_summary.txt, logs\detailed_reports.txt
-2026-01-27 14:24:10 - [🟢 INFO] Startup: records signature OK
-2026-01-27 14:24:10 - [🔴 CRITICAL] AUTO_RESPONSE_CRITICAL: Signature mismatch: logs/integrity_log.txt - ACTIVATING SAFE MODE
-2026-01-27 14:24:10 - [🔴 CRITICAL] 🚨 SAFE MODE ACTIVATED: TAMPERED_SIGNATURE: Signature mismatch: logs/integrity_log.txt
-2026-01-27 14:24:10 - [🟢 INFO] Incident snapshot created: incident_2026-01-27_14-24-10_TAMPERED_SIGNATURE.txt
-2026-01-27 14:24:11 - [🟢 INFO] Startup: log signature FAILED (Signature Mismatch at line 1)
-2026-01-27 14:24:11 - [🟢 INFO] MONITOR_STARTED: D:/Free_fire/Photos/New folder

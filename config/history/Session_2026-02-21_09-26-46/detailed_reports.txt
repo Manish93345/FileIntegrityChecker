@@ -1,5 +1,0 @@
-DETAILED INTEGRITY REPORT
-Generated: 2026-02-21 09:25:59
-============================================================
-
-No changes detected in this scan.
