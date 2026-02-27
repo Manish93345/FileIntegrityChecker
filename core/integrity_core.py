@@ -985,16 +985,36 @@ class IntegrityHandler(FileSystemEventHandler):
             self._notify_gui("CREATED", path, "INFO")
             
         elif old_hash != h:
-            # --- NEW: ACTIVE DEFENSE INTERCEPT ---
-            if CONFIG.get("active_defense", False):
-                success, msg = vault.restore_file(path)
-                if success:
-                    append_log_line(f"RESTORED: {path} (Malware modification reverted!)", event_type="RESTORED", severity="INFO")
-                    self._notify_gui("RESTORED", path, "INFO")
-                    return # Stop here! Do not update the DB with the hacker's hash!
             old_content = old_record.get("content")
             old_attrs = old_record.get("attrs")
+            new_content = details["content"]
+            new_attrs = details["attrs"]
             
+            # --- THE INFINITE LOOP FIX: ACTIVE DEFENSE INTERCEPT ---
+            # ONLY trigger Active Defense if the actual file CONTENT changed.
+            # (If just the 'mtime' metadata changed, we ignore it to prevent loops!)
+            if old_content and old_content != new_content:
+                if CONFIG.get("active_defense", False):
+                    success, msg = vault.restore_file(path)
+                    if success:
+                        append_log_line(f"RESTORED: {path} (Malware modification reverted!)", event_type="RESTORED", severity="INFO")
+                        self._notify_gui("RESTORED", path, "INFO")
+                        
+                        # PREVENT THE LOOP: The restored file now has a brand new 'mtime' from Windows.
+                        # We MUST update the database right now, or the next Watchdog event will get confused!
+                        time.sleep(0.5) # Give Windows a moment to release the file lock
+                        restored_details = generate_file_hash(path)
+                        if restored_details:
+                            self.records[path] = {
+                                "hash": restored_details["hash"], 
+                                "content": restored_details["content"], 
+                                "attrs": restored_details["attrs"], 
+                                "last_checked": now_pretty()
+                            }
+                            self.save_records()
+                        return # Stop here! Do not log a normal modification.
+
+            # ... (Existing log_detail logic for metadata or normal modifications)
             log_detail = ""
             if old_content and old_content == new_content:
                 if old_attrs is not None and new_attrs is not None:

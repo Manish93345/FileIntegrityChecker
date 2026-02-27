@@ -590,7 +590,7 @@ class ProIntegrityGUI:
         # ===== LEFT PANEL - Controls and Status =====
         left_panel = tk.Frame(content_frame, bg=self.colors['bg'], width=400)
         left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=False)
-        left_panel.pack_propagate(False)
+        
 
         # --- NEW MULTI-FOLDER SELECTION CARD ---
         folder_card = tk.Frame(left_panel, bg=self.colors['card_bg'], 
@@ -638,27 +638,58 @@ class ProIntegrityGUI:
                                            bd=0, padx=10, pady=5, cursor="hand2")
         self.remove_folder_btn.pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=(5, 0))
 
-        # Status Card
-        status_card = tk.Frame(left_panel, bg=self.colors['card_bg'],
+        # ===== COMBINED SYSTEM & SECURITY CARD =====
+        sys_sec_card = tk.Frame(left_panel, bg=self.colors['card_bg'],
                               relief='flat', bd=1, highlightbackground=self.colors['card_border'],
                               highlightthickness=1)
-        status_card.pack(fill=tk.X, pady=(0, 15))
+        sys_sec_card.pack(fill=tk.X, pady=(0, 15))
         
-        tk.Label(status_card, text="📊 System Status", font=('Segoe UI', 12, 'bold'),
+        tk.Label(sys_sec_card, text="🛡️ System & Security", font=('Segoe UI', 12, 'bold'),
                 bg=self.colors['card_bg'], fg=self.colors['text_primary']).pack(anchor='w', padx=20, pady=(15, 10))
         
-        status_content = tk.Frame(status_card, bg=self.colors['card_bg'])
-        status_content.pack(fill=tk.X, padx=20, pady=(0, 15))
+        sys_sec_content = tk.Frame(sys_sec_card, bg=self.colors['card_bg'])
+        sys_sec_content.pack(fill=tk.X, padx=20, pady=(0, 15))
         
-        tk.Label(status_content, text="Status:", font=('Segoe UI', 10),
-                bg=self.colors['card_bg'], fg=self.colors['text_secondary']).pack(side=tk.LEFT)
-        
-        self.status_label = tk.Label(status_content, textvariable=self.status_var,
+        # Use a 2-column grid to make everything super compact!
+        sys_sec_content.columnconfigure(1, weight=1)
+
+        # 1. Engine Status
+        tk.Label(sys_sec_content, text="Engine Status:", font=('Segoe UI', 10),
+                bg=self.colors['card_bg'], fg=self.colors['text_secondary']).grid(row=0, column=0, sticky="w", pady=4)
+        self.status_label = tk.Label(sys_sec_content, textvariable=self.status_var,
                                     font=('Segoe UI', 10, 'bold'), bg=self.colors['card_bg'],
                                     fg=self.colors['accent_primary'])
-        self.status_label.pack(side=tk.LEFT, padx=(10, 0))
+        self.status_label.grid(row=0, column=1, sticky="e", pady=4)
 
-        # Action Buttons Card
+        # 2. Hash Records Indicator
+        tk.Label(sys_sec_content, text="Hash Records:", font=('Segoe UI', 10),
+                bg=self.colors['card_bg'], fg=self.colors['text_secondary']).grid(row=1, column=0, sticky="w", pady=4)
+        self._rec_indicator = tk.Label(sys_sec_content, textvariable=self.tamper_records_var, font=('Segoe UI', 9, 'bold'),
+                               bg=self.colors['indicator_info'], fg='white', padx=8, pady=2)
+        self._rec_indicator.grid(row=1, column=1, sticky="e", pady=4)
+
+        # 3. Log Files Indicator
+        tk.Label(sys_sec_content, text="Audit Logs:", font=('Segoe UI', 10),
+                bg=self.colors['card_bg'], fg=self.colors['text_secondary']).grid(row=2, column=0, sticky="w", pady=4)
+        self._log_indicator = tk.Label(sys_sec_content, textvariable=self.tamper_logs_var, font=('Segoe UI', 9, 'bold'),
+                               bg=self.colors['indicator_info'], fg='white', padx=8, pady=2)
+        self._log_indicator.grid(row=2, column=1, sticky="e", pady=4)
+
+        # 4. Active Defense Toggle
+        tk.Label(sys_sec_content, text="🛡️ Active Defense:", font=('Segoe UI', 10, 'bold'),
+                bg=self.colors['card_bg'], fg=self.colors['text_primary']).grid(row=3, column=0, sticky="w", pady=(10, 4))
+        
+        initial_state = CONFIG.get("active_defense", False)
+        self.ad_btn_text = tk.StringVar(value="ON" if initial_state else "OFF")
+        btn_color = self.colors['accent_success'] if initial_state else self.colors['text_muted']
+        
+        self.ad_toggle_btn = tk.Button(sys_sec_content, textvariable=self.ad_btn_text, 
+                                     command=self._toggle_active_defense,
+                                     font=('Segoe UI', 8, 'bold'), bg=btn_color, fg='white',
+                                     bd=0, padx=12, pady=2, cursor="hand2")
+        self.ad_toggle_btn.grid(row=3, column=1, sticky="e", pady=(10, 4))
+
+        # ===== ACTION BUTTONS CARD (Moved below Security) =====
         action_card = tk.Frame(left_panel, bg=self.colors['card_bg'],
                               relief='flat', bd=1, highlightbackground=self.colors['card_border'],
                               highlightthickness=1)
@@ -667,82 +698,28 @@ class ProIntegrityGUI:
         tk.Label(action_card, text="🎮 Control Panel", font=('Segoe UI', 12, 'bold'),
                 bg=self.colors['card_bg'], fg=self.colors['text_primary']).pack(anchor='w', padx=20, pady=(15, 10))
         
-        # Create button grid - IMPORTED FROM BACKUP
         buttons = [
             ("▶ Start Monitor", self.start_monitor, self.colors['accent_success']),
             ("⏹ Stop Monitor", self.stop_monitor, self.colors['accent_danger']),
             ("🔍 Verify Now", self.run_verification, self.colors['accent_primary']),
-            ("🔒 Check Signatures", self.verify_signatures, self.colors['accent_secondary']),
+            ("🔒 Check Sigs", self.verify_signatures, self.colors['accent_secondary']),
             ("⚙ Settings", self.open_settings, self.colors['accent_info']),
-            ("🔄 Reset Counters", self.reset_severity_counters, self.colors['accent_warning']),
+            ("🔄 Reset Stats", self.reset_severity_counters, self.colors['accent_warning']),
         ]
+        
+        btn_grid_frame = tk.Frame(action_card, bg=self.colors['card_bg'])
+        btn_grid_frame.pack(fill=tk.X, padx=15, pady=(0, 10))
+        btn_grid_frame.columnconfigure(0, weight=1)
+        btn_grid_frame.columnconfigure(1, weight=1)
         
         for i, (text, command, color) in enumerate(buttons):
-            btn = tk.Button(action_card, text=text, command=command,
+            btn = tk.Button(btn_grid_frame, text=text, command=command,
                           font=('Segoe UI', 9, 'bold'), bg=color, fg='white',
-                          bd=0, padx=18, pady=9, cursor="hand2",
+                          bd=0, padx=5, pady=8, cursor="hand2",
                           activebackground=color)
-            btn.pack(fill=tk.X, padx=17, pady=4)
+            btn.grid(row=i//2, column=i%2, sticky="ew", padx=4, pady=4)
             btn.bind("<Enter>", lambda e, b=btn: b.configure(bg=self._lighten_color(color)))
             btn.bind("<Leave>", lambda e, b=btn, c=color: b.configure(bg=c))
-
-        # Security Status Card - IMPORTED FROM BACKUP
-        security_card = tk.Frame(left_panel, bg=self.colors['card_bg'],
-                                relief='flat', bd=1, highlightbackground=self.colors['card_border'],
-                                highlightthickness=1)
-        security_card.pack(fill=tk.X)
-        
-        tk.Label(security_card, text="🛡️ Security Status", font=('Segoe UI', 12, 'bold'),
-                bg=self.colors['card_bg'], fg=self.colors['text_primary']).pack(anchor='w', padx=20, pady=(15, 10))
-        
-        security_content = tk.Frame(security_card, bg=self.colors['card_bg'])
-        security_content.pack(fill=tk.X, padx=20, pady=(0, 15))
-        
-        # Security indicators - IMPORTED FROM BACKUP
-        indicators = [
-            ("Hash Records:", self.tamper_records_var),
-            ("Log Files:", self.tamper_logs_var),
-        ]
-        
-        for label_text, var in indicators:
-            indicator_frame = tk.Frame(security_content, bg=self.colors['card_bg'])
-            indicator_frame.pack(fill=tk.X, pady=8)
-            
-            tk.Label(indicator_frame, text=label_text, font=('Segoe UI', 10),
-                    bg=self.colors['card_bg'], fg=self.colors['text_secondary']).pack(side=tk.LEFT)
-            
-            indicator = tk.Label(indicator_frame, textvariable=var, font=('Segoe UI', 10, 'bold'),
-                               bg=self.colors['indicator_info'], fg='white',
-                               padx=12, pady=4, relief='flat')
-            indicator.pack(side=tk.RIGHT)
-            
-            if label_text == "Hash Records:":
-                self._rec_indicator = indicator
-            else:
-                self._log_indicator = indicator
-
-        # --- NEW: ACTIVE DEFENSE TOGGLE (Premium Feature) ---
-        # Add a sleek visual separator line
-        sep = tk.Frame(security_content, height=1, bg=self.colors['card_border'])
-        sep.pack(fill=tk.X, pady=15)
-        
-        ad_frame = tk.Frame(security_content, bg=self.colors['card_bg'])
-        ad_frame.pack(fill=tk.X, pady=5)
-        
-        tk.Label(ad_frame, text="🛡️ Active Defense:", font=('Segoe UI', 10, 'bold'),
-                bg=self.colors['card_bg'], fg=self.colors['text_primary']).pack(side=tk.LEFT)
-        
-        # Read the initial state from memory
-        initial_state = CONFIG.get("active_defense", False)
-        self.ad_btn_text = tk.StringVar(value="ON" if initial_state else "OFF")
-        btn_color = self.colors['accent_success'] if initial_state else self.colors['text_muted']
-        
-        # Create the toggle button
-        self.ad_toggle_btn = tk.Button(ad_frame, textvariable=self.ad_btn_text, 
-                                     command=self._toggle_active_defense,
-                                     font=('Segoe UI', 9, 'bold'), bg=btn_color, fg='white',
-                                     bd=0, padx=15, pady=2, cursor="hand2")
-        self.ad_toggle_btn.pack(side=tk.RIGHT)
 
         # ===== RIGHT PANEL - Dashboard and Logs =====
         right_panel = tk.Frame(content_frame, bg=self.colors['bg'])
