@@ -511,10 +511,16 @@ class ProIntegrityGUI:
         control_frame.pack(side=tk.RIGHT, padx=30, pady=20)
         
         # User info
-        user_label = tk.Label(control_frame, text=f"👤 {self.username}",
+        # User info (Clickable Profile Dropdown)
+        self.user_btn = tk.Button(control_frame, text=f"👤 {self.username} ▼",
                              font=('Segoe UI', 10, 'bold'),
-                             bg=self.colors['header_bg'], fg=self.colors['text_secondary'])
-        user_label.pack(side=tk.RIGHT, padx=(10, 0))
+                             bg=self.colors['header_bg'], fg=self.colors['text_secondary'],
+                             bd=0, activebackground=self.colors['header_bg'], 
+                             activeforeground=self.colors['accent_primary'],
+                             cursor="hand2", command=self._show_profile_panel)
+        self.user_btn.pack(side=tk.RIGHT, padx=(10, 0))
+        self.user_btn.bind("<Enter>", lambda e: self.user_btn.configure(fg=self.colors['text_primary']))
+        self.user_btn.bind("<Leave>", lambda e: self.user_btn.configure(fg=self.colors['text_secondary']))
         
         # Control buttons
         btn_frame = tk.Frame(control_frame, bg=self.colors['header_bg'])
@@ -570,14 +576,14 @@ class ProIntegrityGUI:
             self.unlock_btn.pack(side=tk.LEFT, padx=2)
             self.ToolTip(self.unlock_btn, "Disable Lockdown")
         
-        # Logout button
-        self.logout_btn = tk.Button(btn_frame, text="🚪", 
-                                  command=self.logout,
-                                  font=('Segoe UI', 12), bg=self.colors['button_bg'], 
-                                  fg=self.colors['text_primary'], bd=0, padx=10,
-                                  cursor="hand2")
-        self.logout_btn.pack(side=tk.LEFT, padx=2)
-        self.ToolTip(self.logout_btn, "Logout")
+        # # Logout button
+        # self.logout_btn = tk.Button(btn_frame, text="🚪", 
+        #                           command=self.logout,
+        #                           font=('Segoe UI', 12), bg=self.colors['button_bg'], 
+        #                           fg=self.colors['text_primary'], bd=0, padx=10,
+        #                           cursor="hand2")
+        # self.logout_btn.pack(side=tk.LEFT, padx=2)
+        # self.ToolTip(self.logout_btn, "Logout")
 
         # Main Content Area
         content_frame = tk.Frame(main_container, bg=self.colors['bg'])
@@ -2259,6 +2265,100 @@ class ProIntegrityGUI:
         self.log_box.delete("1.0", tk.END)
         self.log_box.configure(state="disabled")
         self._append_log("Log display cleared")
+
+    def _show_profile_panel(self):
+        """Display a sleek, modern dropdown profile card"""
+        # If it already exists, destroy it (acts as a toggle)
+        if hasattr(self, 'profile_panel') and self.profile_panel.winfo_exists():
+            self.profile_panel.destroy()
+            return
+            
+        # Create a borderless pop-up window
+        self.profile_panel = tk.Toplevel(self.root)
+        self.profile_panel.overrideredirect(True)
+        self.profile_panel.configure(bg=self.colors['card_border']) 
+        
+        # Calculate position to drop down exactly below the username button
+        x = self.user_btn.winfo_rootx()
+        y = self.user_btn.winfo_rooty() + self.user_btn.winfo_height() + 8
+        self.profile_panel.geometry(f"300x260+{x-200}+{y}") # Shift left to align beautifully
+        
+        # Inner frame (creates a sleek 1px border effect)
+        inner = tk.Frame(self.profile_panel, bg=self.colors['card_bg'])
+        inner.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+        
+        # Fetch Live User Data from Auth Manager
+        tier = "FREE"
+        email = "Not Registered"
+        if auth:
+            tier = auth.get_user_tier(self.username).upper()
+            user_data = auth.users.get(self.username, {})
+            email = user_data.get("registered_email", "No email on file")
+            
+        tier_color = "#ffd700" if tier != "FREE" else self.colors['text_muted']
+        
+        # Header - Avatar & Name
+        head_frame = tk.Frame(inner, bg=self.colors['card_bg'])
+        head_frame.pack(fill=tk.X, pady=20, padx=20)
+        
+        avatar = tk.Label(head_frame, text="👤", font=('Segoe UI', 28), 
+                          bg=self.colors['card_bg'], fg=self.colors['accent_primary'])
+        avatar.pack(side=tk.LEFT, padx=(0, 15))
+        
+        info_frame = tk.Frame(head_frame, bg=self.colors['card_bg'])
+        info_frame.pack(side=tk.LEFT, fill=tk.X)
+        
+        tk.Label(info_frame, text=self.username, font=('Segoe UI', 14, 'bold'), 
+                 bg=self.colors['card_bg'], fg=self.colors['text_primary']).pack(anchor='w')
+        tk.Label(info_frame, text=f"Role: {self.user_role.upper()}", font=('Segoe UI', 9), 
+                 bg=self.colors['card_bg'], fg=self.colors['text_secondary']).pack(anchor='w')
+        
+        # Sleek Separator
+        tk.Frame(inner, height=1, bg=self.colors['card_border']).pack(fill=tk.X, padx=15)
+        
+        # Account Details Section
+        det_frame = tk.Frame(inner, bg=self.colors['card_bg'])
+        det_frame.pack(fill=tk.X, pady=15, padx=20)
+        
+        tk.Label(det_frame, text="📧 Account:", font=('Segoe UI', 9, 'bold'), 
+                 bg=self.colors['card_bg'], fg=self.colors['text_secondary']).grid(row=0, column=0, sticky='w', pady=6)
+        
+        # Truncate long emails so they don't break the UI
+        display_email = email if len(email) < 22 else email[:19] + "..."
+        tk.Label(det_frame, text=display_email, font=('Segoe UI', 9), 
+                 bg=self.colors['card_bg'], fg=self.colors['text_primary']).grid(row=0, column=1, sticky='w', padx=15, pady=6)
+        
+        tk.Label(det_frame, text="⭐ License:", font=('Segoe UI', 9, 'bold'), 
+                 bg=self.colors['card_bg'], fg=self.colors['text_secondary']).grid(row=1, column=0, sticky='w', pady=6)
+        tk.Label(det_frame, text=f"{tier} PLAN", font=('Segoe UI', 9, 'bold'), 
+                 bg=self.colors['card_bg'], fg=tier_color).grid(row=1, column=1, sticky='w', padx=15, pady=6)
+        
+        # Bottom Action Bar
+        btn_frame = tk.Frame(inner, bg=self.colors['bg']) 
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        # Master Sign Out Button
+        def _execute_logout():
+            self.profile_panel.destroy()
+            self.logout()
+            
+        logout_btn = tk.Button(btn_frame, text="🚪 Sign Out of FMSecure", command=_execute_logout,
+                              font=('Segoe UI', 9, 'bold'), bg=self.colors['bg'], fg=self.colors['accent_danger'],
+                              bd=0, pady=12, cursor="hand2")
+        logout_btn.pack(fill=tk.X)
+        logout_btn.bind("<Enter>", lambda e: logout_btn.configure(bg=self.colors['card_border']))
+        logout_btn.bind("<Leave>", lambda e: logout_btn.configure(bg=self.colors['bg']))
+        
+        # Logic to close the menu if the user clicks anywhere else on the screen
+        self.profile_panel.bind("<FocusOut>", lambda e: self.root.after(100, self._destroy_if_lost_focus))
+        self.profile_panel.focus_set()
+
+    def _destroy_if_lost_focus(self):
+        """Helper to cleanly close the profile panel when losing focus"""
+        if hasattr(self, 'profile_panel') and self.profile_panel.winfo_exists():
+            focus_widget = self.profile_panel.focus_get()
+            if focus_widget is None or not str(focus_widget).startswith(str(self.profile_panel)):
+                self.profile_panel.destroy()
 
     def toggle_theme(self):
         """Toggle between light and dark themes"""
