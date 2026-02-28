@@ -1,7 +1,7 @@
 {
     "watch_folder": "C:/path/to/your/monitored/folder",
     "verify_interval": 1800,
-    "webhook_url": null,
+    "webhook_url": "https://discord.com/api/webhooks/1477240356818124962/M7Pi1xpNFMTm8a1o0mxK5RnNCVdFBzsAGw67iGfPKFWTeOJk8wegHR_52qHMI5vXyAw7",
     "secret_key": "Lisacutie",
     "max_log_size_mb": 10,
     "max_log_backups": 5,
@@ -16,6 +16,21 @@
         "hash_records.sig",
         "report_summary.txt"
     ],
+    "active_defense": true,
+    "vault_max_size_mb": 10,
+    "vault_allowed_exts": [
+        ".txt",
+        ".json",
+        ".py",
+        ".html",
+        ".js",
+        ".css",
+        ".php",
+        ".ini",
+        ".conf",
+        ".jsx"
+    ],
+    "ransomware_killswitch": true,
     "paths": {
         "logs": "logs/",
         "reports": "reports/",
@@ -25,6 +40,5 @@
     "watch_folders": [
         "D:/Free_fire/Photos/New folder"
     ],
-    "active_defense": true,
-    "ransomware_killswitch": true
+    "admin_email": "kumarmanish85211@gmail.com"
 }

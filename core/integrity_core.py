@@ -20,6 +20,8 @@ from core.encryption_manager import crypto_manager
 from core.encryption_manager import crypto_manager
 from core.vault_manager import vault  # <-- NEW: Import the Vault
 from core.lockdown_manager import lockdown  # <-- NEW: Import the Killswitch
+import requests
+from core import email_service
 
 SEVERITY_COUNTER_FILE = os.path.join("logs", "severity_counters.json")
 
@@ -621,33 +623,93 @@ def generate_file_hash(path):
             return None
 
 # ------------------ Webhook safe sender ------------------
-def send_webhook_safe(event_type, message, file_path=None):
-    url = CONFIG.get("webhook_url") or None
-    if url is None:
-        return
-    if requests is None:
-        append_log_line(f"ALERT_WEBHOOK_NOT_POSSIBLE: requests not installed for {event_type}", 
-                       event_type="WEBHOOK_FAIL", severity="MEDIUM")
-        return
+def send_webhook_safe(event_type, message, filepath=None, severity="INFO"):
+    """
+    DUAL-CHANNEL ALERT PIPELINE:
+    Pushes real-time Rich Embeds to Discord/Slack AND sends official HTML emails.
+    """
+    # 1. Fetch configurations
+    webhook_url = CONFIG.get("webhook_url")
+    admin_email = CONFIG.get("admin_email")
     
-    severity = get_severity(event_type)
-    
-    payload = {
-        "timestamp": now_iso(),
-        "event": event_type,
-        "severity": severity,
-        "message": message,
-        "file": file_path,
-        "priority": SEVERITY_LEVELS.get(severity, {}).get("priority", 0)
-    }
-    try:
-        response = requests.post(url, json=payload, timeout=5)
-        append_log_line(f"Webhook sent: {event_type} ({severity})", 
-                       event_type="WEBHOOK_SENT", severity="INFO")
-        return response
-    except Exception as e:
-        append_log_line(f"WEBHOOK_FAIL: {e}", 
-                       event_type="WEBHOOK_FAIL", severity="MEDIUM")
+    # If neither is configured, just silently return
+    if not webhook_url and not admin_email:
+        return
+
+    # Determine Embed Color based on event type
+    event_upper = event_type.upper()
+    if "BURST" in event_upper or "CRITICAL" in event_upper or "RANSOMWARE" in event_upper:
+        color = 15548997  # Red
+        severity = "CRITICAL"
+    elif "DELETE" in event_upper:
+        color = 15105570  # Orange
+        severity = "HIGH"
+    elif "MODIF" in event_upper:
+        color = 16776960  # Yellow
+        severity = "MEDIUM"
+    else:
+        color = 3447003   # Blue
+        severity = "INFO"
+
+    # --- CHANNEL 1: DISCORD/SLACK WEBHOOK (Incident Response) ---
+    # if webhook_url: -> iss se sare chhezon par alert aayega kuch bhi karenge toh
+    if webhook_url and severity in ["CRITICAL", "HIGH"]:
+        def _post_webhook():
+            try:
+                # Build the Enterprise Rich Embed JSON
+                payload = {
+                    "username": "FMSecure EDR Agent",
+                    "avatar_url": "https://cdn-icons-png.flaticon.com/512/2092/2092663.png",
+                    "embeds": [{
+                        "title": f"🚨 SECURITY ALERT: {event_type}",
+                        "description": message,
+                        "color": color,
+                        "fields": [
+                            {"name": "Severity", "value": severity, "inline": True},
+                            {"name": "Timestamp", "value": now_pretty(), "inline": True}
+                        ],
+                        "footer": {"text": "Endpoint Detection & Response Module"}
+                    }]
+                }
+                
+                # Add filepath to the card if one exists
+                if filepath:
+                    payload["embeds"][0]["fields"].append({
+                        "name": "Target File", 
+                        "value": f"`{filepath}`", 
+                        "inline": False
+                    })
+
+                # Fire the HTTP POST request to Discord
+                requests.post(webhook_url, json=payload, timeout=3)
+            except Exception as e:
+                print(f"Webhook delivery failed: {e}")
+                
+        # Run in a background thread so it doesn't freeze the monitor!
+        threading.Thread(target=_post_webhook, daemon=True).start()
+
+    # --- CHANNEL 2: COMPLIANCE EMAIL (Audit Trail) ---
+    if admin_email and severity in ["CRITICAL", "HIGH"]:
+        def _send_email():
+            try:
+                print(f"\n[ 📧 EMAIL THREAD ] Attempting to send {severity} alert to {admin_email}...")
+                
+                # Check if the function actually exists
+                if hasattr(email_service, 'send_security_alert'):
+                    success, msg_err = email_service.send_security_alert(admin_email, event_type, message, filepath)
+                    if success:
+                        print("[ 📧 EMAIL THREAD ] ✅ Success! Alert Email sent.")
+                    else:
+                        print(f"[ 📧 EMAIL THREAD ] ❌ Failed: {msg_err}")
+                else:
+                    print("[ 📧 EMAIL THREAD ] ❌ Error: 'send_security_alert' function not found in email_service.py!")
+                    
+            except Exception as e:
+                print(f"[ 📧 EMAIL THREAD ] ❌ CRITICAL CRASH: {e}")
+            
+        threading.Thread(target=_send_email, daemon=True).start()
+    elif not admin_email:
+        print(f"\n[ 📧 EMAIL THREAD ] ⚠️ Skipped: No 'admin_email' configured in Settings.")
 
 # ------------------ Verification & Summary ------------------
 def verify_all_files_and_update(records=None, watch_folders=None):
@@ -921,7 +983,7 @@ class IntegrityHandler(FileSystemEventHandler):
             
             # Log the event and notify the GUI
             append_log_line(message, event_type="BURST_OPERATION", severity=severity)
-            send_webhook_safe("BURST_OPERATION", message, None)
+            send_webhook_safe("RANSOMWARE_BURST", message, filepath=None, severity=severity)
             
             self._notify_gui("BURST_OPERATION", "Multiple Files", severity)
             

@@ -1940,10 +1940,10 @@ class ProIntegrityGUI:
         self._append_log(f"Signature verification: records={rec_msg}, logs={log_msg}")
 
     def open_settings(self):
-        """Open settings dialog - IMPORTED FROM BACKUP"""
+        """Open settings dialog - Upgraded with Dual-Channel Alerting"""
         win = tk.Toplevel(self.root)
         win.title("Security Settings")
-        win.geometry("520x300")
+        win.geometry("520x360") # Slightly taller for the new email field
         win.configure(bg=self.colors['bg'])
         
         tk.Label(win, text="🔧 Security Configuration (config.json)", 
@@ -1951,20 +1951,29 @@ class ProIntegrityGUI:
 
         cfg = dict(CONFIG)
 
+        # Watch Folder
         tk.Label(win, text="📁 Watch folder:", bg=self.colors['bg'], fg=self.colors['text_primary'], font=('Segoe UI', 10)).pack(anchor="w", padx=10, pady=(8, 0))
         watch_var = tk.StringVar(value=cfg.get("watch_folder", ""))
         e1 = ttk.Entry(win, textvariable=watch_var, width=70, style='Modern.TEntry')
         e1.pack(padx=10)
 
+        # Verify Interval
         tk.Label(win, text="⏱️ Verify interval (seconds):", bg=self.colors['bg'], fg=self.colors['text_primary'], font=('Segoe UI', 10)).pack(anchor="w", padx=10, pady=(8, 0))
         int_var = tk.StringVar(value=str(cfg.get("verify_interval", 1800)))
         e2 = ttk.Entry(win, textvariable=int_var, width=20, style='Modern.TEntry')
         e2.pack(padx=10)
 
-        tk.Label(win, text="🔔 Webhook URL (optional):", bg=self.colors['bg'], fg=self.colors['text_primary'], font=('Segoe UI', 10)).pack(anchor="w", padx=10, pady=(8, 0))
+        # Webhook URL
+        tk.Label(win, text="🔔 Discord/Slack Webhook URL (optional):", bg=self.colors['bg'], fg=self.colors['text_primary'], font=('Segoe UI', 10)).pack(anchor="w", padx=10, pady=(8, 0))
         web_var = tk.StringVar(value=str(cfg.get("webhook_url") or ""))
         e3 = ttk.Entry(win, textvariable=web_var, width=70, style='Modern.TEntry')
         e3.pack(padx=10)
+
+        # --- NEW: Admin Alert Email ---
+        tk.Label(win, text="✉️ Admin Alert Email (optional):", bg=self.colors['bg'], fg=self.colors['text_primary'], font=('Segoe UI', 10)).pack(anchor="w", padx=10, pady=(8, 0))
+        email_var = tk.StringVar(value=str(cfg.get("admin_email") or ""))
+        e4 = ttk.Entry(win, textvariable=email_var, width=70, style='Modern.TEntry')
+        e4.pack(padx=10)
 
         def save_settings():
             new_cfg = dict(CONFIG)
@@ -1975,9 +1984,9 @@ class ProIntegrityGUI:
                 messagebox.showerror("Error", "verify_interval must be integer seconds")
                 return
             new_cfg["webhook_url"] = web_var.get() or None
+            new_cfg["admin_email"] = email_var.get() or None # Save the email
             
             try:
-                # Save to AppData/config/config.json
                 from core.utils import get_app_data_dir
                 app_data = get_app_data_dir()
                 config_dir = os.path.join(app_data, "config")

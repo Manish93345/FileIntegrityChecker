@@ -3,7 +3,10 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import random
 import time
-
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+SENDER_EMAIL = "glimpsefilmy@gmail.com"          # Put your real email here
+SENDER_PASSWORD = "bocwoewklavlnzkt"
 class EmailService:
     def __init__(self):
         # We will load these from your config or hardcode for testing
@@ -93,5 +96,78 @@ class EmailService:
             
         return False, "Incorrect OTP."
 
+    
+
 # Global instance
 email_service = EmailService()
+
+
+def send_security_alert(target_email, event_type, message, filepath=None):
+    """
+    Sends a formatted HTML security alert email to the Administrator.
+    """
+    if not target_email:
+        return False, "No target email provided."
+
+    subject = f"🚨 SECURITY ALERT: {event_type} Detected!"
+    
+    # Create a professional HTML email template
+    html_content = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 30px; border-radius: 8px; border-top: 5px solid #ef4444; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+            <h2 style="color: #ef4444; margin-top: 0;">⚠️ FMSecure Alert</h2>
+            <p style="font-size: 16px; color: #333333;">The File Integrity Monitor has detected a high-priority security event on your system.</p>
+            
+            <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+                <tr style="background-color: #f8fafc;">
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: bold; width: 120px;">Event Type:</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; color: #ef4444; font-weight: bold;">{event_type}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: bold;">Details:</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;">{message}</td>
+                </tr>
+    """
+    
+    if filepath:
+        html_content += f"""
+                <tr style="background-color: #f8fafc;">
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: bold;">Target Path:</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; font-family: monospace;">{filepath}</td>
+                </tr>
+        """
+        
+    html_content += f"""
+            </table>
+            
+            <p style="margin-top: 30px; font-size: 12px; color: #666666; border-top: 1px solid #eeeeee; padding-top: 10px;">
+                Generated automatically by Secure File Integrity Monitor v2.0<br>
+                Please check your server immediately.
+            </p>
+        </div>
+    </body>
+    </html>
+    """
+
+    try:
+        # Create message container
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = SENDER_EMAIL
+        msg['To'] = target_email
+
+        # Attach HTML
+        part = MIMEText(html_content, 'html')
+        msg.attach(part)
+
+        # Connect to server and send
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(SENDER_EMAIL, SENDER_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        
+        return True, "Alert email sent successfully."
+    except Exception as e:
+        return False, f"Failed to send alert email: {str(e)}"
