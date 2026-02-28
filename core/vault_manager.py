@@ -48,6 +48,7 @@ class VaultManager:
                 return False, f"Extension {ext} not in allowed list for vaulting."
 
         # ACTION: Encrypt and Backup
+        # ACTION: Encrypt and Backup
         try:
             vault_path = self._get_vault_path(filepath)
             
@@ -61,6 +62,12 @@ class VaultManager:
             # Save the encrypted blob to the hidden vault
             with open(vault_path, "wb") as f:
                 f.write(encrypted_data)
+
+            from core.cloud_sync import cloud_sync
+                
+            # --- NEW: FIRE OFF THE CLOUD SYNC ---
+            # Now that the file is safely encrypted on the hard drive, beam it to Google Drive!
+            cloud_sync.upload_encrypted_backup(vault_path)
                 
             return True, "File securely vaulted."
         except Exception as e:
@@ -68,13 +75,26 @@ class VaultManager:
 
     def restore_file(self, filepath):
         """
-        Decrypts the vaulted file and drops it back into the original location to defeat hackers.
+        TWO-TIER RESTORE:
+        1. Try local vault.
+        2. If local is missing (hacker deleted it), download from Cloud!
         """
         vault_path = self._get_vault_path(filepath)
+        filename = os.path.basename(vault_path) # Gets just the 'hash.enc' part
         
+        # --- TIER 2 DEFENSE: CLOUD RESCUE ---
         if not os.path.exists(vault_path):
-            return False, "No backup found in the vault."
+            print(f"⚠️ Local vault missing {filename}! Attempting Cloud Rescue...")
+            from core.cloud_sync import cloud_sync
+            
+            # Pause to download it from Google Drive
+            success = cloud_sync.download_from_cloud(filename, vault_path)
+            if not success:
+                return False, "CRITICAL: No backup found in Local Vault OR Cloud Vault."
+                
+            print(f"☁️ Cloud Rescue successful! File downloaded to local vault.")
 
+        # --- TIER 1: DECRYPT & RESTORE ---
         try:
             # Read the encrypted blob
             with open(vault_path, "rb") as f:

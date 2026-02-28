@@ -5,8 +5,8 @@ import random
 import time
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
-SENDER_EMAIL = "EMAIL HERE"          # Put your real email here
-SENDER_PASSWORD = "PASS HERE"
+SENDER_EMAIL = ""          # Put your real email here
+SENDER_PASSWORD = ""
 class EmailService:
     def __init__(self):
         # We will load these from your config or hardcode for testing
@@ -14,8 +14,8 @@ class EmailService:
         self.smtp_port = 587
         
         # TODO: Replace with your Gmail and the 16-letter App Password you generated
-        self.sender_email = "EMAILHERE" 
-        self.sender_password = "PASS HERE" 
+        self.sender_email = "" 
+        self.sender_password = "" 
         
         # Memory to store OTPs temporarily (Email -> {otp, timestamp})
         self.active_otps = {}
