@@ -1,7 +1,7 @@
 {
     "watch_folder": "C:/path/to/your/monitored/folder",
     "verify_interval": 1800,
-    "webhook_url": "https://discord.com/api/webhooks/1477240356818124962/M7Pi1xpNFMTm8a1o0mxK5RnNCVdFBzsAGw67iGfPKFWTeOJk8wegHR_52qHMI5vXyAw7",
+    "webhook_url": "webhook here",
     "secret_key": "Lisacutie",
     "max_log_size_mb": 10,
     "max_log_backups": 5,
@@ -40,5 +40,5 @@
     "watch_folders": [
         "D:/Free_fire/Photos/New folder"
     ],
-    "admin_email": "kumarmanish85211@gmail.com"
+    "admin_email": "email@gmail.com"
 }
