@@ -16,7 +16,7 @@
         "hash_records.sig",
         "report_summary.txt"
     ],
-    "active_defense": true,
+    "active_defense": false,
     "vault_max_size_mb": 10,
     "vault_allowed_exts": [
         ".txt",
@@ -30,7 +30,7 @@
         ".conf",
         ".jsx"
     ],
-    "ransomware_killswitch": true,
+    "ransomware_killswitch": false,
     "paths": {
         "logs": "logs/",
         "reports": "reports/",

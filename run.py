@@ -23,6 +23,7 @@ def main():
     parser.add_argument("--watch", type=str, help="Folder to watch (overrides config)")
     parser.add_argument("--init", action="store_true", help="Initialize severity system")
     parser.add_argument("--gui", action="store_true", help="Launch GUI (default)")
+    parser.add_argument("--recovery", action="store_true", help="Bypass login and auto-start after hostile termination")
     
     args = parser.parse_args()
     

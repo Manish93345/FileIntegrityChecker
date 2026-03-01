@@ -390,6 +390,11 @@ class ProIntegrityGUI:
         # Intercept "X" button
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
+        # --- 🚨 NEW: AUTO-START ON HOSTILE RECOVERY 🚨 ---
+        if "--recovery" in sys.argv:
+            self.root.after(1000, lambda: self._append_log("⚠️ RECOVERY MODE ACTIVATED: Resuming monitoring after hostile termination."))
+            self.root.after(1500, self.start_monitor) # Auto-click the Start Monitor button
+
 
 
     def _configure_styles(self):
