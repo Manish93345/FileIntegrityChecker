@@ -1,7 +1,7 @@
 {
     "watch_folder": "C:/path/to/your/monitored/folder",
     "verify_interval": 1800,
-    "webhook_url": "webhook here",
+    "webhook_url": null,
     "secret_key": "Lisacutie",
     "max_log_size_mb": 10,
     "max_log_backups": 5,
@@ -38,7 +38,7 @@
         "config": "config/"
     },
     "watch_folders": [
-        "D:/Free_fire/Photos/New folder"
+        "D:/TEST"
     ],
-    "admin_email": "email@gmail.com"
+    "admin_email": "kumarmanish85211@gmail.com"
 }

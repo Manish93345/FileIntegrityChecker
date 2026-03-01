@@ -94,8 +94,13 @@ class AuthManager:
             return False, None, "Invalid Password"
 
     def get_user_tier(self, username):
-        """Calculate tier based on the stored license key and registered email."""
+        """Calculate tier based on stored override OR the license key."""
         user = self.users.get(username, {})
+        
+        # --- NEW: Check if they were granted PRO via Google SSO ---
+        if user.get("tier") == "PRO":
+            return "PRO"
+            
         key = user.get("license_key", "")
         email = user.get("registered_email", "")
         
@@ -124,6 +129,7 @@ class AuthManager:
         
         if is_valid:
             self.users[username]["license_key"] = key
+            self.users[username]["tier"] = "PRO" # <-- NEW: Permanently save the PRO status!
             self._save_db()
             return True, f"Success! Upgraded to {tier.upper()} Plan."
         else:

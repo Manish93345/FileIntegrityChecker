@@ -1682,22 +1682,27 @@ class ProIntegrityGUI:
 
 
     def _add_folder_gui(self):
-        """Add a folder to the list (with Premium Check)"""
+        """Add a folder to the list (Fail-Safe Premium Check)"""
         current_count = self.folder_listbox.size()
         
-        # 1. FETCH USER TIER AND LIMITS
-        user_tier = auth.get_user_tier(self.username)
-        limit = subscription_manager.get_folder_limit(user_tier)
+        # 1. FOOLPROOF TIER CHECK
+        tier = "FREE"
+        if auth:
+            tier = auth.get_user_tier(self.username).upper()
+            
+        # GUI OVERRIDE: If the PRO badge is on screen, force unlock!
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "PRO"
+            
+        limit = 5 if tier == "PRO" else 1
 
-        # 2. ENFORCE PREMIUM GATING
+        # 2. ENFORCE GATING
         if current_count >= limit:
-            if user_tier == "free":
-                messagebox.showwarning(
-                    "⭐ Premium Feature", 
-                    f"The Free Plan is limited to {limit} folder.\n\n"
-                    "Please upgrade to a PRO License to monitor up to 5 directories simultaneously!"
-                )
+            if tier != "PRO":
+                from tkinter import messagebox
+                messagebox.showwarning("⭐ Premium Feature", "The Free Plan is limited to 1 folder.\n\nPlease upgrade to a PRO License to monitor up to 5 directories!")
             else:
+                from tkinter import messagebox
                 messagebox.showwarning("Limit Reached", f"PRO maximum of {limit} folders reached.")
             return
 
@@ -1706,9 +1711,7 @@ class ProIntegrityGUI:
         if folder:
             existing = self.folder_listbox.get(0, tk.END)
             if folder in existing:
-                messagebox.showinfo("Info", "This folder is already being monitored.")
                 return
-            
             self.folder_listbox.insert(tk.END, folder)
             self._save_folders_to_config()
 
@@ -1947,6 +1950,9 @@ class ProIntegrityGUI:
 
     def open_settings(self):
         """Open settings dialog - Upgraded with Dual-Channel Alerting"""
+        from core.auth_manager import auth
+        user_data = auth.users.get(self.username, {})
+        registered_email = user_data.get("registered_email", "")
         win = tk.Toplevel(self.root)
         win.title("Security Settings")
         win.geometry("520x360") # Slightly taller for the new email field
@@ -1977,7 +1983,7 @@ class ProIntegrityGUI:
 
         # --- NEW: Admin Alert Email ---
         tk.Label(win, text="✉️ Admin Alert Email (optional):", bg=self.colors['bg'], fg=self.colors['text_primary'], font=('Segoe UI', 10)).pack(anchor="w", padx=10, pady=(8, 0))
-        email_var = tk.StringVar(value=str(cfg.get("admin_email") or ""))
+        email_var = tk.StringVar(value=str(cfg.get("admin_email") or registered_email))
         e4 = ttk.Entry(win, textvariable=email_var, width=70, style='Modern.TEntry')
         e4.pack(padx=10)
 
@@ -2022,19 +2028,25 @@ class ProIntegrityGUI:
 
 
     def _toggle_active_defense(self):
-        """Toggle Active Defense with Premium Validation"""
-        
-        # 1. VERIFY PRO LICENSE FIRST
-        current_tier = auth.get_user_tier(self.username)
-        if current_tier == "free":
-            messagebox.showwarning(
-                "⭐ Premium Feature", 
-                "Active Defense (Auto-Healing) is a PRO feature.\n\n"
-                "Upgrade to automatically intercept ransomware and instantly restore tampered files from the secure vault!"
-            )
-            return
+        # 1. FOOLPROOF TIER CHECK
+        tier = "FREE"
+        if auth:
+            tier = auth.get_user_tier(self.username).upper()
             
-        # 2. Toggle the state in memory
+        # GUI OVERRIDE: If the PRO badge is on screen, force unlock!
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "PRO"
+        
+        if tier != "PRO":
+            from tkinter import messagebox
+            messagebox.showwarning("⭐ Premium Feature", "🛡️ Active Defense is a PRO feature.\n\nPlease activate a License Key to unlock.")
+            # Snap back to OFF
+            current_state = CONFIG.get("active_defense", False)
+            self.ad_btn_text.set("ON" if current_state else "OFF")
+            self.ad_toggle_btn.configure(bg=self.colors['accent_success'] if current_state else self.colors['text_muted'])
+            return 
+            
+        # 2. Toggle the state
         current_state = CONFIG.get("active_defense", False)
         new_state = not current_state
         CONFIG["active_defense"] = new_state
@@ -2049,13 +2061,13 @@ class ProIntegrityGUI:
             self.ad_toggle_btn.configure(bg=self.colors['text_muted'])
             self._append_log("🛡️ Active Defense DISABLED.")
             
-        # 4. Save to config.json so it survives a reboot
+        # 4. Save to config.json AND Reload Backend Engine
         try:
             from core.utils import get_app_data_dir
+            import os, json
             app_data = get_app_data_dir()
             target_file = os.path.join(app_data, "config", "config.json")
             
-            # Load the existing file, update the one key, and save
             if os.path.exists(target_file):
                 with open(target_file, "r", encoding="utf-8") as f:
                     file_cfg = json.load(f)
@@ -2066,22 +2078,34 @@ class ProIntegrityGUI:
             
             with open(target_file, "w", encoding="utf-8") as f:
                 json.dump(file_cfg, f, indent=4)
+                
+            # --- THE FIX: Tell the backend engine to reload the file! ---
+            from core.integrity_core import load_config
+            load_config(target_file)
+            
         except Exception as e:
             print(f"Error saving Active Defense state: {e}")
 
     def _toggle_killswitch(self):
-        """Toggle Ransomware Killswitch with Premium Validation"""
-        # 1. VERIFY PRO LICENSE
-        current_tier = auth.get_user_tier(self.username)
-        if current_tier == "free":
-            messagebox.showwarning(
-                "⭐ Premium Feature", 
-                "The Ransomware Killswitch is a PRO feature.\n\n"
-                "Upgrade to automatically detect burst-encryption and lock down the OS to stop ransomware!"
-            )
+        # 1. FOOLPROOF TIER CHECK
+        tier = "FREE"
+        if auth:
+            tier = auth.get_user_tier(self.username).upper()
+            
+        # GUI OVERRIDE: If the PRO badge is on screen, force unlock!
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "PRO"
+        
+        if tier != "PRO":
+            from tkinter import messagebox
+            messagebox.showwarning("⭐ Premium Feature", "🛑 Ransomware Killswitch is a PRO feature.\n\nPlease activate a License Key to unlock.")
+            # Snap back to OFF
+            current_state = CONFIG.get("ransomware_killswitch", False)
+            self.ks_btn_text.set("ON" if current_state else "OFF")
+            self.ks_toggle_btn.configure(bg=self.colors['accent_success'] if current_state else self.colors['text_muted'])
             return
             
-        # 2. Toggle the state in memory
+        # 2. Toggle the state
         current_state = CONFIG.get("ransomware_killswitch", False)
         new_state = not current_state
         CONFIG["ransomware_killswitch"] = new_state
@@ -2096,9 +2120,10 @@ class ProIntegrityGUI:
             self.ks_toggle_btn.configure(bg=self.colors['text_muted'])
             self._append_log("🛑 Ransomware Killswitch DISABLED.")
             
-        # 4. Save to config.json so it survives a reboot
+        # 4. Save to config.json AND Reload Backend Engine
         try:
             from core.utils import get_app_data_dir
+            import os, json
             app_data = get_app_data_dir()
             target_file = os.path.join(app_data, "config", "config.json")
             
@@ -2112,6 +2137,11 @@ class ProIntegrityGUI:
             
             with open(target_file, "w", encoding="utf-8") as f:
                 json.dump(file_cfg, f, indent=4)
+                
+            # --- THE FIX: Tell the backend engine to reload the file! ---
+            from core.integrity_core import load_config
+            load_config(target_file)
+            
         except Exception as e:
             print(f"Error saving Killswitch state: {e}")
 

@@ -415,6 +415,19 @@ class LoginWindow:
                                     bd=0, cursor="hand2", font=("Consolas", 9, "underline"),
                                     activebackground=self.bg_panel, activeforeground=self.accent_cyan)
         self.forgot_btn.pack(pady=(0, 5))
+
+
+        # --- NEW: Google SSO Button ---
+        # A visually distinct button for Single Sign-On
+        google_btn = tk.Button(login_frame, text="🌐 Continue with Google", 
+                               font=('Segoe UI', 11, 'bold'),
+                               bg="#ffffff", fg="#4285F4", bd=0, pady=10, cursor="hand2",
+                               command=self._handle_google_login)
+        google_btn.pack(fill=tk.X, pady=(15, 0))
+        
+        # Hover effects to make it feel like a modern web app
+        google_btn.bind("<Enter>", lambda e: google_btn.configure(bg="#f8f9fa"))
+        google_btn.bind("<Leave>", lambda e: google_btn.configure(bg="#ffffff"))
         
         # Separator with terminal style
         sep_frame = tk.Frame(scrollable_frame, bg=self.bg_dark, height=20)
@@ -546,6 +559,16 @@ class LoginWindow:
         # Register Button
         tk.Button(main_frame, text="Create Account", command=self._attempt_register,
                   font=('Segoe UI', 12, 'bold'), bg="#00a8ff", fg="white", bd=0, pady=10, cursor="hand2").pack(fill=tk.X, pady=(25, 0))
+
+        # --- NEW: Google SSO Button (Registration) ---
+        reg_google_btn = tk.Button(main_frame, text="🌐 Sign up with Google", 
+                               font=('Segoe UI', 11, 'bold'),
+                               bg="#ffffff", fg="#4285F4", bd=0, pady=10, cursor="hand2",
+                               command=self._handle_google_login)
+        reg_google_btn.pack(fill=tk.X, pady=(15, 0))
+        
+        reg_google_btn.bind("<Enter>", lambda e: reg_google_btn.configure(bg="#f8f9fa"))
+        reg_google_btn.bind("<Leave>", lambda e: reg_google_btn.configure(bg="#ffffff"))
 
     def _attempt_register(self):
         """Handle the registration button click with Threaded Loading State"""
@@ -766,6 +789,56 @@ class LoginWindow:
         
         tk.Button(main_frame, text="< Back to Login", command=self._build_login_ui,
                   font=('Consolas', 10), bg=self.bg_dark, fg=self.text_secondary, bd=0, cursor="hand2").pack(fill=tk.X, pady=(10, 0))
+
+
+    def _handle_google_login(self):
+        """Triggers the Google SSO flow in a background thread to prevent GUI freezing"""
+        self.root.config(cursor="watch") # Change mouse to a loading spinner
+        self.root.update()
+
+        def _auth_thread():
+            from core.google_auth import authenticate_google_sso
+            success, result = authenticate_google_sso()
+            # Safely push the result back to the main Tkinter thread
+            self.root.after(0, lambda: self._process_google_result(success, result))
+
+        import threading
+        threading.Thread(target=_auth_thread, daemon=True).start()
+
+    def _process_google_result(self, success, result):
+        """Handles the data sent back from Google after the browser closes"""
+        self.root.config(cursor="") # Reset mouse
+        
+        if success:
+            email = result['email']
+            name = result['name']
+            
+            # Generate a username from the email (e.g. 'kumarmanish85211')
+            username = email.split('@')[0]
+            
+            # --- SEAMLESS REGISTRATION ---
+            # If this is their first time logging in, register them automatically!
+            # --- SEAMLESS REGISTRATION ---
+            from core.auth_manager import auth
+            if username not in auth.users:
+                import uuid
+                dummy_pass = str(uuid.uuid4()) 
+                auth.register_user(username, email, dummy_pass, role="admin")
+                
+                # We REMOVED the auto-upgrade! Google SSO users must buy a license.
+                auth._save_db()
+                
+                
+            
+            from tkinter import messagebox
+            messagebox.showinfo("Google SSO", f"Welcome back, {name}!\nSuccessfully authenticated via Google.")
+            
+            # Destroy the login screen and securely launch the main Dashboard
+            self.root.destroy()
+            self._launch_main_app(role="admin", username=username)
+        else:
+            from tkinter import messagebox
+            messagebox.showerror("SSO Error", result)
 
     def _build_reset_pass_ui(self, username, email):
         """Builds the screen to enter the OTP and new password"""
