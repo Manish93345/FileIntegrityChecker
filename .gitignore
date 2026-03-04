@@ -15,3 +15,4 @@ DEVELOPMENT_LOG_RAW.md
 /config/history
 credentials.json.json
 token.pickle
+setup_config.iss

@@ -3305,8 +3305,10 @@ class ProIntegrityGUI:
             return False
 
         if auth:
-            # FIX: Unpack 3 values (success, role, message)
-            # We use '_' to ignore the role since we don't need it here
+            # --- THE FIX: Force the background tray to sync with the live database! ---
+            auth._load_users()
+            
+            # Unpack 3 values (success, role, message)
             success, _, msg = auth.login(self.username, password)
             
             if success:

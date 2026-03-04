@@ -11,7 +11,7 @@ from core.integrity_core import CONFIG, append_log_line
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 CREDENTIALS_FILE = 'credentials.json.json'
 TOKEN_FILE = 'token.pickle'
-MASTER_FOLDER_ID = '' # <-- Keep your Folder ID here!
+MASTER_FOLDER_ID = '1HEXlc91qkRlg42MnMGl8ziraPduS7J15' # <-- Keep your Folder ID here!
 
 class CloudSyncManager:
     def __init__(self):
