@@ -22,7 +22,10 @@ def start_watchdog():
     is_compiled = getattr(sys, 'frozen', False)
     
     if is_compiled:
-        app_target = "FMSecure.exe"
+        # Inno Setup puts Watchdog in the "\service" folder and the app in the "\core" folder.
+        # We need to go up one folder level, then into \core to find the SecureFIM.exe!
+        watchdog_dir = os.path.dirname(sys.executable)
+        app_target = os.path.join(os.path.dirname(watchdog_dir), "core", "SecureFIM.exe")
         base_cmd = [app_target]
     else:
         app_target = "run.py"

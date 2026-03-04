@@ -16,3 +16,5 @@ DEVELOPMENT_LOG_RAW.md
 credentials.json.json
 token.pickle
 setup_config.iss
+core/email_service.py
+core/cloud_sync.py
