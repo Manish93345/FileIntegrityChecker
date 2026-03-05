@@ -13,7 +13,7 @@ DEVELOPMENT_LOG_RAW.md
 /system32_vault
 /reports
 /config/history
-credentials.json.json
+credentials.json
 token.pickle
 setup_config.iss
 core/email_service.py

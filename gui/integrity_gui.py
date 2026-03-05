@@ -1728,10 +1728,22 @@ class ProIntegrityGUI:
             self._save_folders_to_config()
 
     def _save_folders_to_config(self):
-        """Save the listbox items to memory so start_monitor can use them"""
+        """Save the listbox items to memory AND the hard drive"""
         folders = list(self.folder_listbox.get(0, tk.END))
         from core.integrity_core import CONFIG
         CONFIG["watch_folders"] = folders
+        
+        try:
+            import json
+            # Import the exact config file path the backend is using!
+            from core.integrity_core import CONFIG_FILE 
+            
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(CONFIG, f, indent=4)
+                
+        except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror("Configuration Error", f"Windows blocked saving the folder settings.\n\nError: {e}\n\nPlease run the app as Administrator.")
 
     def _show_activation_dialog(self):
         """Popup to enter the commercial license key (Account-Based)"""

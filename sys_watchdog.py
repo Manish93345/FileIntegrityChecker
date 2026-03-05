@@ -42,8 +42,9 @@ def start_watchdog():
         try:
             # Add the recovery flag if we are resurrecting it
             cmd = base_cmd + ["--recovery"] if is_recovery else base_cmd
+            DETACHED_PROCESS = 0x00000008
+            process = subprocess.Popen(cmd, creationflags=DETACHED_PROCESS)
             
-            process = subprocess.Popen(cmd)
             process.wait()
             exit_code = process.returncode
             

@@ -5,7 +5,7 @@ a = Analysis(
     ['run.py'],
     pathex=[],
     binaries=[],
-    datas=[('credentials.json.json', '.')],
+    datas=[('credentials.json', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

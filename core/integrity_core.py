@@ -23,6 +23,29 @@ from core.lockdown_manager import lockdown  # <-- NEW: Import the Killswitch
 import requests
 from core import email_service
 
+# --- THE UNIVERSAL BRAIN ---
+# This forces the app to ALWAYS look in your Windows AppData folder
+# No matter if it's run by you, the Watchdog, or Inno Setup.
+APP_DATA_DIR = os.path.join(os.getenv('APPDATA'), 'FMSecure')
+os.makedirs(APP_DATA_DIR, exist_ok=True) # Create folder if it doesn't exist
+
+CONFIG_FILE = os.path.join(APP_DATA_DIR, 'config.json')
+
+# Load or create the config
+if os.path.exists(CONFIG_FILE):
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            CONFIG = json.load(f)
+    except Exception as e:
+        print(f"Error loading config: {e}")
+        CONFIG = {"watch_folders": [os.path.expanduser("~\\Documents")]}
+else:
+    # Default fallback
+    CONFIG = {"watch_folders": [os.path.expanduser("~\\Documents")]}
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(CONFIG, f, indent=4)
+
+
 SEVERITY_COUNTER_FILE = os.path.join("logs", "severity_counters.json")
 
 # Import security features (silent imports)
@@ -73,6 +96,8 @@ _SEVERITY_CACHE = {
     "MEDIUM": 0, 
     "INFO": 0
 }
+
+
 
 # Attempt to load existing counts from disk on startup
 if os.path.exists(SEVERITY_COUNTER_FILE):
@@ -256,7 +281,6 @@ def load_config(path=None):
     global CONFIG
     
     # 1. Initialize with ROBUST DEFAULTS immediately
-    # This ensures "hash_chunk_size" always exists, preventing crashes
     defaults = {
         "watch_folder": os.path.join(os.path.expanduser("~"), "Documents"),
         "verify_interval": 60,
@@ -269,47 +293,28 @@ def load_config(path=None):
         "hash_retries": 3,
         "hash_retry_delay": 0.5,
         "ignore_filenames": ["hash_records.dat", "integrity_log.dat", "integrity_log.sig", "hash_records.sig", "report_summary.txt"],
-        
-        # --- NEW: ACTIVE DEFENSE RULES ---
-        "active_defense": False, # Will be toggled by the GUI
+        "active_defense": False, 
         "vault_max_size_mb": 10,
         "vault_allowed_exts": [".txt", ".json", ".py", ".html", ".js", ".css", ".php", ".ini", ".conf", ".jsx"],
         "ransomware_killswitch": False
     }
     CONFIG.update(defaults)
 
-
-    # 2. Determine Paths
-    # External: Next to the EXE (Users can edit this)
-    external_config = os.path.join(get_app_data_dir(), "config", "config.json")
-    # Internal: Bundled inside EXE (Fallback)
-    internal_config = os.path.join(get_base_path(), "config", "config.json")
+    # 2. FORCE IT TO USE THE UNIVERSAL BRAIN PATH!
+    # No more external_config vs internal_config confusion.
+    target_path = CONFIG_FILE
     
-    target_path = path or external_config
-    
-    # 3. Try to load External Config
+    # 3. Load the unified config
     if os.path.exists(target_path):
         try:
             with open(target_path, "r", encoding="utf-8") as f:
                 user_config = json.load(f)
-                CONFIG.update(user_config) # Merge user settings over defaults
-                print(f"[CONFIG] Loaded from {target_path}")
+                CONFIG.update(user_config) 
+                print(f"[CONFIG] Loaded Universal Brain from {target_path}")
                 return True
         except Exception as e:
-            print(f"[CONFIG] Error loading external {target_path}: {e}")
+            print(f"[CONFIG] Error loading {target_path}: {e}")
 
-    # 4. Try to load Internal Config (if external missing)
-    elif os.path.exists(internal_config):
-        try:
-            with open(internal_config, "r", encoding="utf-8") as f:
-                user_config = json.load(f)
-                CONFIG.update(user_config)
-                print(f"[CONFIG] Loaded from bundled defaults")
-                return True
-        except Exception as e:
-            print(f"[CONFIG] Error loading internal: {e}")
-            
-    # 5. Fallback
     print("[CONFIG] Using hardcoded defaults")
     return True
 
