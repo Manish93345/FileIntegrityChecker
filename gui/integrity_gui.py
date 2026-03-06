@@ -1810,6 +1810,16 @@ class ProIntegrityGUI:
             messagebox.showerror("Error", "Please add at least one valid folder.")
             return
 
+        # --- THE FIX: Automatically tell Cloud Sync who is logged in! ---
+        try:
+            if auth:
+                user_data = auth.users.get(self.username, {})
+                user_email = user_data.get("registered_email", "UnknownUser")
+                from core.integrity_core import CONFIG
+                CONFIG["admin_email"] = user_email
+        except Exception as e:
+            print(f"Failed to inject email for cloud sync: {e}")
+
         def _start():
             try:
                 def gui_callback(event_type, path, severity):
@@ -2080,25 +2090,22 @@ class ProIntegrityGUI:
             
         # 4. Save to config.json AND Reload Backend Engine
         try:
-            from core.utils import get_app_data_dir
-            import os, json
-            app_data = get_app_data_dir()
-            target_file = os.path.join(app_data, "config", "config.json")
+            import json
+            from core.integrity_core import CONFIG_FILE, load_config
             
-            if os.path.exists(target_file):
-                with open(target_file, "r", encoding="utf-8") as f:
+            if os.path.exists(CONFIG_FILE):
+                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                     file_cfg = json.load(f)
             else:
                 file_cfg = dict(CONFIG)
                 
             file_cfg["active_defense"] = new_state
             
-            with open(target_file, "w", encoding="utf-8") as f:
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(file_cfg, f, indent=4)
                 
-            # --- THE FIX: Tell the backend engine to reload the file! ---
-            from core.integrity_core import load_config
-            load_config(target_file)
+            # Tell backend to reload the exact same Universal Brain file
+            load_config(CONFIG_FILE)
             
         except Exception as e:
             print(f"Error saving Active Defense state: {e}")
@@ -2139,25 +2146,22 @@ class ProIntegrityGUI:
             
         # 4. Save to config.json AND Reload Backend Engine
         try:
-            from core.utils import get_app_data_dir
-            import os, json
-            app_data = get_app_data_dir()
-            target_file = os.path.join(app_data, "config", "config.json")
+            import json
+            from core.integrity_core import CONFIG_FILE, load_config
             
-            if os.path.exists(target_file):
-                with open(target_file, "r", encoding="utf-8") as f:
+            if os.path.exists(CONFIG_FILE):
+                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                     file_cfg = json.load(f)
             else:
                 file_cfg = dict(CONFIG)
                 
             file_cfg["ransomware_killswitch"] = new_state
             
-            with open(target_file, "w", encoding="utf-8") as f:
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(file_cfg, f, indent=4)
                 
-            # --- THE FIX: Tell the backend engine to reload the file! ---
-            from core.integrity_core import load_config
-            load_config(target_file)
+            # Tell backend to reload the exact same Universal Brain file
+            load_config(CONFIG_FILE)
             
         except Exception as e:
             print(f"Error saving Killswitch state: {e}")
