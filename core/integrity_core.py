@@ -1001,6 +1001,21 @@ class IntegrityHandler(FileSystemEventHandler):
     def save_records(self):
         save_hash_records(self.records)
 
+    def _trigger_honeypot(self, path):
+        """Instantly detonates the Killswitch if the decoy file is touched"""
+        message = f"🚨 HONEYPOT BREACH! Unauthorized tampering with decoy file: {os.path.basename(path)}"
+        
+        if CONFIG.get("ransomware_killswitch", False):
+            from core.lockdown_manager import lockdown
+            for folder in self.watch_folders:
+                success, msg = lockdown.trigger_killswitch(folder)
+                if success:
+                    message += f"\n[KILLSWITCH ENGAGED] Folder locked: {folder}"
+        
+        append_log_line(message, event_type="HONEYPOT_BREACH", severity="CRITICAL")
+        send_webhook_safe("HONEYPOT_BREACH", message, filepath=path, severity="CRITICAL")
+        self._notify_gui("HONEYPOT_BREACH", path, "CRITICAL")
+
     def on_created(self, event):
         if event.is_directory: return
         path = os.path.abspath(event.src_path)
@@ -1042,6 +1057,11 @@ class IntegrityHandler(FileSystemEventHandler):
         if event.is_directory: return
         path = os.path.abspath(event.src_path)
         if is_ignored_filename(os.path.basename(path)): return
+
+        # --- 🚨 NEW: HONEYPOT TRIPWIRE 🚨 ---
+        if os.path.basename(path).lower() == "secret_passwords.txt":
+            self._trigger_honeypot(path)
+            return
         
         # 1. Initialize the debounce timer dictionary if it doesn't exist
         if not hasattr(self, 'modified_timers'):
@@ -1151,6 +1171,11 @@ class IntegrityHandler(FileSystemEventHandler):
         if event.is_directory: return
         path = os.path.abspath(event.src_path)
         if is_ignored_filename(os.path.basename(path)): return
+
+        # --- 🚨 NEW: HONEYPOT TRIPWIRE 🚨 ---
+        if os.path.basename(path).lower() == "secret_passwords.txt":
+            self._trigger_honeypot(path)
+            return
         
         # Burst Logic
         current_time = time.time()

@@ -394,6 +394,8 @@ class ProIntegrityGUI:
         if "--recovery" in sys.argv:
             self.root.after(1000, lambda: self._append_log("⚠️ RECOVERY MODE ACTIVATED: Resuming monitoring after hostile termination."))
             self.root.after(1500, self.start_monitor) # Auto-click the Start Monitor button
+            # --- THE STEALTH FIX: Instantly vanish into the System Tray! ---
+            self.root.after(2000, self.hide_window)
 
 
 
@@ -1851,6 +1853,8 @@ class ProIntegrityGUI:
         if not self.monitor_running:
             messagebox.showinfo("Info", "Monitor not running.")
             return
+        if not self._authenticate_action("Stop Security Shields"):
+            return
         try:
             self.monitor.stop_monitoring()
             self.monitor_running = False
@@ -1977,6 +1981,9 @@ class ProIntegrityGUI:
 
     def open_settings(self):
         """Open settings dialog - Upgraded with Dual-Channel Alerting"""
+        # --- 🚨 NEW: PASSWORD PROTECTION ---
+        if not self._authenticate_action("Modify Core Settings"):
+            return
         from core.auth_manager import auth
         user_data = auth.users.get(self.username, {})
         registered_email = user_data.get("registered_email", "")
