@@ -21,6 +21,9 @@ from pystray import MenuItem as item
 from core.utils import get_app_data_dir, get_base_path
 from core.subscription_manager import subscription_manager
 from core.integrity_core import get_decrypted_logs
+import socket
+import uuid
+import requests
 
 
 APP_DATA = get_app_data_dir()
@@ -379,10 +382,11 @@ class ProIntegrityGUI:
         self._update_severity_counters()
         self._tail_log_loop()
 
-        
-
         # Start Safe Mode Watcher
         self._check_safe_mode_status()
+
+        # --- ☁️ LAUNCH CLOUD TELEMETRY ---
+        self._start_telemetry_heartbeat()
 
         # Initialize Tray
         self._setup_tray_icon()
@@ -1810,6 +1814,75 @@ class ProIntegrityGUI:
                 )
         else:
             messagebox.showerror("Activation Failed", msg)
+
+    def _start_telemetry_heartbeat(self):
+        """Silently pings the FastAPI C2 Server every 10 seconds"""
+        def heartbeat_loop():
+            # Generate a unique hardware ID and get the PC name
+            machine_id = str(uuid.getnode())
+            hostname = socket.gethostname()
+            c2_url = "http://127.0.0.1:8000/api/heartbeat"
+            
+            while True:
+                try:
+                    # 1. Gather Live Data
+                    tier = "FREE"
+                    if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+                        tier = "PRO"
+                        
+                    payload = {
+                        "machine_id": machine_id,
+                        "hostname": hostname,
+                        "username": self.username,
+                        "tier": tier,
+                        "is_armed": getattr(self, 'monitor_running', False)
+                    }
+                    
+                    # 2. Send to Cloud & Read Response
+                    response = requests.post(c2_url, json=payload, timeout=5)
+                    if response.status_code == 200:
+                        server_data = response.json()
+                        # --- NEW: EXECUTE CLOUD COMMANDS ---
+                        if server_data.get("command") == "LOCKDOWN":
+                            print("🚨 CLOUD COMMAND RECEIVED: EXECUTING LOCKDOWN!")
+                            # Must use .after() to safely interact with the GUI from a background thread
+                            self.root.after(0, self._execute_remote_lockdown)
+                except Exception:
+                    pass # If the server is offline, fail silently and try again later
+                    
+                # 3. Sleep for 10 seconds (Industry standard is 30s-60s)
+                time.sleep(10)
+
+        # Start as a daemon thread so it runs invisibly and dies when the app closes
+        threading.Thread(target=heartbeat_loop, daemon=True).start()
+
+    def _execute_remote_lockdown(self):
+        """Executes an emergency lockdown commanded by the Cloud Server"""
+        # 1. Force the Ransomware Killswitch ON
+        from core.integrity_core import CONFIG
+        CONFIG["ransomware_killswitch"] = True
+        self.ks_btn_text.set("ON")
+        self.ks_toggle_btn.configure(bg=self.colors['accent_success'])
+        
+        # 2. Trigger the OS-Level Lockdown
+        try:
+            from core.lockdown_manager import lockdown
+            folders = list(self.folder_listbox.get(0, tk.END))
+            if not folders and CONFIG.get("watch_folders"):
+                folders = CONFIG.get("watch_folders")
+                
+            for folder in folders:
+                lockdown.trigger_killswitch(folder)
+                self._append_log(f"☁️ REMOTE LOCKDOWN: Network command isolated folder: {folder}")
+        except Exception as e:
+            print(f"Remote lockdown error: {e}")
+            
+        # 3. Flash a massive warning to the user sitting at the laptop
+        self._show_alert(
+            "☁️ HOST ISOLATED BY IT ADMIN", 
+            "Your IT Administrator has remotely triggered an emergency Ransomware lockdown on your device. All file access has been revoked.", 
+            "critical"
+        )
 
     def start_monitor(self):
         """Start monitoring"""
