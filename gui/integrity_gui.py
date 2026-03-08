@@ -717,6 +717,20 @@ class ProIntegrityGUI:
                                      bd=0, padx=12, pady=2, cursor="hand2")
         self.ks_toggle_btn.grid(row=4, column=1, sticky="e", pady=4)
 
+        # 6. --- NEW: USB Device Control Toggle ---
+        tk.Label(sys_sec_content, text="🔌 USB Device Control:", font=('Segoe UI', 10, 'bold'),
+                bg=self.colors['card_bg'], fg=self.colors['text_primary']).grid(row=5, column=0, sticky="w", pady=4)
+        
+        usb_state = CONFIG.get("usb_readonly", False)
+        self.usb_btn_text = tk.StringVar(value="LOCKED" if usb_state else "ALLOWED")
+        usb_color = self.colors['accent_success'] if usb_state else self.colors['text_muted']
+        
+        self.usb_toggle_btn = tk.Button(sys_sec_content, textvariable=self.usb_btn_text, 
+                                     command=self._toggle_usb_control,
+                                     font=('Segoe UI', 8, 'bold'), bg=usb_color, fg='white',
+                                     bd=0, padx=12, pady=2, cursor="hand2")
+        self.usb_toggle_btn.grid(row=5, column=1, sticky="e", pady=4)
+
         # ===== ACTION BUTTONS CARD (Moved below Security) =====
         action_card = tk.Frame(left_panel, bg=self.colors['card_bg'],
                               relief='flat', bd=1, highlightbackground=self.colors['card_border'],
@@ -2172,6 +2186,77 @@ class ProIntegrityGUI:
             
         except Exception as e:
             print(f"Error saving Killswitch state: {e}")
+
+    def _toggle_usb_control(self):
+        # 1. FOOLPROOF TIER CHECK
+        tier = "FREE"
+        if auth:
+            tier = auth.get_user_tier(self.username).upper()
+            
+        # GUI OVERRIDE
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "PRO"
+        
+        if tier != "PRO":
+            from tkinter import messagebox
+            messagebox.showwarning("⭐ Premium Feature", "🔌 USB Device Control is a PRO feature.\n\nPlease activate a License Key to unlock.")
+            return
+
+        # 2. ADMIN AUTHORIZATION (Registry edits are highly sensitive!)
+        if not self._authenticate_action("Modify USB Device Policy"):
+            return
+            
+        # 3. Toggle the state
+        current_state = CONFIG.get("usb_readonly", False)
+        new_state = not current_state
+        
+        # 4. Call Backend System Registry Script
+        try:
+            from core.usb_policy import set_usb_read_only
+            success, msg = set_usb_read_only(enable=new_state)
+            if not success:
+                from tkinter import messagebox
+                messagebox.showerror("Policy Error", msg)
+                return
+        except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror("Execution Error", f"Failed to execute USB policy: {e}")
+            return
+
+        # 5. Update the UI appearance
+        CONFIG["usb_readonly"] = new_state
+        
+        if new_state:
+            self.usb_btn_text.set("LOCKED")
+            self.usb_toggle_btn.configure(bg=self.colors['accent_success'])
+            self._append_log("🔌 USB Policy ENABLED: All USB Storage devices set to Read-Only.")
+            self._show_alert("USB Policy Updated", "USB Storage devices are now LOCKED (Read-Only).", "high")
+        else:
+            self.usb_btn_text.set("ALLOWED")
+            self.usb_toggle_btn.configure(bg=self.colors['text_muted'])
+            self._append_log("🔌 USB Policy DISABLED: USB Read/Write allowed.")
+            self._show_alert("USB Policy Updated", "USB Storage devices are now UNLOCKED.", "info")
+            
+        # 6. Save to Universal Brain AND Reload Backend Engine
+        try:
+            import json
+            from core.integrity_core import CONFIG_FILE, load_config
+            
+            if os.path.exists(CONFIG_FILE):
+                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                    file_cfg = json.load(f)
+            else:
+                file_cfg = dict(CONFIG)
+                
+            file_cfg["usb_readonly"] = new_state
+            
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(file_cfg, f, indent=4)
+                
+            load_config(CONFIG_FILE)
+            
+        except Exception as e:
+            print(f"Error saving USB Policy state: {e}")
 
     # ===== HELPER METHODS FROM BACKUP =====
     
@@ -4223,6 +4308,10 @@ class ProIntegrityGUI:
         """Admin override to disable safe mode AND release Ransomware folder locks"""
         if self.user_role != 'admin':
             messagebox.showerror("Access Denied", "Only Admins can release security lockdowns.")
+            return
+
+        # --- 🚨 NEW: REQUIRE PASSWORD TO UNLOCK FOLDERS ---
+        if not self._authenticate_action("Release System Lockdown"):
             return
             
         if messagebox.askyesno("Confirm Unlock", "Are you sure the system is secure?\n\nThis will release OS-level folder locks and re-enable monitoring controls."):
