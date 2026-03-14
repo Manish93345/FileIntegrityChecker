@@ -1,181 +1,160 @@
-# 🛡️ File Integrity Security Monitor
+# 🛡️ FMSecure: Enterprise Endpoint Detection & Response (EDR)
 
-[![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python)](https://www.python.org/)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-lightgrey)]()
-[![Status](https://img.shields.io/badge/Status-Production--Ready-brightgreen)]()
-[![Security](https://img.shields.io/badge/Security-Cryptographic%20Integrity-red)]()
+![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
+![Platform](https://img.shields.io/badge/Platform-Windows_11-0078D6.svg)
+![Build](https://img.shields.io/badge/Build-PyInstaller_%7C_InnoSetup-success.svg)
+![Cloud](https://img.shields.io/badge/Cloud-FastAPI_%7C_Google_Drive-FF9900.svg)
 [![Made with Love](https://img.shields.io/badge/Made%20with-💖%20by%20Manish%20%26%20Lisa-pink)]()
 
----
-
-## 🔐 Overview
-
-**File Integrity Security Monitor** is a professional-grade desktop security tool that continuously monitors files and folders to detect **unauthorized changes, deletions, or tampering** using cryptographic verification.
-
-The system is designed to behave like a **real-world security product**, not just a script — featuring severity-based alerts, auto-response, safe mode, demo simulation, and a modern GUI.
+**FMSecure** is a production-ready Endpoint Detection and Response (EDR) agent and Command & Control (C2) architecture. Built entirely in Python, it provides real-time file system monitoring, cryptographic tamper detection, active ransomware defense, and live cloud telemetry.
 
 ---
 
-## 🎯 Key Use Cases
+## 📸 System Overview
 
-- Detect ransomware-style file modifications
-- Monitor sensitive personal or enterprise folders
-- Maintain audit trails for digital forensics
-- Demonstrate real-time security monitoring in interviews
-- Safe demo simulation without touching real files
+
+![FMSecure Agent Dashboard](docs/images/main_dashboard.png)
 
 ---
 
-## ⚙️ Core Features
+# 🚀 Core Enterprise Features
 
-### 🔍 File Integrity Monitoring
+## 1. 🔍 File Integrity Monitoring
 - Cryptographic hashing (SHA-256)
-- Detects **Created / Modified / Deleted** files
+- Detects **Created / Modified / Deleted / Renamed / Moved / changing any attributes** files
 - Real-time monitoring using watchdog
 
-### 🚨 Severity Intelligence
+---
+
+## 2. 🚨 Severity Intelligence
 - INFO — File created  
 - MEDIUM — File modified  
 - HIGH — Multiple deletions  
-- CRITICAL — Hash database or log tampering  
+- CRITICAL — Hash database or log tampering 
 
-### 🧠 Auto Response & Safe Mode
-- Automated reactions based on severity
-- Monitoring freeze on CRITICAL incidents
-- Visual SAFE MODE alerts in GUI
+---
 
-### 🔐 Tamper-Proof Design
-- HMAC signatures for:
-  - `hash_records.json`
-  - `integrity_log.txt`
-- Detects if attacker edits logs or hash database
-
-### 👤 Authentication & Access Control
+## 3. 👤 Authentication & Access Control
 - User Mode (read-only, safe)
 - Admin Mode (full control)
 - Admin login alerts
 - Password change logging
 
-### 📊 Reporting & Visualization
+---
+
+## 4. 📊 Reporting & Visualization
 - Summary & detailed reports
 - PDF export with charts
 - Incident snapshot generation
 - Log archive & history system
 
-### 🎬 Demo Mode (Interview Friendly)
-- Simulated security incidents
-- No real files touched
-- One-click live demonstration
+![Report PDF generation](docs/images/reports.png)
 
 ---
 
-## 🖥️ GUI Highlights
-
-- Modern Tkinter-based dashboard
-- Dark / Light theme toggle
-- Live log feed
-- Status banners & sliding alerts
-- Menu-based extensibility
+## 5. 🛑 Ransomware Killswitch & Behavioral Heuristics
+Monitors file system I/O for rapid burst modifications indicative of ransomware encryption. Upon threshold breach, it dynamically executes Windows `icacls` commands to instantly revoke OS-level Write/Delete permissions across all monitored directories, halting the attack in milliseconds.
 
 ---
 
-## 📂 Final Project Structure
+## 6. 🛡️ Active Defense & Cryptographic Vault
+Automatically backs up critical files into a hidden, local AES-encrypted vault using Fernet symmetric cryptography. If unauthorized modifications or deletions are detected, the system automatically restores the clean file from the vault and alerts the administrator.
 
-.
-├── core/
-│   ├── auth_manager.py          
-│   ├── auto_response.py        
-│   ├── demo_simulator.py        
-│   ├── incident_snapshot.py        
-│   ├── integrity_core.py 
-│   ├── safe_mode.py
-│   ├── security_imports.py
-│   └── severity_init.py      
-├── assets/
-│   └──icons/
-│       └──All icons file here
-├── cli/
-│   └── integrity_cli.py
-├── config/
-│   └── config.json
-├── gui/
-│   ├── login_gui.py
-│   └── integrity_gui.py
-├── tests/                       # Sample test files (for monitoring)
-├── DEVELOPMENT_LOG.md            # Development progress
-├── README.md                     
-└── run.py
+---
 
-
-▶️ How to Run
-
-### GUI Mode
-
-    python run.py
-# or
-    python run.py --gui
-
-### GUI Mode
-    python run.py --cli
-    python run.py --cli --verify
-    python run.py --cli --watch /path/to/folder
-
-
-### LOGIN CREDENTIALS
-    username: "admin"
-    password: "admin123" or "lisajaanu"
+## 7. ☁️ Command & Control (C2) Fleet Management
+Features an asynchronous FastAPI cloud server that receives live telemetry (Heartbeats) from local desktop agents. IT Administrators can view the live status of all endpoints and execute **Remote Network Lockdowns** to isolate compromised hosts from a web browser.
 
 
 
-🧾 Project Overview
+![FMSecure Cloud C2 Console](docs/images/c2_dashboard.png)
 
-This tool helps verify the integrity of files by calculating and comparing cryptographic hash values.
-It ensures that a file has not been tampered with or modified — useful for digital forensics, data security, and malware detection.
+---
 
+## 8. 🔌 Data Loss Prevention (DLP)
+Prevents unauthorized data exfiltration by enforcing USB Read-Only policies. The agent interacts directly with the Windows Registry (`StorageDevicePolicies`) to lock down hardware ports during high-alert scenarios.
 
+---
 
-🧰 Tech Stack
+## 9. 👻 Self-Healing Watchdog Process
+The core agent is wrapped in an invisible, unkillable Watchdog process masquerading as a native Windows service (`WinSysHost.exe`). If a threat actor attempts to terminate the EDR via Task Manager, the Watchdog instantly resurrects the agent in "Recovery Mode" and forces it into the System Tray.
 
-    Language: Python 3.11+
-    GUI: Tkinter
-    Security: hashlib, hmac
-    Monitoring: watchdog
-    Reports: reportlab, matplotlib
-    Packaging: PyInstaller (Phase 10)
+---
 
+## 10. 🔄 OAuth 2.0 Cloud Sync
+Integrates directly with the Google Drive API to securely stream encrypted AES backups off-site, ensuring data recovery is possible even if the local disk is entirely compromised or physically destroyed.
 
-🧩 How It Works
+---
 
-1. The tool first calculates and stores hash values of all files in the monitored folder.
-2. Periodically (polling-based), it re-checks their hashes.
-3. If a mismatch, deletion, or new file is detected, it logs the event in `integrity_log.txt`.
-4. `hash_records.json` is updated accordingly.
+# 🏗️ Technical Architecture
 
+- **The Local Agent:** A multi-threaded Python application utilizing `watchdog` for file I/O interception, `cryptography.fernet` for local vaulting, and HMAC SHA-256 for audit log integrity.
 
+- **The Telemetry Engine:** An asynchronous background daemon that queues JSON payloads and streams endpoint status to the C2 server every 10 seconds.
 
+- **The C2 Server:** A high-performance `FastAPI` + `Uvicorn` asynchronous backend utilizing `Pydantic` for strict data validation and payload routing.
 
-🚀 Future Enhancements
+- **Deployment:** Packaged as a standalone Windows executable using `PyInstaller` (with UAC Admin manifests) and wrapped into a professional `.exe` installer via `Inno Setup`.
 
-    Email/Discord webhook alerts when tampering detected
+---
 
-    Hash verification for multiple files in batch mode
-
-    Web-based dashboard for visualization
+# 🚨 Threat Response in Action
 
 
 
+![Threat Response & Lockdown](docs/images/threat_response.png)
 
-MIT License
+---
 
-Copyright (c) 2025 Manish Kumar
+# 🛠️ Installation & Build Guide
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software...
+## 1️⃣ Run from Source
 
+```bash
+# Clone the repository
+git clone https://github.com/Manish93345/FileIntegrityChecker.git
 
+cd FMSecure
 
-💖 Credits
+# Install dependencies
+pip install -r requirements.txt
 
-Developed by Manish Kumar  
+# Run the C2 Cloud Server
+cd FMSecure_Cloud
+uvicorn server:app --reload
 
+# Run the Local Agent (in a new terminal)
+python run.py
+```
 
+---
+
+## 2️⃣ Compile to Enterprise Executable (Windows)
+
+To build the standalone EDR agent with elevated OS privileges and the stealth Watchdog:
+
+```powershell
+# Compile the invisible Watchdog
+pyinstaller --onedir --noconsole --name WinSysHost sys_watchdog.py
+
+# Compile the Main Agent (Requires Admin UAC)
+pyinstaller run.py --onedir --noconsole --name SecureFIM --icon=assets/icons/app_icon.ico --uac-admin --clean --add-data "credentials.json;."
+```
+
+After compilation, use the provided **setup_config.iss** in **Inno Setup** to generate the final deployment installer.
+
+---
+
+# 🔮 Future Scope (Active Development)
+
+- **Network Isolation:** Integration with Windows `netsh advfirewall` to physically sever LAN connections during a Killswitch event.
+
+- **Machine Learning Heuristics:** Replacing static burst-thresholds with an isolation forest ML model to detect anomalous file I/O behavior.
+
+- **Memory Scanning:** API hooking to detect fileless malware executing directly in RAM.
+
+---
+
+## 👨‍💻 Author
+
+Developed by **Manish** as a comprehensive study in **Systems Architecture, OS-Level Permissions, and Enterprise Cybersecurity**.
