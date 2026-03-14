@@ -12,7 +12,7 @@
 
 ## 📸 System Overview
 
-[![FMSecure Live Demo](https://img.youtube.com/vi/UVaUOYsSVss/0.jpg)](https://www.youtube.com/watch?v=YOUR_YOUTUBE_VIDEO_ID)  
+[![FMSecure Live Demo](https://img.youtube.com/vi/UVaUOYsSVss/0.jpg)](https://www.youtube.com/watch?v=UVaUOYsSVss)  
 
 ---
 
