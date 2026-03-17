@@ -446,7 +446,6 @@ class ProIntegrityGUI:
 
         self.watch_folder_var    = tk.StringVar(value=os.path.abspath(CONFIG.get('watch_folder', os.getcwd())))
         self.status_var          = tk.StringVar(value='Stopped')
-        self.status_var.trace_add('write', lambda *args: self._update_status_color())
         self.total_files_var     = tk.StringVar(value='0')
         self.created_var         = tk.StringVar(value='0')
         self.modified_var        = tk.StringVar(value='0')
@@ -3406,30 +3405,19 @@ class ProIntegrityGUI:
             pass
 
     def _update_status_color(self):
-        """Update the status pill background color based on current status"""
+        """Update the status label color based on current status"""
         if not hasattr(self, 'status_label'):
             return
         
         current_status = self.status_var.get()
-        
-        # Determine the correct background color
-        if any(x in current_status for x in ("Running", "🟢", "Armed", "▶")):
-            pill_bg = self.colors['accent_success']     # Green
-        elif any(x in current_status for x in ("DEMO", "SAFE")):
-            pill_bg = self.colors['accent_danger']      # Red
+        if "Running" in current_status or "🟢" in current_status:
+            self.status_label.configure(fg=self.colors['accent_success'])
+        elif "DEMO" in current_status or "SAFE" in current_status:
+            self.status_label.configure(fg=self.colors['accent_danger'])
         elif "Read-Only" in current_status:
-            pill_bg = self.colors['accent_warning']     # Amber
-        else:  
-            pill_bg = self.colors['accent_danger']      # Red for Stopped
-            
-        # Apply the background color to the entire pill group
-        if hasattr(self, '_status_pill_frame'):
-            self._status_pill_frame.configure(bg=pill_bg)
-        if hasattr(self, '_status_pill_dot'):
-            self._status_pill_dot.configure(bg=pill_bg)
-            
-        # Ensure the text stays white while the background changes
-        self.status_label.configure(bg=pill_bg, fg='#ffffff')
+            self.status_label.configure(fg=self.colors['accent_warning'])
+        else:  # Stopped or default
+            self.status_label.configure(fg=self.colors['accent_primary'])
 
     def _update_widget_colors(self, widget):
         """Recursively update widget colors, skipping the side menu"""

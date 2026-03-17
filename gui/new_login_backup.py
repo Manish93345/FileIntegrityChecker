@@ -913,9 +913,12 @@ class LoginWindow:
 
     def _launch_main_app(self, role, username):
         # Create the main application root
-        main_root = tk.Tk()
+        # --- 🚨 FIX: Launch main application using CustomTkinter Engine ---
+        import customtkinter as ctk
+        ctk.set_appearance_mode("dark")
+        ctk.set_default_color_theme("blue")
         
-        # Initialize the GUI with the user role
+        main_root = ctk.CTk()  # Uses CTk instead of standard Tk
         app = ProIntegrityGUI(main_root, user_role=role, username=username)
         
         # IMPORTANT: Start the main loop for the new window

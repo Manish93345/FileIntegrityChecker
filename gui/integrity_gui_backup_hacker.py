@@ -19,6 +19,11 @@ import pystray
 from PIL import Image as PILImage
 from pystray import MenuItem as item
 from core.utils import get_app_data_dir, get_base_path
+from core.subscription_manager import subscription_manager
+from core.integrity_core import get_decrypted_logs
+import socket
+import uuid
+import requests
 
 
 APP_DATA = get_app_data_dir()
@@ -284,6 +289,8 @@ class ProIntegrityGUI:
         self.ALERT_SHOW_MS = 5000
         self.alert_visible = False
         self.alert_hide_after_id = None
+
+        self.renamed_var = tk.StringVar(value="0")
         
         # Report tracking - ADDED FROM BACKUP
         self.report_data = {
@@ -355,6 +362,7 @@ class ProIntegrityGUI:
             'session_created': 0,
             'session_modified': 0,
             'session_deleted': 0,
+            'session_renamed': 0,
             'current_files': set()
         }
 
@@ -374,16 +382,26 @@ class ProIntegrityGUI:
         self._update_severity_counters()
         self._tail_log_loop()
 
-        
-
         # Start Safe Mode Watcher
         self._check_safe_mode_status()
+
+        # --- ☁️ LAUNCH CLOUD TELEMETRY ---
+        self._start_telemetry_heartbeat()
 
         # Initialize Tray
         self._setup_tray_icon()
         
         # Intercept "X" button
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+        # --- 🚨 NEW: AUTO-START ON HOSTILE RECOVERY 🚨 ---
+        if "--recovery" in sys.argv:
+            self.root.after(1000, lambda: self._append_log("⚠️ RECOVERY MODE ACTIVATED: Resuming monitoring after hostile termination."))
+            self.root.after(1500, self.start_monitor) # Auto-click the Start Monitor button
+            # --- THE STEALTH FIX: Instantly vanish into the System Tray! ---
+            self.root.after(2000, self.hide_window)
+
+
 
     def _configure_styles(self):
         """Configure modern ttk styles"""
@@ -462,6 +480,14 @@ class ProIntegrityGUI:
         header_frame = tk.Frame(main_container, bg=self.colors['header_bg'], height=80)
         header_frame.pack(fill=tk.X, pady=(0, 20))
         header_frame.pack_propagate(False)
+        # Upgrade Button (Only show if Free)
+        # current_tier = auth.get_user_tier(self.username)
+        # if current_tier == "free":
+        #     self.upgrade_btn = tk.Button(btn_frame, text="⭐ Upgrade", 
+        #                                command=self._show_activation_dialog,
+        #                                font=('Segoe UI', 10, 'bold'), 
+        #                                bg="#ffd700", fg="black") # Gold color
+        #     self.upgrade_btn.pack(side=tk.LEFT, padx=10)
         
         # Menu Button
         self.menu_btn = tk.Button(header_frame, text="☰", 
@@ -496,14 +522,43 @@ class ProIntegrityGUI:
         control_frame.pack(side=tk.RIGHT, padx=30, pady=20)
         
         # User info
-        user_label = tk.Label(control_frame, text=f"👤 {self.username}",
+        # User info (Clickable Profile Dropdown)
+        self.user_btn = tk.Button(control_frame, text=f"👤 {self.username} ▼",
                              font=('Segoe UI', 10, 'bold'),
-                             bg=self.colors['header_bg'], fg=self.colors['text_secondary'])
-        user_label.pack(side=tk.RIGHT, padx=(10, 0))
+                             bg=self.colors['header_bg'], fg=self.colors['text_secondary'],
+                             bd=0, activebackground=self.colors['header_bg'], 
+                             activeforeground=self.colors['accent_primary'],
+                             cursor="hand2", command=self._show_profile_panel)
+        self.user_btn.pack(side=tk.RIGHT, padx=(10, 0))
+        self.user_btn.bind("<Enter>", lambda e: self.user_btn.configure(fg=self.colors['text_primary']))
+        self.user_btn.bind("<Leave>", lambda e: self.user_btn.configure(fg=self.colors['text_secondary']))
         
         # Control buttons
         btn_frame = tk.Frame(control_frame, bg=self.colors['header_bg'])
         btn_frame.pack(side=tk.RIGHT)
+
+        self.top_btn_frame = btn_frame
+
+
+        # --- NEW: PRO UPGRADE BUTTON ---
+        # Check their tier dynamically based on their license key
+        current_tier = auth.get_user_tier(self.username)
+        
+        if current_tier == "free":
+            self.upgrade_btn = tk.Button(btn_frame, text="⭐ Upgrade to PRO", 
+                                       command=self._show_activation_dialog,
+                                       font=('Segoe UI', 10, 'bold'), 
+                                       bg="#ffd700", fg="#000000", 
+                                       bd=0, padx=15, pady=2, cursor="hand2")
+            self.upgrade_btn.pack(side=tk.LEFT, padx=(0, 15))
+            self.upgrade_btn.bind("<Enter>", lambda e: self.upgrade_btn.configure(bg="#ffea00"))
+            self.upgrade_btn.bind("<Leave>", lambda e: self.upgrade_btn.configure(bg="#ffd700"))
+        else:
+            # If they are already premium, show a sleek gold text badge instead of a button
+            self.pro_badge = tk.Label(btn_frame, text="⭐ PRO ACTIVE", 
+                                      font=('Segoe UI', 10, 'bold'), 
+                                      bg=self.colors['header_bg'], fg="#ffd700")
+            self.pro_badge.pack(side=tk.LEFT, padx=(0, 15))
         
         # Theme toggle
         self.theme_btn = tk.Button(btn_frame, text="🌙" if self.dark_mode else "☀️", 
@@ -532,14 +587,14 @@ class ProIntegrityGUI:
             self.unlock_btn.pack(side=tk.LEFT, padx=2)
             self.ToolTip(self.unlock_btn, "Disable Lockdown")
         
-        # Logout button
-        self.logout_btn = tk.Button(btn_frame, text="🚪", 
-                                  command=self.logout,
-                                  font=('Segoe UI', 12), bg=self.colors['button_bg'], 
-                                  fg=self.colors['text_primary'], bd=0, padx=10,
-                                  cursor="hand2")
-        self.logout_btn.pack(side=tk.LEFT, padx=2)
-        self.ToolTip(self.logout_btn, "Logout")
+        # # Logout button
+        # self.logout_btn = tk.Button(btn_frame, text="🚪", 
+        #                           command=self.logout,
+        #                           font=('Segoe UI', 12), bg=self.colors['button_bg'], 
+        #                           fg=self.colors['text_primary'], bd=0, padx=10,
+        #                           cursor="hand2")
+        # self.logout_btn.pack(side=tk.LEFT, padx=2)
+        # self.ToolTip(self.logout_btn, "Logout")
 
         # Main Content Area
         content_frame = tk.Frame(main_container, bg=self.colors['bg'])
@@ -552,50 +607,135 @@ class ProIntegrityGUI:
         # ===== LEFT PANEL - Controls and Status =====
         left_panel = tk.Frame(content_frame, bg=self.colors['bg'], width=400)
         left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=False)
-        left_panel.pack_propagate(False)
+        
 
-        # Folder Selection Card
+        # --- NEW MULTI-FOLDER SELECTION CARD ---
         folder_card = tk.Frame(left_panel, bg=self.colors['card_bg'], 
-                              relief='flat', bd=1, highlightbackground=self.colors['card_border'],
-                              highlightthickness=1)
+                               relief='flat', bd=1, highlightbackground=self.colors['card_border'],
+                               highlightthickness=1)
         folder_card.pack(fill=tk.X, pady=(0, 15))
         
-        tk.Label(folder_card, text="📁 Monitor Folder", font=('Segoe UI', 12, 'bold'),
+        tk.Label(folder_card, text="📁 Protected Directories", font=('Segoe UI', 12, 'bold'),
                 bg=self.colors['card_bg'], fg=self.colors['text_primary']).pack(anchor='w', padx=20, pady=(15, 10))
         
-        # Folder input with icon
-        folder_input_frame = tk.Frame(folder_card, bg=self.colors['card_bg'])
-        folder_input_frame.pack(fill=tk.X, padx=20, pady=(0, 15))
-        
-        self.folder_entry = ttk.Entry(folder_input_frame, font=('Segoe UI', 10), style='Modern.TEntry')
-        self.folder_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
-        self.folder_entry.insert(0, self.watch_folder_var.get())
-        
-        browse_btn = ttk.Button(folder_input_frame, text="Browse", 
-                               command=self._browse, width=10, style='Modern.TButton')
-        browse_btn.pack(side=tk.RIGHT)
+        # Listbox and Scrollbar Frame
+        list_frame = tk.Frame(folder_card, bg=self.colors['card_bg'])
+        list_frame.pack(fill=tk.X, padx=20, pady=(0, 10))
 
-        # Status Card
-        status_card = tk.Frame(left_panel, bg=self.colors['card_bg'],
+        # 1. The Listbox (Replaces the text entry)
+        self.folder_listbox = tk.Listbox(list_frame, height=3, selectmode=tk.SINGLE,
+                                         bg=self.colors['input_bg'], fg=self.colors['text_primary'],
+                                         relief='solid', bd=1, highlightbackground=self.colors['input_border'])
+        self.folder_listbox.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # Scrollbar for Listbox
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.folder_listbox.yview)
+        scrollbar.pack(side=tk.LEFT, fill=tk.Y, padx=(2, 0))
+        self.folder_listbox.config(yscrollcommand=scrollbar.set)
+        
+        # Load existing folders from config
+        from core.integrity_core import CONFIG
+        current_folders = CONFIG.get("watch_folders", [])
+        if not current_folders and CONFIG.get("watch_folder"):
+             current_folders = [CONFIG["watch_folder"]]
+        for f in current_folders:
+            self.folder_listbox.insert(tk.END, f)
+
+        # 2. Add/Remove Buttons
+        btn_frame_folders = tk.Frame(folder_card, bg=self.colors['card_bg'])
+        btn_frame_folders.pack(fill=tk.X, padx=20, pady=(0, 15))
+
+        self.add_folder_btn = tk.Button(btn_frame_folders, text="➕ Add Folder", command=self._add_folder_gui,
+                                        font=('Segoe UI', 9, 'bold'), bg=self.colors['accent_success'], fg='white',
+                                        bd=0, padx=10, pady=5, cursor="hand2")
+        self.add_folder_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 5))
+
+        self.remove_folder_btn = tk.Button(btn_frame_folders, text="➖ Remove", command=self._remove_folder_gui,
+                                           font=('Segoe UI', 9, 'bold'), bg=self.colors['accent_danger'], fg='white',
+                                           bd=0, padx=10, pady=5, cursor="hand2")
+        self.remove_folder_btn.pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=(5, 0))
+
+        # ===== COMBINED SYSTEM & SECURITY CARD =====
+        sys_sec_card = tk.Frame(left_panel, bg=self.colors['card_bg'],
                               relief='flat', bd=1, highlightbackground=self.colors['card_border'],
                               highlightthickness=1)
-        status_card.pack(fill=tk.X, pady=(0, 15))
+        sys_sec_card.pack(fill=tk.X, pady=(0, 15))
         
-        tk.Label(status_card, text="📊 System Status", font=('Segoe UI', 12, 'bold'),
+        tk.Label(sys_sec_card, text="🛡️ System & Security", font=('Segoe UI', 12, 'bold'),
                 bg=self.colors['card_bg'], fg=self.colors['text_primary']).pack(anchor='w', padx=20, pady=(15, 10))
         
-        status_content = tk.Frame(status_card, bg=self.colors['card_bg'])
-        status_content.pack(fill=tk.X, padx=20, pady=(0, 15))
+        sys_sec_content = tk.Frame(sys_sec_card, bg=self.colors['card_bg'])
+        sys_sec_content.pack(fill=tk.X, padx=20, pady=(0, 15))
         
-        tk.Label(status_content, text="Status:", font=('Segoe UI', 10),
-                bg=self.colors['card_bg'], fg=self.colors['text_secondary']).pack(side=tk.LEFT)
-        
-        self.status_label = tk.Label(status_content, textvariable=self.status_var,
+        # Use a 2-column grid to make everything super compact!
+        sys_sec_content.columnconfigure(1, weight=1)
+
+        # 1. Engine Status
+        tk.Label(sys_sec_content, text="Engine Status:", font=('Segoe UI', 10),
+                bg=self.colors['card_bg'], fg=self.colors['text_secondary']).grid(row=0, column=0, sticky="w", pady=4)
+        self.status_label = tk.Label(sys_sec_content, textvariable=self.status_var,
                                     font=('Segoe UI', 10, 'bold'), bg=self.colors['card_bg'],
                                     fg=self.colors['accent_primary'])
-        self.status_label.pack(side=tk.LEFT, padx=(10, 0))
+        self.status_label.grid(row=0, column=1, sticky="e", pady=4)
 
-        # Action Buttons Card
+        # 2. Hash Records Indicator
+        tk.Label(sys_sec_content, text="Hash Records:", font=('Segoe UI', 10),
+                bg=self.colors['card_bg'], fg=self.colors['text_secondary']).grid(row=1, column=0, sticky="w", pady=4)
+        self._rec_indicator = tk.Label(sys_sec_content, textvariable=self.tamper_records_var, font=('Segoe UI', 9, 'bold'),
+                               bg=self.colors['indicator_info'], fg='white', padx=8, pady=2)
+        self._rec_indicator.grid(row=1, column=1, sticky="e", pady=4)
+
+        # 3. Log Files Indicator
+        tk.Label(sys_sec_content, text="Audit Logs:", font=('Segoe UI', 10),
+                bg=self.colors['card_bg'], fg=self.colors['text_secondary']).grid(row=2, column=0, sticky="w", pady=4)
+        self._log_indicator = tk.Label(sys_sec_content, textvariable=self.tamper_logs_var, font=('Segoe UI', 9, 'bold'),
+                               bg=self.colors['indicator_info'], fg='white', padx=8, pady=2)
+        self._log_indicator.grid(row=2, column=1, sticky="e", pady=4)
+
+        # 4. Active Defense Toggle
+        tk.Label(sys_sec_content, text="🛡️ Active Defense:", font=('Segoe UI', 10, 'bold'),
+                bg=self.colors['card_bg'], fg=self.colors['text_primary']).grid(row=3, column=0, sticky="w", pady=(10, 4))
+        
+        initial_state = CONFIG.get("active_defense", False)
+        self.ad_btn_text = tk.StringVar(value="ON" if initial_state else "OFF")
+        btn_color = self.colors['accent_success'] if initial_state else self.colors['text_muted']
+        
+        self.ad_toggle_btn = tk.Button(sys_sec_content, textvariable=self.ad_btn_text, 
+                                     command=self._toggle_active_defense,
+                                     font=('Segoe UI', 8, 'bold'), bg=btn_color, fg='white',
+                                     bd=0, padx=12, pady=2, cursor="hand2")
+        self.ad_toggle_btn.grid(row=3, column=1, sticky="e", pady=(10, 4))
+
+
+        # 5. Ransomware Killswitch Toggle
+        tk.Label(sys_sec_content, text="🛑 Ransomware Killswitch:", font=('Segoe UI', 10, 'bold'),
+                bg=self.colors['card_bg'], fg=self.colors['text_primary']).grid(row=4, column=0, sticky="w", pady=4)
+        
+        ks_state = CONFIG.get("ransomware_killswitch", False)
+        self.ks_btn_text = tk.StringVar(value="ON" if ks_state else "OFF")
+        ks_color = self.colors['accent_success'] if ks_state else self.colors['text_muted']
+        
+        self.ks_toggle_btn = tk.Button(sys_sec_content, textvariable=self.ks_btn_text, 
+                                     command=self._toggle_killswitch,
+                                     font=('Segoe UI', 8, 'bold'), bg=ks_color, fg='white',
+                                     bd=0, padx=12, pady=2, cursor="hand2")
+        self.ks_toggle_btn.grid(row=4, column=1, sticky="e", pady=4)
+
+        # 6. --- NEW: USB Device Control Toggle ---
+        tk.Label(sys_sec_content, text="🔌 USB Device Control:", font=('Segoe UI', 10, 'bold'),
+                bg=self.colors['card_bg'], fg=self.colors['text_primary']).grid(row=5, column=0, sticky="w", pady=4)
+        
+        usb_state = CONFIG.get("usb_readonly", False)
+        self.usb_btn_text = tk.StringVar(value="LOCKED" if usb_state else "ALLOWED")
+        usb_color = self.colors['accent_success'] if usb_state else self.colors['text_muted']
+        
+        self.usb_toggle_btn = tk.Button(sys_sec_content, textvariable=self.usb_btn_text, 
+                                     command=self._toggle_usb_control,
+                                     font=('Segoe UI', 8, 'bold'), bg=usb_color, fg='white',
+                                     bd=0, padx=12, pady=2, cursor="hand2")
+        self.usb_toggle_btn.grid(row=5, column=1, sticky="e", pady=4)
+
+        # ===== ACTION BUTTONS CARD (Moved below Security) =====
         action_card = tk.Frame(left_panel, bg=self.colors['card_bg'],
                               relief='flat', bd=1, highlightbackground=self.colors['card_border'],
                               highlightthickness=1)
@@ -604,59 +744,28 @@ class ProIntegrityGUI:
         tk.Label(action_card, text="🎮 Control Panel", font=('Segoe UI', 12, 'bold'),
                 bg=self.colors['card_bg'], fg=self.colors['text_primary']).pack(anchor='w', padx=20, pady=(15, 10))
         
-        # Create button grid - IMPORTED FROM BACKUP
         buttons = [
             ("▶ Start Monitor", self.start_monitor, self.colors['accent_success']),
             ("⏹ Stop Monitor", self.stop_monitor, self.colors['accent_danger']),
             ("🔍 Verify Now", self.run_verification, self.colors['accent_primary']),
-            ("🔒 Check Signatures", self.verify_signatures, self.colors['accent_secondary']),
+            ("🔒 Check Sigs", self.verify_signatures, self.colors['accent_secondary']),
             ("⚙ Settings", self.open_settings, self.colors['accent_info']),
-            ("🔄 Reset Counters", self.reset_severity_counters, self.colors['accent_warning']),
+            ("🔄 Reset Stats", self.reset_severity_counters, self.colors['accent_warning']),
         ]
+        
+        btn_grid_frame = tk.Frame(action_card, bg=self.colors['card_bg'])
+        btn_grid_frame.pack(fill=tk.X, padx=15, pady=(0, 10))
+        btn_grid_frame.columnconfigure(0, weight=1)
+        btn_grid_frame.columnconfigure(1, weight=1)
         
         for i, (text, command, color) in enumerate(buttons):
-            btn = tk.Button(action_card, text=text, command=command,
-                          font=('Segoe UI', 10, 'bold'), bg=color, fg='white',
-                          bd=0, padx=20, pady=10, cursor="hand2",
+            btn = tk.Button(btn_grid_frame, text=text, command=command,
+                          font=('Segoe UI', 9, 'bold'), bg=color, fg='white',
+                          bd=0, padx=5, pady=8, cursor="hand2",
                           activebackground=color)
-            btn.pack(fill=tk.X, padx=20, pady=5)
+            btn.grid(row=i//2, column=i%2, sticky="ew", padx=4, pady=4)
             btn.bind("<Enter>", lambda e, b=btn: b.configure(bg=self._lighten_color(color)))
             btn.bind("<Leave>", lambda e, b=btn, c=color: b.configure(bg=c))
-
-        # Security Status Card - IMPORTED FROM BACKUP
-        security_card = tk.Frame(left_panel, bg=self.colors['card_bg'],
-                                relief='flat', bd=1, highlightbackground=self.colors['card_border'],
-                                highlightthickness=1)
-        security_card.pack(fill=tk.X)
-        
-        tk.Label(security_card, text="🛡️ Security Status", font=('Segoe UI', 12, 'bold'),
-                bg=self.colors['card_bg'], fg=self.colors['text_primary']).pack(anchor='w', padx=20, pady=(15, 10))
-        
-        security_content = tk.Frame(security_card, bg=self.colors['card_bg'])
-        security_content.pack(fill=tk.X, padx=20, pady=(0, 15))
-        
-        # Security indicators - IMPORTED FROM BACKUP
-        indicators = [
-            ("Hash Records:", self.tamper_records_var),
-            ("Log Files:", self.tamper_logs_var),
-        ]
-        
-        for label_text, var in indicators:
-            indicator_frame = tk.Frame(security_content, bg=self.colors['card_bg'])
-            indicator_frame.pack(fill=tk.X, pady=8)
-            
-            tk.Label(indicator_frame, text=label_text, font=('Segoe UI', 10),
-                    bg=self.colors['card_bg'], fg=self.colors['text_secondary']).pack(side=tk.LEFT)
-            
-            indicator = tk.Label(indicator_frame, textvariable=var, font=('Segoe UI', 10, 'bold'),
-                               bg=self.colors['indicator_info'], fg='white',
-                               padx=12, pady=4, relief='flat')
-            indicator.pack(side=tk.RIGHT)
-            
-            if label_text == "Hash Records:":
-                self._rec_indicator = indicator
-            else:
-                self._log_indicator = indicator
 
         # ===== RIGHT PANEL - Dashboard and Logs =====
         right_panel = tk.Frame(content_frame, bg=self.colors['bg'])
@@ -685,18 +794,19 @@ class ProIntegrityGUI:
             ("Total Files:", self.total_files_var, self.colors['accent_primary']),
             ("Created:", self.created_var, self.colors['accent_success']),
             ("Modified:", self.modified_var, self.colors['accent_warning']),
+            ("Renamed:", self.renamed_var, self.colors['accent_secondary']),
             ("Deleted:", self.deleted_var, self.colors['accent_danger']),
         ]
         
         for label, var, color in stats_data:
             stat_frame = tk.Frame(stats_content, bg=self.colors['card_bg'])
-            stat_frame.pack(fill=tk.X, pady=8)
+            stat_frame.pack(fill=tk.X, pady=7)
             
-            tk.Label(stat_frame, text=label, font=('Segoe UI', 10),
+            tk.Label(stat_frame, text=label, font=('Segoe UI', 8),
                     bg=self.colors['card_bg'], fg=self.colors['text_secondary']).pack(side=tk.LEFT)
             
-            value_label = tk.Label(stat_frame, textvariable=var, font=('Segoe UI', 14, 'bold'),
-                                bg=color, fg='white', padx=15, pady=6, relief='flat')
+            value_label = tk.Label(stat_frame, textvariable=var, font=('Segoe UI', 12, 'bold'),
+                                bg=color, fg='white', padx=12, pady=5, relief='flat')
             value_label.pack(side=tk.RIGHT)
             
             # Store the label reference
@@ -938,7 +1048,7 @@ class ProIntegrityGUI:
             if os.path.exists(LOG_FILE):
                 try:
                     with open(LOG_FILE, "r", encoding="utf-8") as f:
-                        lines = f.readlines()[-400:]
+                        lines = get_decrypted_logs()[-400:]
                 except Exception:
                     lines = []
                 
@@ -1485,7 +1595,7 @@ class ProIntegrityGUI:
                 if os.path.exists(LOG_FILE):
                     try:
                         with open(LOG_FILE, 'r', encoding='utf-8') as f:
-                            log_lines = f.readlines()[-1000:]  # Last 1000 lines
+                            log_lines = get_decrypted_logs()[-1000:]  # Last 1000 lines
                         
                         # Add log entries
                         for line in log_lines:
@@ -1557,8 +1667,225 @@ class ProIntegrityGUI:
             self.folder_entry.insert(0, d)
             self._append_log(f"Selected monitor folder: {d}")
 
+
+    def _show_activation_dialog(self):
+        """Popup to enter the commercial license key"""
+        key = simpledialog.askstring(
+            "Activate FMSecure PRO", 
+            "Enter your PRO License Key:\n(Purchased from the FMSecure website)",
+            parent=self.root
+        )
+        
+        if key:
+            # Clean up the key just in case they accidentally copied a space
+            clean_key = key.strip()
+            success, msg = auth.activate_license(self.username, clean_key)
+            
+            if success:
+                messagebox.showinfo("Activation Successful! 🎉", msg)
+                self.status_var.set("⭐ Premium Active")
+                
+                # 1. Destroy the upgrade button completely
+                if hasattr(self, 'upgrade_btn') and self.upgrade_btn.winfo_exists():
+                    self.upgrade_btn.destroy()
+                    
+                # 2. Inject the sleek PRO badge exactly where the button used to be
+                self.pro_badge = tk.Label(self.top_btn_frame, text="⭐ PRO ACTIVE", 
+                                        font=('Segoe UI', 10, 'bold'), 
+                                        bg=self.colors['header_bg'], fg="#ffd700")
+                # Pack it before the theme toggle button so it sits on the far left
+                self.pro_badge.pack(side=tk.LEFT, padx=(0, 15), before=self.theme_btn)
+                    
+                # Update the visual footer
+                if hasattr(self, 'footer_label'):
+                    self.footer_label.config(
+                        text=f"🔐 FMSecure PRO • Licensed to: {registered_email}", 
+                        fg=self.colors['accent_success']
+                    )
+            else:
+                messagebox.showerror("Activation Failed", msg)
+
+
+    def _add_folder_gui(self):
+        """Add a folder to the list (Fail-Safe Premium Check)"""
+        current_count = self.folder_listbox.size()
+        
+        # 1. FOOLPROOF TIER CHECK
+        tier = "FREE"
+        if auth:
+            tier = auth.get_user_tier(self.username).upper()
+            
+        # GUI OVERRIDE: If the PRO badge is on screen, force unlock!
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "PRO"
+            
+        limit = 5 if tier == "PRO" else 1
+
+        # 2. ENFORCE GATING
+        if current_count >= limit:
+            if tier != "PRO":
+                from tkinter import messagebox
+                messagebox.showwarning("⭐ Premium Feature", "The Free Plan is limited to 1 folder.\n\nPlease upgrade to a PRO License to monitor up to 5 directories!")
+            else:
+                from tkinter import messagebox
+                messagebox.showwarning("Limit Reached", f"PRO maximum of {limit} folders reached.")
+            return
+
+        # 3. ADD FOLDER
+        folder = filedialog.askdirectory()
+        if folder:
+            existing = self.folder_listbox.get(0, tk.END)
+            if folder in existing:
+                return
+            self.folder_listbox.insert(tk.END, folder)
+            self._save_folders_to_config()
+
+    def _remove_folder_gui(self):
+        """Remove selected folder"""
+        selection = self.folder_listbox.curselection()
+        if selection:
+            self.folder_listbox.delete(selection[0])
+            self._save_folders_to_config()
+
+    def _save_folders_to_config(self):
+        """Save the listbox items to memory AND the hard drive"""
+        folders = list(self.folder_listbox.get(0, tk.END))
+        from core.integrity_core import CONFIG
+        CONFIG["watch_folders"] = folders
+        
+        try:
+            import json
+            # Import the exact config file path the backend is using!
+            from core.integrity_core import CONFIG_FILE 
+            
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(CONFIG, f, indent=4)
+                
+        except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror("Configuration Error", f"Windows blocked saving the folder settings.\n\nError: {e}\n\nPlease run the app as Administrator.")
+
+    def _show_activation_dialog(self):
+        """Popup to enter the commercial license key (Account-Based)"""
+        # --- THE FIX: Force memory to sync with the fresh users.json file ---
+        if auth:
+            auth._load_users()
+            
+        # 1. Fetch the already registered email from the database
+        user_data = auth.users.get(self.username, {})
+        registered_email = user_data.get("registered_email", "")
+        
+        if not registered_email:
+            messagebox.showerror("Error", "No registered email found for this account. Please contact support.")
+            return
+
+        # 2. Ask for the License Key ONLY
+        key = simpledialog.askstring(
+            "Activate FMSecure PRO", 
+            f"Account: {registered_email}\n\nEnter your PRO License Key:\n(Purchased from FMSecure website)",
+            parent=self.root
+        )
+        
+        if not key: return # User cancelled
+        clean_key = key.strip()
+        
+        # 3. Send to Auth Manager
+        success, msg = auth.activate_license(self.username, clean_key)
+        
+        if success:
+            messagebox.showinfo("Activation Successful! 🎉", msg)
+            self.status_var.set("⭐ Premium Active")
+            
+            # Hide the upgrade button instantly
+            if hasattr(self, 'upgrade_btn') and self.upgrade_btn.winfo_exists():
+                self.upgrade_btn.destroy()
+                
+            # Inject the sleek PRO badge exactly where the button used to be
+            self.pro_badge = tk.Label(self.top_btn_frame, text="⭐ PRO ACTIVE", 
+                                      font=('Segoe UI', 10, 'bold'), 
+                                      bg=self.colors['header_bg'], fg="#ffd700")
+            self.pro_badge.pack(side=tk.LEFT, padx=(0, 15), before=self.theme_btn)
+                
+            # Update the visual footer
+            if hasattr(self, 'footer_label'):
+                self.footer_label.config(
+                    text=f"🔐 FMSecure PRO • Licensed to: {registered_email}", 
+                    fg=self.colors['accent_success']
+                )
+        else:
+            messagebox.showerror("Activation Failed", msg)
+
+    def _start_telemetry_heartbeat(self):
+        """Silently pings the FastAPI C2 Server every 10 seconds"""
+        def heartbeat_loop():
+            # Generate a unique hardware ID and get the PC name
+            machine_id = str(uuid.getnode())
+            hostname = socket.gethostname()
+            c2_url = "http://127.0.0.1:8000/api/heartbeat"
+            
+            while True:
+                try:
+                    # 1. Gather Live Data
+                    tier = "FREE"
+                    if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+                        tier = "PRO"
+                        
+                    payload = {
+                        "machine_id": machine_id,
+                        "hostname": hostname,
+                        "username": self.username,
+                        "tier": tier,
+                        "is_armed": getattr(self, 'monitor_running', False)
+                    }
+                    
+                    # 2. Send to Cloud & Read Response
+                    response = requests.post(c2_url, json=payload, timeout=5)
+                    if response.status_code == 200:
+                        server_data = response.json()
+                        # --- NEW: EXECUTE CLOUD COMMANDS ---
+                        if server_data.get("command") == "LOCKDOWN":
+                            print("🚨 CLOUD COMMAND RECEIVED: EXECUTING LOCKDOWN!")
+                            # Must use .after() to safely interact with the GUI from a background thread
+                            self.root.after(0, self._execute_remote_lockdown)
+                except Exception:
+                    pass # If the server is offline, fail silently and try again later
+                    
+                # 3. Sleep for 10 seconds (Industry standard is 30s-60s)
+                time.sleep(10)
+
+        # Start as a daemon thread so it runs invisibly and dies when the app closes
+        threading.Thread(target=heartbeat_loop, daemon=True).start()
+
+    def _execute_remote_lockdown(self):
+        """Executes an emergency lockdown commanded by the Cloud Server"""
+        # 1. Force the Ransomware Killswitch ON
+        from core.integrity_core import CONFIG
+        CONFIG["ransomware_killswitch"] = True
+        self.ks_btn_text.set("ON")
+        self.ks_toggle_btn.configure(bg=self.colors['accent_success'])
+        
+        # 2. Trigger the OS-Level Lockdown
+        try:
+            from core.lockdown_manager import lockdown
+            folders = list(self.folder_listbox.get(0, tk.END))
+            if not folders and CONFIG.get("watch_folders"):
+                folders = CONFIG.get("watch_folders")
+                
+            for folder in folders:
+                lockdown.trigger_killswitch(folder)
+                self._append_log(f"☁️ REMOTE LOCKDOWN: Network command isolated folder: {folder}")
+        except Exception as e:
+            print(f"Remote lockdown error: {e}")
+            
+        # 3. Flash a massive warning to the user sitting at the laptop
+        self._show_alert(
+            "☁️ HOST ISOLATED BY IT ADMIN", 
+            "Your IT Administrator has remotely triggered an emergency Ransomware lockdown on your device. All file access has been revoked.", 
+            "critical"
+        )
+
     def start_monitor(self):
-        """Start monitoring - IMPORTED FROM BACKUP"""
+        """Start monitoring"""
         if not FileIntegrityMonitor:
             messagebox.showerror("Error", "Backend not available.")
             return
@@ -1566,26 +1893,36 @@ class ProIntegrityGUI:
             messagebox.showinfo("Info", "Monitor already running.")
             return
         
-        folder = self.folder_entry.get()
-        if not folder or not os.path.exists(folder):
-            messagebox.showerror("Error", "Please select a valid folder.")
+        # GET ALL FOLDERS FROM LISTBOX
+        folders = list(self.folder_listbox.get(0, tk.END))
+        if not folders:
+            messagebox.showerror("Error", "Please add at least one valid folder.")
             return
+
+        # --- THE FIX: Automatically tell Cloud Sync who is logged in! ---
+        try:
+            if auth:
+                user_data = auth.users.get(self.username, {})
+                user_email = user_data.get("registered_email", "UnknownUser")
+                from core.integrity_core import CONFIG
+                CONFIG["admin_email"] = user_email
+        except Exception as e:
+            print(f"Failed to inject email for cloud sync: {e}")
 
         def _start():
             try:
-                # Define the callback wrapper
                 def gui_callback(event_type, path, severity):
                     self.root.after(0, lambda: self._handle_realtime_event(event_type, path, severity))
                 
-                # Pass the callback to the backend
-                ok = self.monitor.start_monitoring(watch_folder=folder, event_callback=gui_callback)
+                # PASS THE LIST OF FOLDERS
+                ok = self.monitor.start_monitoring(watch_folders=folders, event_callback=gui_callback)
                 
                 if ok:
                     self.monitor_running = True
-                    self.status_var.set(f"🟢 Running — {os.path.basename(folder)}")
-                    self._append_log(f"Security monitoring STARTED for: {folder}")
+                    self.status_var.set(f"🟢 Running — {len(folders)} Folders")
+                    self._append_log(f"Security monitoring STARTED for {len(folders)} folders.")
                     self._show_alert("Monitoring started", 
-                                   f"Started monitoring folder:\n{folder}", 
+                                   f"Started monitoring {len(folders)} folders.", 
                                    "info")
                     self.reset_session_counts()
                 else:
@@ -1602,6 +1939,8 @@ class ProIntegrityGUI:
         """Stop monitoring - IMPORTED FROM BACKUP"""
         if not self.monitor_running:
             messagebox.showinfo("Info", "Monitor not running.")
+            return
+        if not self._authenticate_action("Stop Security Shields"):
             return
         try:
             self.monitor.stop_monitoring()
@@ -1728,10 +2067,16 @@ class ProIntegrityGUI:
         self._append_log(f"Signature verification: records={rec_msg}, logs={log_msg}")
 
     def open_settings(self):
-        """Open settings dialog - IMPORTED FROM BACKUP"""
+        """Open settings dialog - Upgraded with Dual-Channel Alerting"""
+        # --- 🚨 NEW: PASSWORD PROTECTION ---
+        if not self._authenticate_action("Modify Core Settings"):
+            return
+        from core.auth_manager import auth
+        user_data = auth.users.get(self.username, {})
+        registered_email = user_data.get("registered_email", "")
         win = tk.Toplevel(self.root)
         win.title("Security Settings")
-        win.geometry("520x300")
+        win.geometry("520x360") # Slightly taller for the new email field
         win.configure(bg=self.colors['bg'])
         
         tk.Label(win, text="🔧 Security Configuration (config.json)", 
@@ -1739,20 +2084,29 @@ class ProIntegrityGUI:
 
         cfg = dict(CONFIG)
 
+        # Watch Folder
         tk.Label(win, text="📁 Watch folder:", bg=self.colors['bg'], fg=self.colors['text_primary'], font=('Segoe UI', 10)).pack(anchor="w", padx=10, pady=(8, 0))
         watch_var = tk.StringVar(value=cfg.get("watch_folder", ""))
         e1 = ttk.Entry(win, textvariable=watch_var, width=70, style='Modern.TEntry')
         e1.pack(padx=10)
 
+        # Verify Interval
         tk.Label(win, text="⏱️ Verify interval (seconds):", bg=self.colors['bg'], fg=self.colors['text_primary'], font=('Segoe UI', 10)).pack(anchor="w", padx=10, pady=(8, 0))
         int_var = tk.StringVar(value=str(cfg.get("verify_interval", 1800)))
         e2 = ttk.Entry(win, textvariable=int_var, width=20, style='Modern.TEntry')
         e2.pack(padx=10)
 
-        tk.Label(win, text="🔔 Webhook URL (optional):", bg=self.colors['bg'], fg=self.colors['text_primary'], font=('Segoe UI', 10)).pack(anchor="w", padx=10, pady=(8, 0))
+        # Webhook URL
+        tk.Label(win, text="🔔 Discord/Slack Webhook URL (optional):", bg=self.colors['bg'], fg=self.colors['text_primary'], font=('Segoe UI', 10)).pack(anchor="w", padx=10, pady=(8, 0))
         web_var = tk.StringVar(value=str(cfg.get("webhook_url") or ""))
         e3 = ttk.Entry(win, textvariable=web_var, width=70, style='Modern.TEntry')
         e3.pack(padx=10)
+
+        # --- NEW: Admin Alert Email ---
+        tk.Label(win, text="✉️ Admin Alert Email (optional):", bg=self.colors['bg'], fg=self.colors['text_primary'], font=('Segoe UI', 10)).pack(anchor="w", padx=10, pady=(8, 0))
+        email_var = tk.StringVar(value=str(cfg.get("admin_email") or registered_email))
+        e4 = ttk.Entry(win, textvariable=email_var, width=70, style='Modern.TEntry')
+        e4.pack(padx=10)
 
         def save_settings():
             new_cfg = dict(CONFIG)
@@ -1763,9 +2117,9 @@ class ProIntegrityGUI:
                 messagebox.showerror("Error", "verify_interval must be integer seconds")
                 return
             new_cfg["webhook_url"] = web_var.get() or None
+            new_cfg["admin_email"] = email_var.get() or None # Save the email
             
             try:
-                # Save to AppData/config/config.json
                 from core.utils import get_app_data_dir
                 app_data = get_app_data_dir()
                 config_dir = os.path.join(app_data, "config")
@@ -1793,6 +2147,190 @@ class ProIntegrityGUI:
         ttk.Button(btn_frame, text="💾 Save Settings", command=save_settings, style='Modern.TButton').pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="❌ Cancel", command=win.destroy, style='Modern.TButton').pack(side=tk.LEFT, padx=5)
 
+
+    def _toggle_active_defense(self):
+        # 1. FOOLPROOF TIER CHECK
+        tier = "FREE"
+        if auth:
+            tier = auth.get_user_tier(self.username).upper()
+            
+        # GUI OVERRIDE: If the PRO badge is on screen, force unlock!
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "PRO"
+        
+        if tier != "PRO":
+            from tkinter import messagebox
+            messagebox.showwarning("⭐ Premium Feature", "🛡️ Active Defense is a PRO feature.\n\nPlease activate a License Key to unlock.")
+            # Snap back to OFF
+            current_state = CONFIG.get("active_defense", False)
+            self.ad_btn_text.set("ON" if current_state else "OFF")
+            self.ad_toggle_btn.configure(bg=self.colors['accent_success'] if current_state else self.colors['text_muted'])
+            return 
+            
+        # 2. Toggle the state
+        current_state = CONFIG.get("active_defense", False)
+        new_state = not current_state
+        CONFIG["active_defense"] = new_state
+        
+        # 3. Update the UI appearance
+        if new_state:
+            self.ad_btn_text.set("ON")
+            self.ad_toggle_btn.configure(bg=self.colors['accent_success'])
+            self._append_log("🛡️ Active Defense ENABLED. Files will be auto-restored.")
+        else:
+            self.ad_btn_text.set("OFF")
+            self.ad_toggle_btn.configure(bg=self.colors['text_muted'])
+            self._append_log("🛡️ Active Defense DISABLED.")
+            
+        # 4. Save to config.json AND Reload Backend Engine
+        try:
+            import json
+            from core.integrity_core import CONFIG_FILE, load_config
+            
+            if os.path.exists(CONFIG_FILE):
+                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                    file_cfg = json.load(f)
+            else:
+                file_cfg = dict(CONFIG)
+                
+            file_cfg["active_defense"] = new_state
+            
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(file_cfg, f, indent=4)
+                
+            # Tell backend to reload the exact same Universal Brain file
+            load_config(CONFIG_FILE)
+            
+        except Exception as e:
+            print(f"Error saving Active Defense state: {e}")
+
+    def _toggle_killswitch(self):
+        # 1. FOOLPROOF TIER CHECK
+        tier = "FREE"
+        if auth:
+            tier = auth.get_user_tier(self.username).upper()
+            
+        # GUI OVERRIDE: If the PRO badge is on screen, force unlock!
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "PRO"
+        
+        if tier != "PRO":
+            from tkinter import messagebox
+            messagebox.showwarning("⭐ Premium Feature", "🛑 Ransomware Killswitch is a PRO feature.\n\nPlease activate a License Key to unlock.")
+            # Snap back to OFF
+            current_state = CONFIG.get("ransomware_killswitch", False)
+            self.ks_btn_text.set("ON" if current_state else "OFF")
+            self.ks_toggle_btn.configure(bg=self.colors['accent_success'] if current_state else self.colors['text_muted'])
+            return
+            
+        # 2. Toggle the state
+        current_state = CONFIG.get("ransomware_killswitch", False)
+        new_state = not current_state
+        CONFIG["ransomware_killswitch"] = new_state
+        
+        # 3. Update the UI appearance
+        if new_state:
+            self.ks_btn_text.set("ON")
+            self.ks_toggle_btn.configure(bg=self.colors['accent_success'])
+            self._append_log("🛑 Ransomware Killswitch ENABLED. Burst-protection active.")
+        else:
+            self.ks_btn_text.set("OFF")
+            self.ks_toggle_btn.configure(bg=self.colors['text_muted'])
+            self._append_log("🛑 Ransomware Killswitch DISABLED.")
+            
+        # 4. Save to config.json AND Reload Backend Engine
+        try:
+            import json
+            from core.integrity_core import CONFIG_FILE, load_config
+            
+            if os.path.exists(CONFIG_FILE):
+                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                    file_cfg = json.load(f)
+            else:
+                file_cfg = dict(CONFIG)
+                
+            file_cfg["ransomware_killswitch"] = new_state
+            
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(file_cfg, f, indent=4)
+                
+            # Tell backend to reload the exact same Universal Brain file
+            load_config(CONFIG_FILE)
+            
+        except Exception as e:
+            print(f"Error saving Killswitch state: {e}")
+
+    def _toggle_usb_control(self):
+        # 1. FOOLPROOF TIER CHECK
+        tier = "FREE"
+        if auth:
+            tier = auth.get_user_tier(self.username).upper()
+            
+        # GUI OVERRIDE
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "PRO"
+        
+        if tier != "PRO":
+            from tkinter import messagebox
+            messagebox.showwarning("⭐ Premium Feature", "🔌 USB Device Control is a PRO feature.\n\nPlease activate a License Key to unlock.")
+            return
+
+        # 2. ADMIN AUTHORIZATION (Registry edits are highly sensitive!)
+        if not self._authenticate_action("Modify USB Device Policy"):
+            return
+            
+        # 3. Toggle the state
+        current_state = CONFIG.get("usb_readonly", False)
+        new_state = not current_state
+        
+        # 4. Call Backend System Registry Script
+        try:
+            from core.usb_policy import set_usb_read_only
+            success, msg = set_usb_read_only(enable=new_state)
+            if not success:
+                from tkinter import messagebox
+                messagebox.showerror("Policy Error", msg)
+                return
+        except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror("Execution Error", f"Failed to execute USB policy: {e}")
+            return
+
+        # 5. Update the UI appearance
+        CONFIG["usb_readonly"] = new_state
+        
+        if new_state:
+            self.usb_btn_text.set("LOCKED")
+            self.usb_toggle_btn.configure(bg=self.colors['accent_success'])
+            self._append_log("🔌 USB Policy ENABLED: All USB Storage devices set to Read-Only.")
+            self._show_alert("USB Policy Updated", "USB Storage devices are now LOCKED (Read-Only).", "high")
+        else:
+            self.usb_btn_text.set("ALLOWED")
+            self.usb_toggle_btn.configure(bg=self.colors['text_muted'])
+            self._append_log("🔌 USB Policy DISABLED: USB Read/Write allowed.")
+            self._show_alert("USB Policy Updated", "USB Storage devices are now UNLOCKED.", "info")
+            
+        # 6. Save to Universal Brain AND Reload Backend Engine
+        try:
+            import json
+            from core.integrity_core import CONFIG_FILE, load_config
+            
+            if os.path.exists(CONFIG_FILE):
+                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                    file_cfg = json.load(f)
+            else:
+                file_cfg = dict(CONFIG)
+                
+            file_cfg["usb_readonly"] = new_state
+            
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(file_cfg, f, indent=4)
+                
+            load_config(CONFIG_FILE)
+            
+        except Exception as e:
+            print(f"Error saving USB Policy state: {e}")
+
     # ===== HELPER METHODS FROM BACKUP =====
     
     def _append_log(self, text):
@@ -1811,10 +2349,12 @@ class ProIntegrityGUI:
         self.file_tracking['session_created'] = 0
         self.file_tracking['session_modified'] = 0
         self.file_tracking['session_deleted'] = 0
+        self.file_tracking['session_renamed'] = 0
         
         self.created_var.set("0")
         self.modified_var.set("0")
         self.deleted_var.set("0")
+        self.renamed_var.set("0")
         self._append_log("Session file counters reset")
 
     def view_report(self):
@@ -1895,6 +2435,10 @@ class ProIntegrityGUI:
         elif "MODIFIED" in event_type:
             self.file_tracking['session_modified'] += 1
             self.modified_var.set(str(self.file_tracking['session_modified']))
+
+        elif "RENAMED" in event_type:  
+            self.file_tracking['session_renamed'] += 1
+            self.renamed_var.set(str(self.file_tracking['session_renamed']))
             
         elif "DELETED" in event_type:
             self.file_tracking['session_deleted'] += 1
@@ -1937,6 +2481,100 @@ class ProIntegrityGUI:
         self.log_box.delete("1.0", tk.END)
         self.log_box.configure(state="disabled")
         self._append_log("Log display cleared")
+
+    def _show_profile_panel(self):
+        """Display a sleek, modern dropdown profile card"""
+        # If it already exists, destroy it (acts as a toggle)
+        if hasattr(self, 'profile_panel') and self.profile_panel.winfo_exists():
+            self.profile_panel.destroy()
+            return
+            
+        # Create a borderless pop-up window
+        self.profile_panel = tk.Toplevel(self.root)
+        self.profile_panel.overrideredirect(True)
+        self.profile_panel.configure(bg=self.colors['card_border']) 
+        
+        # Calculate position to drop down exactly below the username button
+        x = self.user_btn.winfo_rootx()
+        y = self.user_btn.winfo_rooty() + self.user_btn.winfo_height() + 8
+        self.profile_panel.geometry(f"300x260+{x-200}+{y}") # Shift left to align beautifully
+        
+        # Inner frame (creates a sleek 1px border effect)
+        inner = tk.Frame(self.profile_panel, bg=self.colors['card_bg'])
+        inner.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+        
+        # Fetch Live User Data from Auth Manager
+        tier = "FREE"
+        email = "Not Registered"
+        if auth:
+            tier = auth.get_user_tier(self.username).upper()
+            user_data = auth.users.get(self.username, {})
+            email = user_data.get("registered_email", "No email on file")
+            
+        tier_color = "#ffd700" if tier != "FREE" else self.colors['text_muted']
+        
+        # Header - Avatar & Name
+        head_frame = tk.Frame(inner, bg=self.colors['card_bg'])
+        head_frame.pack(fill=tk.X, pady=20, padx=20)
+        
+        avatar = tk.Label(head_frame, text="👤", font=('Segoe UI', 28), 
+                          bg=self.colors['card_bg'], fg=self.colors['accent_primary'])
+        avatar.pack(side=tk.LEFT, padx=(0, 15))
+        
+        info_frame = tk.Frame(head_frame, bg=self.colors['card_bg'])
+        info_frame.pack(side=tk.LEFT, fill=tk.X)
+        
+        tk.Label(info_frame, text=self.username, font=('Segoe UI', 14, 'bold'), 
+                 bg=self.colors['card_bg'], fg=self.colors['text_primary']).pack(anchor='w')
+        tk.Label(info_frame, text=f"Role: {self.user_role.upper()}", font=('Segoe UI', 9), 
+                 bg=self.colors['card_bg'], fg=self.colors['text_secondary']).pack(anchor='w')
+        
+        # Sleek Separator
+        tk.Frame(inner, height=1, bg=self.colors['card_border']).pack(fill=tk.X, padx=15)
+        
+        # Account Details Section
+        det_frame = tk.Frame(inner, bg=self.colors['card_bg'])
+        det_frame.pack(fill=tk.X, pady=15, padx=20)
+        
+        tk.Label(det_frame, text="📧 Account:", font=('Segoe UI', 9, 'bold'), 
+                 bg=self.colors['card_bg'], fg=self.colors['text_secondary']).grid(row=0, column=0, sticky='w', pady=6)
+        
+        # Truncate long emails so they don't break the UI
+        display_email = email if len(email) < 22 else email[:19] + "..."
+        tk.Label(det_frame, text=display_email, font=('Segoe UI', 9), 
+                 bg=self.colors['card_bg'], fg=self.colors['text_primary']).grid(row=0, column=1, sticky='w', padx=15, pady=6)
+        
+        tk.Label(det_frame, text="⭐ License:", font=('Segoe UI', 9, 'bold'), 
+                 bg=self.colors['card_bg'], fg=self.colors['text_secondary']).grid(row=1, column=0, sticky='w', pady=6)
+        tk.Label(det_frame, text=f"{tier} PLAN", font=('Segoe UI', 9, 'bold'), 
+                 bg=self.colors['card_bg'], fg=tier_color).grid(row=1, column=1, sticky='w', padx=15, pady=6)
+        
+        # Bottom Action Bar
+        btn_frame = tk.Frame(inner, bg=self.colors['bg']) 
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        # Master Sign Out Button
+        def _execute_logout():
+            self.profile_panel.destroy()
+            self.logout()
+            
+        logout_btn = tk.Button(btn_frame, text="🚪 Sign Out of FMSecure", command=_execute_logout,
+                              font=('Segoe UI', 9, 'bold'), bg=self.colors['bg'], fg=self.colors['accent_danger'],
+                              bd=0, pady=12, cursor="hand2")
+        logout_btn.pack(fill=tk.X)
+        logout_btn.bind("<Enter>", lambda e: logout_btn.configure(bg=self.colors['card_border']))
+        logout_btn.bind("<Leave>", lambda e: logout_btn.configure(bg=self.colors['bg']))
+        
+        # Logic to close the menu if the user clicks anywhere else on the screen
+        self.profile_panel.bind("<FocusOut>", lambda e: self.root.after(100, self._destroy_if_lost_focus))
+        self.profile_panel.focus_set()
+
+    def _destroy_if_lost_focus(self):
+        """Helper to cleanly close the profile panel when losing focus"""
+        if hasattr(self, 'profile_panel') and self.profile_panel.winfo_exists():
+            focus_widget = self.profile_panel.focus_get()
+            if focus_widget is None or not str(focus_widget).startswith(str(self.profile_panel)):
+                self.profile_panel.destroy()
 
     def toggle_theme(self):
         """Toggle between light and dark themes"""
@@ -2104,7 +2742,11 @@ class ProIntegrityGUI:
             self.status_label.configure(fg=self.colors['accent_primary'])
 
     def _update_widget_colors(self, widget):
-        """Recursively update widget colors"""
+        """Recursively update widget colors, skipping the side menu"""
+        # SKIP if this widget belongs to the side menu
+        if self._is_side_menu_widget(widget):
+            return
+
         try:
             if isinstance(widget, tk.Frame):
                 if 'card' in str(widget).lower():
@@ -2117,29 +2759,48 @@ class ProIntegrityGUI:
             
             elif isinstance(widget, tk.Label):
                 # Skip counter labels - they're handled separately
-                if widget in [label for label, _, _ in self.file_counter_labels] or \
-                widget in [label for label, _, _ in self.severity_counter_labels]:
-                    pass  # Don't update counter labels here
+                if hasattr(self, 'file_counter_labels') and widget in [label for label, _, _ in self.file_counter_labels]:
+                    pass
+                elif hasattr(self, 'severity_counter_labels') and widget in [label for label, _, _ in self.severity_counter_labels]:
+                    pass
                 elif 'footer' in str(widget).lower():
                     widget.configure(bg=self.colors['bg'], fg=self.colors['text_muted'])
-                elif 'card' in str(widget).lower() or isinstance(widget.master, tk.Frame) and 'card' in str(widget.master).lower():
+                elif 'card' in str(widget).lower() or (isinstance(widget.master, tk.Frame) and 'card' in str(widget.master).lower()):
                     widget.configure(bg=self.colors['card_bg'], fg=self.colors['text_primary'])
                 else:
                     widget.configure(bg=self.colors['bg'], fg=self.colors['text_primary'])
             
             elif isinstance(widget, tk.Button):
-                if widget != self.theme_btn:
+                # Update standard buttons, but skip special toggle buttons
+                if widget not in [self.theme_btn, getattr(self, 'menu_btn', None), getattr(self, 'pass_btn', None), 
+                                getattr(self, 'unlock_btn', None), getattr(self, 'logout_btn', None)]:
                     widget.configure(bg=self.colors['button_bg'], fg=self.colors['text_primary'])
             
             elif isinstance(widget, scrolledtext.ScrolledText):
                 widget.configure(bg=self.colors['card_bg'], fg=self.colors['text_primary'],
                             insertbackground=self.colors['text_primary'])
-        except:
-            pass
+        except Exception as e:
+            pass # Ignore configuration errors for widgets that might not support options
         
         # Update children
         for child in widget.winfo_children():
             self._update_widget_colors(child)
+
+    def _is_side_menu_widget(self, widget):
+        """Check if a widget is part of the side menu"""
+        if not hasattr(self, 'side_menu') or not self.side_menu:
+            return False
+            
+        # Traverse up the widget hierarchy to see if the side_menu is a parent
+        current = widget
+        while current:
+            if current == self.side_menu:
+                return True
+            # Stop if we hit root to prevent infinite loops (though unlikely in Tk)
+            if current == self.root:
+                break
+            current = current.master
+        return False
 
     def _apply_permissions(self):
         """Disable controls based on user role"""
@@ -2150,8 +2811,11 @@ class ProIntegrityGUI:
         self._append_log(f"Logged in as restricted viewer: {self.username}")
         self.status_var.set("🔒 Read-Only Mode")
         
-        # Disable Folder Entry
-        self.folder_entry.configure(state='disabled')
+        # --- FIX: Disable the new Multi-Folder Buttons instead of folder_entry ---
+        if hasattr(self, 'add_folder_btn'):
+            self.add_folder_btn.configure(state='disabled')
+        if hasattr(self, 'remove_folder_btn'):
+            self.remove_folder_btn.configure(state='disabled')
         
         # Define Restricted Actions
         restricted_actions = [
@@ -2514,10 +3178,104 @@ class ProIntegrityGUI:
             self.root.after(300, lambda: self.menu_title.configure(text=original_text + '█'))
 
     def _open_audit_logs(self):
-        """Open audit logs viewer"""
-        self.toggle_menu()
-        # Implementation for audit logs viewer
-        self._append_log("Accessing security audit logs...")
+        """Open the Secure Audit Logs viewer"""
+        self.toggle_menu() # Close the side menu
+        
+        if self.user_role != 'admin':
+            messagebox.showerror("Access Denied", "Only administrators can view historical audit logs.")
+            return
+            
+        self._append_log("Accessing secure audit logs vault...")
+
+        # Create the Viewer Window
+        viewer = tk.Toplevel(self.root)
+        viewer.title("📁 Secure Audit Log Vault")
+        viewer.geometry("1000x600")
+        viewer.configure(bg=self.colors['bg'])
+        viewer.transient(self.root)
+        
+        # Header
+        header = tk.Frame(viewer, bg=self.colors['header_bg'])
+        header.pack(fill=tk.X, pady=(0, 10))
+        tk.Label(header, text="🔐 DECRYPTED AUDIT VAULT", font=('Segoe UI', 14, 'bold'), 
+                 bg=self.colors['header_bg'], fg=self.colors['accent_primary']).pack(pady=15)
+
+        # Main Layout: Left (Sessions), Right (Decrypted Content)
+        main_pane = tk.PanedWindow(viewer, orient=tk.HORIZONTAL, bg=self.colors['bg'], sashwidth=5)
+        main_pane.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+
+        # Left Side: Session List
+        left_frame = tk.Frame(main_pane, bg=self.colors['card_bg'])
+        main_pane.add(left_frame, minsize=250)
+        
+        tk.Label(left_frame, text="Archived Sessions", font=('Segoe UI', 10, 'bold'), 
+                 bg=self.colors['card_bg'], fg=self.colors['text_primary']).pack(pady=5)
+                 
+        session_listbox = tk.Listbox(left_frame, bg=self.colors['input_bg'], fg=self.colors['text_primary'], 
+                                     font=('Consolas', 10), selectbackground=self.colors['accent_primary'])
+        session_listbox.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Right Side: Log Content
+        right_frame = tk.Frame(main_pane, bg=self.colors['card_bg'])
+        main_pane.add(right_frame, minsize=500)
+        
+        tk.Label(right_frame, text="Decrypted Log Content", font=('Segoe UI', 10, 'bold'), 
+                 bg=self.colors['card_bg'], fg=self.colors['text_primary']).pack(pady=5)
+                 
+        log_display = scrolledtext.ScrolledText(right_frame, bg="#0a0a0a", fg="#00ff00", 
+                                                font=('Consolas', 9), state="disabled")
+        log_display.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Load available sessions from the history folder
+        from core.utils import get_app_data_dir
+        history_dir = os.path.join(get_app_data_dir(), "config", "history")
+        
+        session_paths = {} # To map listbox names to actual folder paths
+        
+        if os.path.exists(history_dir):
+            # Sort folders so newest is at the top
+            folders = sorted(os.listdir(history_dir), reverse=True)
+            for f_name in folders:
+                folder_path = os.path.join(history_dir, f_name)
+                if os.path.isdir(folder_path):
+                    # Format the name to look nice
+                    display_name = f_name.replace("Session_", "").replace("_", " ")
+                    session_listbox.insert(tk.END, f"📂 {display_name}")
+                    session_paths[f"📂 {display_name}"] = folder_path
+
+        def on_session_select(event):
+            selection = session_listbox.curselection()
+            if not selection: return
+            
+            selected_name = session_listbox.get(selection[0])
+            folder_path = session_paths.get(selected_name)
+            
+            if folder_path:
+                target_log = os.path.join(folder_path, "integrity_log.dat")
+                
+                log_display.configure(state="normal")
+                log_display.delete("1.0", tk.END)
+                
+                if os.path.exists(target_log):
+                    log_display.insert(tk.END, f"--- DECRYPTING FILE: {target_log} ---\n\n")
+                    
+                    # Call our upgraded backend bridge!
+                    decrypted_lines = get_decrypted_logs(target_file=target_log)
+                    
+                    for line in decrypted_lines:
+                        log_display.insert(tk.END, line + "\n")
+                else:
+                    log_display.insert(tk.END, "❌ No encrypted log file found in this archive.")
+                    
+                log_display.configure(state="disabled")
+
+        # Bind the click event
+        session_listbox.bind('<<ListboxSelect>>', on_session_select)
+        
+        # Close button
+        tk.Button(viewer, text="Close Vault", command=viewer.destroy, 
+                  bg=self.colors['button_bg'], fg=self.colors['text_primary'], 
+                  font=('Segoe UI', 10)).pack(pady=10)
 
     def _open_crypto_tools(self):
         """Open cryptographic tools panel"""
@@ -2598,11 +3356,11 @@ class ProIntegrityGUI:
             
             # Initialize Simulator
             try:
-                from demo_simulator import DemoSimulator
+                from core.demo_simulator import DemoSimulator
             except ImportError:
                 try:
                     sys.path.append('../core')
-                    from demo_simulator import DemoSimulator
+                    from core.demo_simulator import DemoSimulator
                 except ImportError:
                     messagebox.showerror("Error", "Demo simulator not available")
                     return
@@ -2707,9 +3465,68 @@ class ProIntegrityGUI:
             print(f"CRITICAL TRAY ERROR: {e}")
             self.tray_icon = None
 
+
+    def _authenticate_action(self, action_name):
+        """
+        Helper: Prompts for password.
+        Must only be called from the Main Thread.
+        """
+        if not self.monitor_running:
+            return True
+
+        # Use parent=None or parent=self.root. 
+        password = simpledialog.askstring(
+            f"Security Verification - {action_name}", 
+            f"Monitoring is ACTIVE.\n\nEnter password for '{self.username}' to access dashboard:",
+            parent=self.root, 
+            show='*'
+        )
+
+        if not password:
+            return False
+
+        if auth:
+            # --- THE FIX: Force the background tray to sync with the live database! ---
+            auth._load_users()
+            
+            # Unpack 3 values (success, role, message)
+            success, _, msg = auth.login(self.username, password)
+            
+            if success:
+                return True
+            else:
+                messagebox.showerror("Access Denied", "Incorrect Password.\nEvent has been logged.")
+                self._append_log(f"SECURITY: Failed dashboard access attempt for {self.username}")
+                return False
+        
+        return True
+
     def show_window(self, icon=None, item=None):
-        """Restore the window from tray"""
-        self.root.after(0, self.root.deiconify)
+        """
+        Tray Callback: Restores window.
+        Uses 'after' to jump to the Main Thread for safety.
+        """
+        self.root.after(0, self._perform_auth_and_show)
+
+    def _perform_auth_and_show(self):
+        """
+        Runs on MAIN THREAD. Performs Auth -> Shows Dashboard.
+        """
+        # 1. If already visible, just lift it
+        if self.root.state() == 'normal':
+            self.root.lift()
+            return
+
+        # 2. Authenticate
+        if self._authenticate_action("Show Dashboard"):
+            self.root.deiconify()
+            self._append_log("Dashboard accessed from tray (Verified)")
+            
+            # Optional: Force focus to the window
+            self.root.lift()
+            self.root.focus_force()
+        else:
+            print("Dashboard access denied or cancelled.")
 
     def hide_window(self):
         """Hide window to tray instead of closing"""
@@ -2722,10 +3539,27 @@ class ProIntegrityGUI:
             threading.Thread(target=self.tray_icon.run, daemon=True).start()
 
     def quit_app(self, icon=None, item=None):
-        """Really quit the application"""
+        """
+        Tray Callback: Quits app.
+        Uses 'after' to jump to the Main Thread for safety.
+        """
+        self.root.after(0, self._perform_auth_and_quit)
+
+    def _perform_auth_and_quit(self):
+        """
+        Runs on MAIN THREAD. Performs Auth -> Quits.
+        """
+        # 1. If monitoring is running, require password
+        if self.monitor_running:
+            if not self._authenticate_action("Stop & Exit"):
+                return  # Cancel quit if auth fails or is closed
+
+        # 2. Stop everything safely
         if hasattr(self, 'tray_icon'):
             self.tray_icon.stop()
-        self.root.after(0, self.root.quit)
+        self.root.quit()
+
+    
 
     def on_closing(self):
         """Handle window close request"""
@@ -2854,59 +3688,55 @@ class ProIntegrityGUI:
         self._alert_frame.withdraw()
 
     def _show_alert(self, title, message, level="info"):
-        """Show alert panel with modern styling"""
+        """Show alert panel (if active) or System Tray Notification (if background)"""
         try:
-            # Ensure alert panel exists
+            # 1. Update Severity Counters (Logic remains the same)
+            severity_map = {
+                "info": "INFO", "created": "INFO",
+                "modified": "MEDIUM", "deleted": "MEDIUM",
+                "tampered": "CRITICAL", "high": "HIGH", "critical": "CRITICAL"
+            }
+            severity = severity_map.get(level, "INFO")
+            
+            # Update internal counters
+            if severity in self.severity_counters:
+                self.severity_counters[severity] += 1
+                # Update UI StringVars
+                if severity == "CRITICAL": self.critical_var.set(str(self.severity_counters["CRITICAL"]))
+                elif severity == "HIGH": self.high_var.set(str(self.severity_counters["HIGH"]))
+                elif severity == "MEDIUM": self.medium_var.set(str(self.severity_counters["MEDIUM"]))
+                elif severity == "INFO": self.info_var.set(str(self.severity_counters["INFO"]))
+
+            # 2. CHECK WINDOW STATE
+            # If window is withdrawn (Tray) or Iconic (Minimized), use Tray Notification
+            is_background = (self.root.state() == 'withdrawn' or self.root.state() == 'iconic')
+            
+            if is_background:
+                if hasattr(self, 'tray_icon') and self.tray_icon:
+                    # Send System Notification via Tray Icon
+                    # self.tray_icon.notify(message, title)
+                    return  # Stop here, do not show the custom UI popup
+
+            # 3. Show Custom UI Popup (Only if window is visible)
             if not hasattr(self, '_alert_frame') or not self._alert_frame:
                 self._create_alert_panel()
             
-            severity_map = {
-                "info": "INFO",
-                "created": "INFO",
-                "modified": "MEDIUM",
-                "deleted": "MEDIUM",
-                "tampered": "CRITICAL",
-                "high": "HIGH",
-                "critical": "CRITICAL"
-            }
-            
-            severity = severity_map.get(level, "INFO")
             severity_color = SEVERITY_COLORS.get(severity, self.colors['accent_info'])
             severity_badge = SEVERITY_BADGES.get(severity, "INFO")
-            
             ts = datetime.now().strftime("%H:%M:%S")
             entry = f"[{ts}] [{severity_badge}] {title}\n{message}\n{'─' * 40}\n"
             
-            # Insert at top with color tag
             self._alert_msg.configure(state="normal")
-            
-            # Configure tag for this severity
             tag_name = f"severity_{severity}"
             self._alert_msg.tag_config(tag_name, foreground=severity_color, 
                                       font=('Segoe UI', 9, 'bold' if severity in ['CRITICAL', 'HIGH'] else 'normal'))
-            
-            # Insert text with tag
             self._alert_msg.insert("1.0", entry, tag_name)
             self._alert_msg.configure(state="disabled")
             
-            # Update meta
             self.alert_count = getattr(self, "alert_count", 0) + 1
             self._alert_counter.configure(text=f"Alerts: {self.alert_count}")
             self._alert_meta.configure(text=f"Last: {severity} @ {ts}")
             
-            # Update severity counter
-            if severity in self.severity_counters:
-                self.severity_counters[severity] += 1
-                if severity == "CRITICAL":
-                    self.critical_var.set(str(self.severity_counters["CRITICAL"]))
-                elif severity == "HIGH":
-                    self.high_var.set(str(self.severity_counters["HIGH"]))
-                elif severity == "MEDIUM":
-                    self.medium_var.set(str(self.severity_counters["MEDIUM"]))
-                elif severity == "INFO":
-                    self.info_var.set(str(self.severity_counters["INFO"]))
-            
-            # Show alert panel with animation
             self._animate_panel_show()
             
         except Exception as e:
@@ -3500,33 +4330,86 @@ class ProIntegrityGUI:
     # ===== OTHER SYSTEM METHODS =====
     
     def logout(self):
-        """Logout and restart application"""
+        """Logout and restart application safely for both script and EXE modes"""
         if messagebox.askyesno("Logout", "Are you sure you want to logout?"):
-            # Stop monitor if running
+            # 1. Cleanup existing resources
             if self.monitor_running:
                 try:
                     self.monitor.stop_monitoring()
                 except: pass
             
-            # Destroy current window
+            if hasattr(self, 'tray_icon') and self.tray_icon:
+                try:
+                    self.tray_icon.stop()
+                except: pass
+
+            # 2. Destroy current window
             self.root.destroy()
-            
-            # Restart login_gui.py
+
+            # 3. Restart Logic
             try:
-                subprocess.Popen([sys.executable, "login_gui.py"])
+                if getattr(sys, 'frozen', False):
+                    # --- EXE MODE RESTART ---
+                    # Create a copy of the current environment
+                    env = os.environ.copy()
+                    
+                    # CRITICAL: Remove PyInstaller's internal path variables.
+                    # This forces the new instance to unpack its own Tcl/Tk libraries.
+                    for key in ['TCL_LIBRARY', 'TK_LIBRARY', '_MEIPASS2']:
+                        if key in env:
+                            del env[key]
+                    
+                    # Launch the EXE again with the CLEAN environment
+                    subprocess.Popen([sys.executable], env=env)
+                    
+                else:
+                    # --- SCRIPT MODE RESTART ---
+                    current_dir = os.path.dirname(os.path.abspath(__file__))
+                    project_root = os.path.dirname(current_dir)
+                    run_script = os.path.join(project_root, "run.py")
+                    
+                    subprocess.Popen([sys.executable, run_script])
+
+                # 4. Kill the current process immediately
+                sys.exit(0)
+
             except Exception as e:
-                print(f"Failed to restart login: {e}")
+                messagebox.showerror("Error", f"Failed to restart: {e}")
+                sys.exit(1)
 
     def disable_lockdown(self):
-        """Admin override to disable safe mode"""
+        """Admin override to disable safe mode AND release Ransomware folder locks"""
         if self.user_role != 'admin':
-            messagebox.showerror("Access Denied", "Only Admins can disable Safe Mode.")
+            messagebox.showerror("Access Denied", "Only Admins can release security lockdowns.")
+            return
+
+        # --- 🚨 NEW: REQUIRE PASSWORD TO UNLOCK FOLDERS ---
+        if not self._authenticate_action("Release System Lockdown"):
             return
             
-        if messagebox.askyesno("Confirm Unlock", "Are you sure the system is secure?\nThis will re-enable monitoring controls."):
+        if messagebox.askyesno("Confirm Unlock", "Are you sure the system is secure?\n\nThis will release OS-level folder locks and re-enable monitoring controls."):
+            
+            # --- NEW: Release OS-Level Ransomware Locks ---
+            try:
+                from core.lockdown_manager import lockdown
+                from core.integrity_core import CONFIG
+                
+                # Get active folders
+                folders = list(self.folder_listbox.get(0, tk.END))
+                if not folders and CONFIG.get("watch_folders"):
+                    folders = CONFIG.get("watch_folders")
+                    
+                for folder in folders:
+                    success, msg = lockdown.remove_lockdown(folder)
+                    if success:
+                        self._append_log(f"🔓 OS-Level permissions restored for: {folder}")
+            except Exception as e:
+                print(f"Error removing OS lockdown: {e}")
+            
+            # --- Existing Safe Mode Logic ---
             success = safe_mode.disable_safe_mode("Admin Override via GUI")
             if success:
-                messagebox.showinfo("Unlocked", "Safe Mode disabled. System returned to normal.")
+                messagebox.showinfo("Unlocked", "System returned to normal. Folder permissions restored.")
                 self.status_var.set("🔴 Stopped")
                 self.status_label.configure(foreground=self.colors['text_primary'])
             else:
@@ -3536,32 +4419,42 @@ class ProIntegrityGUI:
         """Force button colors to update by toggling state"""
         # Get all buttons and force color update
         def update_btn_colors(widget):
+            # SKIP side menu buttons
+            if self._is_side_menu_widget(widget):
+                return
+
             for child in widget.winfo_children():
+                # Recursively check children FIRST
+                update_btn_colors(child)
+                
                 if isinstance(child, tk.Button):
                     # Skip theme and special buttons
-                    if child not in [self.theme_btn, self.menu_btn, self.pass_btn, 
-                                self.unlock_btn, self.logout_btn]:
-                        # Force color update by simulating state change
-                        current_bg = child.cget('bg')
-                        current_fg = child.cget('fg')
+                    if child not in [self.theme_btn, getattr(self, 'menu_btn', None), getattr(self, 'pass_btn', None), 
+                                getattr(self, 'unlock_btn', None), getattr(self, 'logout_btn', None)]:
                         
-                        # Set to new theme colors
-                        if "Start" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_success'])
-                        elif "Stop" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_danger'])
-                        elif "Verify" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_primary'])
-                        elif "Check" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_secondary'])
-                        elif "Settings" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_info'])
-                        elif "Reset" in child.cget('text'):
-                            child.configure(bg=self.colors['accent_warning'])
-                        else:
-                            # For other buttons, use button_bg
-                            child.configure(bg=self.colors['button_bg'], 
-                                        fg=self.colors['text_primary'])
+                        # SKIP side menu buttons (double check for direct children)
+                        if self._is_side_menu_widget(child):
+                            continue
+
+                        # ... REST OF YOUR EXISTING LOGIC ...
+                        # (Set colors for Start/Stop/Verify etc...)
+                        btn_text = child.cget('text')
+                        
+                        # Default Colors
+                        new_bg = self.colors['button_bg']
+                        new_fg = self.colors['text_primary']
+                        
+                        # Specific Buttons
+                        if "Start" in btn_text: new_bg = self.colors['accent_success']; new_fg = 'white'
+                        elif "Stop" in btn_text: new_bg = self.colors['accent_danger']; new_fg = 'white'
+                        elif "Verify" in btn_text: new_bg = self.colors['accent_primary']; new_fg = 'white'
+                        elif "Check" in btn_text: new_bg = self.colors['accent_secondary']; new_fg = 'white'
+                        elif "Settings" in btn_text: new_bg = self.colors['accent_info']; new_fg = 'white'
+                        elif "Reset" in btn_text: new_bg = self.colors['accent_warning']; new_fg = 'white'
+                        
+                        try:
+                            child.configure(bg=new_bg, fg=new_fg)
+                        except: pass
                         
                         # Re-bind hover events
                         btn_text = child.cget('text')
