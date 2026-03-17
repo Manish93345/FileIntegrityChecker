@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """
 login_gui.py
-Entry point. Displays login screen.
+Entry point. Displays login screen using CustomTkinter for a professional,
+industry‑standard look inspired by CrowdStrike and SentinelOne.
+
 Features:
 - Admin login with Username/Password
-- Restricted Viewer login (One-click, no password)
-- Brute Force Protection (Lockout after 3 failed attempts)
+- Restricted Viewer login (one‑click, no password)
+- Brute Force Protection (lockout after 3 failed attempts)
+- Google SSO integration
+- Email OTP verification for registration and password reset
 """
 
 import sys
@@ -13,38 +17,42 @@ import os
 import json
 import time
 import threading
+import tkinter as tk
+import customtkinter as ctk
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
-import tkinter as tk
-from tkinter import ttk, messagebox
+
 from core.auth_manager import auth
-# Import the main class from your GUI file
 from gui.integrity_gui import ProIntegrityGUI
 from core.email_service import email_service
 
-# --- SECURITY CLASS START ---
+# Set CustomTkinter appearance
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("blue")
+
+
+# ----------------------------------------------------------------------
+# BruteForceGuard (unchanged)
+# ----------------------------------------------------------------------
 class BruteForceGuard:
     def __init__(self, max_attempts=3, lockout_time=30):
         self.max_attempts = max_attempts
         self.lockout_time = lockout_time
         self.attempts = 0
         self.lockout_timestamp = 0
-        
-        # Determine safe path for the security file (works for .py and .exe)
+
         if getattr(sys, 'frozen', False):
-            # If run as .exe, store next to the executable
             base_path = os.path.dirname(sys.executable)
         else:
-            # If run as script, store in current directory
             base_path = os.path.dirname(os.path.abspath(__file__))
-            
+
         self.state_file = os.path.join(base_path, "login_security.json")
         self._load_state()
 
     def _load_state(self):
-        """Load attempts from file to persist across restarts"""
         if os.path.exists(self.state_file):
             try:
                 with open(self.state_file, 'r') as f:
@@ -55,41 +63,33 @@ class BruteForceGuard:
                 self.reset()
 
     def _save_state(self):
-        """Save current attempts to file"""
         try:
             with open(self.state_file, 'w') as f:
                 json.dump({
-                    "attempts": self.attempts, 
+                    "attempts": self.attempts,
                     "lockout_timestamp": self.lockout_timestamp
                 }, f)
         except Exception as e:
             print(f"Error saving security state: {e}")
 
     def is_locked_out(self):
-        """Check if user is currently locked out. Returns (bool, seconds_remaining)"""
         if self.lockout_timestamp > 0:
             time_passed = time.time() - self.lockout_timestamp
             if time_passed < self.lockout_time:
                 return True, int(self.lockout_time - time_passed)
             else:
-                # Lockout expired, reset automatically
                 self.reset()
                 return False, 0
         return False, 0
 
     def register_failed_attempt(self):
-        """Increment failure counter"""
         self.attempts += 1
-        
-        # If we just hit the limit, set the timestamp
         if self.attempts >= self.max_attempts:
             self.lockout_timestamp = time.time()
-        
         self._save_state()
         return self.attempts
 
     def reset(self):
-        """Reset counters on successful login"""
         self.attempts = 0
         self.lockout_timestamp = 0
         if os.path.exists(self.state_file):
@@ -97,15 +97,158 @@ class BruteForceGuard:
                 os.remove(self.state_file)
             except:
                 pass
-# --- SECURITY CLASS END ---
 
+
+# ----------------------------------------------------------------------
+# Custom Dialogs (replacing tkinter messagebox)
+# ----------------------------------------------------------------------
+class CustomDialog:
+    """Base class for custom CTkToplevel dialogs."""
+    def __init__(self, parent, title, message, dialog_type="info"):
+        self.dialog = ctk.CTkToplevel(parent)
+        self.dialog.title("")
+        self.dialog.geometry("400x220")
+        self.dialog.resizable(False, False)
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+        self.dialog.focus_set()
+        self.dialog.configure(fg_color="#1e1e1e")
+
+        # Center on parent
+        self.dialog.update_idletasks()
+        x = parent.winfo_x() + (parent.winfo_width() // 2) - (self.dialog.winfo_width() // 2)
+        y = parent.winfo_y() + (parent.winfo_height() // 2) - (self.dialog.winfo_height() // 2)
+        self.dialog.geometry(f"+{x}+{y}")
+
+        # Icon and title
+        icon_map = {
+            "info": ("ℹ️", "#00a8ff"),
+            "error": ("⚠️", "#ff4444"),
+            "success": ("✅", "#00cc66"),
+            "warning": ("⚠️", "#ffaa00")
+        }
+        icon, color = icon_map.get(dialog_type, ("ℹ️", "#00a8ff"))
+
+        icon_label = ctk.CTkLabel(self.dialog, text=icon, font=("Segoe UI", 36), text_color=color)
+        icon_label.pack(pady=(20, 5))
+
+        msg_label = ctk.CTkLabel(self.dialog, text=message, font=("Segoe UI", 12),
+                                  wraplength=350, justify="center")
+        msg_label.pack(pady=(5, 20), padx=20)
+
+        btn = ctk.CTkButton(self.dialog, text="OK", command=self.dialog.destroy,
+                            fg_color=color, hover_color=color, width=100)
+        btn.pack(pady=(0, 20))
+
+        self.dialog.protocol("WM_DELETE_WINDOW", self.dialog.destroy)
+
+    def wait(self):
+        self.dialog.wait_window()
+
+
+class SecurityAlertDialog:
+    """Specialised dialog for security alerts with blinking effect."""
+    def __init__(self, parent, title, message):
+        self.dialog = ctk.CTkToplevel(parent)
+        self.dialog.title("")
+        self.dialog.geometry("450x280")
+        self.dialog.resizable(False, False)
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+        self.dialog.focus_set()
+        self.dialog.configure(fg_color="#0a0a0a")
+
+        # Center
+        self.dialog.update_idletasks()
+        x = parent.winfo_x() + (parent.winfo_width() // 2) - (self.dialog.winfo_width() // 2)
+        y = parent.winfo_y() + (parent.winfo_height() // 2) - (self.dialog.winfo_height() // 2)
+        self.dialog.geometry(f"+{x}+{y}")
+
+        # Header
+        header = ctk.CTkFrame(self.dialog, fg_color="#330000", height=40)
+        header.pack(fill="x")
+        header.pack_propagate(False)
+
+        self.alert_label = ctk.CTkLabel(header, text="⚠ INTRUSION DETECTED ⚠",
+                                        font=("Consolas", 12, "bold"),
+                                        text_color="#ff4444")
+        self.alert_label.pack(expand=True)
+
+        # Main content
+        content = ctk.CTkFrame(self.dialog, fg_color="#111111")
+        content.pack(fill="both", expand=True, padx=20, pady=20)
+
+        title_label = ctk.CTkLabel(content, text=f"> {title} <",
+                                   font=("Consolas", 11, "bold"),
+                                   text_color="#ff4444")
+        title_label.pack(anchor="w", pady=(0, 10))
+
+        msg_label = ctk.CTkLabel(content, text=message,
+                                 font=("Consolas", 10),
+                                 text_color="#ffffff",
+                                 justify="left",
+                                 wraplength=380)
+        msg_label.pack(fill="x", pady=(0, 20))
+
+        log_label = ctk.CTkLabel(content,
+                                 text="[SYSTEM LOG]: Unauthorized access attempt recorded",
+                                 font=("Consolas", 8),
+                                 text_color="#888888")
+        log_label.pack(anchor="w", pady=(0, 20))
+
+        self.ok_btn = ctk.CTkButton(content, text="[ ACKNOWLEDGE ]",
+                                     command=self.destroy_dialog,
+                                     fg_color="#220000",
+                                     hover_color="#330000",
+                                     text_color="#ff4444",
+                                     font=("Consolas", 10, "bold"))
+        self.ok_btn.pack()
+
+        # Start blinking
+        self.blink_after_id = None
+        self._blink()
+
+        self.dialog.protocol("WM_DELETE_WINDOW", self.destroy_dialog)
+
+    def _blink(self):
+        current = self.alert_label.cget("text_color")
+        new = "#ffffff" if current == "#ff4444" else "#ff4444"
+        try:
+            self.alert_label.configure(text_color=new)
+            self.blink_after_id = self.dialog.after(500, self._blink)
+        except:
+            pass
+
+    def destroy_dialog(self):
+        if self.blink_after_id:
+            self.dialog.after_cancel(self.blink_after_id)
+        self.dialog.destroy()
+
+
+# ----------------------------------------------------------------------
+# Main Login Window
+# ----------------------------------------------------------------------
 class LoginWindow:
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("FMSecure Security Monitor")
+        self.root.title("FMSecure v2.0 - Security Portal")
+        
+        # --- 🚨 INJECT THE WINDOWS TASKBAR ICON ---
+        try:
+            if getattr(sys, 'frozen', False):
+                icon_path = os.path.join(sys._MEIPASS, "assets", "icons", "app_icon.ico")
+            else:
+                project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                icon_path = os.path.join(project_root, "assets", "icons", "app_icon.ico")
+            if os.path.exists(icon_path):
+                self.root.iconbitmap(icon_path)
+        except Exception:
+            pass
+            
+        # --- START HIDDEN FOR SPLASH SCREEN ---
+        self.root.withdraw()
         
         # Dark theme colors
-        
         self.bg_darker = "#050505"
         self.bg_panel = "#111111"
         self.accent_green = "#00ff00"
@@ -124,55 +267,105 @@ class LoginWindow:
         # Initialize Security Guard
         self.guard = BruteForceGuard(max_attempts=3, lockout_time=30)
 
-        # Initialize Security Guard
-        self.guard = BruteForceGuard(max_attempts=3, lockout_time=30)
-
-        # --- 🚨 NEW: HOSTILE RECOVERY BYPASS 🚨 ---
+        # --- 🚨 HOSTILE RECOVERY BYPASS 🚨 ---
         if "--recovery" in sys.argv:
-            # Find the primary admin user in the database
             recovered_user = "admin"
             for user, data in auth.users.items():
                 if data.get("role") == "admin":
                     recovered_user = user
                     break
-            
-            # Hide the window and instantly launch the dashboard!
-            self.root.withdraw()
             self.root.after(100, lambda: self._launch_main_app('admin', recovered_user))
-            return # Stop drawing the login UI
+            return 
 
-        # --- THE SMART ROUTER ---
-        if not auth.has_users():
-            self._build_register_ui()  # Show Registration on first run
-        else:
-            self._build_login_ui()     # Show Login normally
-        
-        
-        
-        # Configure root window
-        # self.root.configure(bg=self.bg_dark)
-        
-        # Center the window
+        # Configure styles & Center Window
         self._center_window()
+        # self._configure_styles()
+
+        # --- THE SMART ROUTER (Builds UI invisibly in the background) ---
+        if not auth.has_users():
+            self._build_register_ui()  
+        else:
+            self._build_login_ui()     
+            
+        # --- LAUNCH THE SPLASH SCREEN ---
+        self._show_splash_screen()
+
+    def _show_splash_screen(self):
+        """Displays a professional full-screen branding splash before the app loads"""
+        splash = tk.Toplevel(self.root)
+        splash.overrideredirect(True)  # Removes Windows borders and title bar
+        splash.configure(bg="#050505")
         
-        # Configure styles
-        self._configure_styles()
+        # Splash dimensions and centering
+        width, height = 550, 320
+        x = (splash.winfo_screenwidth() // 2) - (width // 2)
+        y = (splash.winfo_screenheight() // 2) - (height // 2)
+        splash.geometry(f"{width}x{height}+{x}+{y}")
         
+        # Main Canvas for drawing crisp vector graphics
+        canvas = tk.Canvas(splash, width=width, height=height, bg="#050505", highlightthickness=0)
+        canvas.pack(fill=tk.BOTH, expand=True)
         
-    def _configure_styles(self):
-        self.style = ttk.Style()
-        self.style.theme_use('clam')
+        # Futuristic Top & Bottom Accent Lines
+        canvas.create_line(0, 0, width, 0, fill=self.accent_blue, width=6)
+        canvas.create_line(0, height-2, width, height-2, fill=self.accent_blue, width=6)
         
-        # Configure colors for ttk widgets
-        self.style.configure('TLabel', 
-                           background=self.bg_dark,
-                           foreground=self.text_primary)
-        self.style.configure('TButton',
-                           background=self.bg_panel,
-                           foreground=self.text_primary,
-                           bordercolor=self.border_color,
-                           borderwidth=1)
+        # Draw Vector Shield Logo
+        cx, cy = width // 2, height // 2 - 40
+        canvas.create_polygon(cx, cy-40, cx+35, cy-30, cx+35, cy+15, cx, cy+45, cx-35, cy+15, cx-35, cy-30,
+                              fill="#0a0a0a", outline=self.accent_blue, width=3)
+        canvas.create_text(cx, cy+5, text="✓", fill=self.accent_blue, font=('Segoe UI', 20, 'bold'))
         
+        # Branding Text
+        tk.Label(splash, text="FMSecure v2.0", font=('Segoe UI', 24, 'bold'), 
+                 bg="#050505", fg="#ffffff").place(relx=0.5, rely=0.6, anchor="center")
+        tk.Label(splash, text="Enterprise Endpoint Detection & Response", font=('Consolas', 9), 
+                 bg="#050505", fg=self.text_secondary).place(relx=0.5, rely=0.68, anchor="center")
+        
+        # Dynamic Loading Text
+        load_label = tk.Label(splash, text="Initializing cryptographic vault...", 
+                              font=('Consolas', 9, 'italic'), bg="#050505", fg=self.accent_cyan)
+        load_label.place(relx=0.5, rely=0.85, anchor="center")
+        
+        # Loading Bar
+        bar_y = height - 25
+        canvas.create_rectangle(60, bar_y, width-60, bar_y+4, fill="#1a1a1a", outline="")
+        progress_bar = canvas.create_rectangle(60, bar_y, 60, bar_y+4, fill=self.accent_blue, outline="")
+        
+        loading_steps = [
+            "Loading FileIntegrityMonitor Engine...",
+            "Booting Asynchronous Telemetry Server...",
+            "Verifying RSA/AES Encryption Keys...",
+            "Injecting CustomTkinter UI Components...",
+            "Securing Local Environment..."
+        ]
+        
+        # Animation Loop (2 seconds total)
+        total_time = 2000
+        steps = 50
+        delay = total_time // steps
+        
+        def animate_loader(current_step=0):
+            if current_step <= steps:
+                # Grow progress bar smoothly
+                current_width = 60 + ((width - 120) * (current_step / steps))
+                canvas.coords(progress_bar, 60, bar_y, current_width, bar_y+4)
+                
+                # Cycle through technical loading text
+                if current_step % 10 == 0:
+                    text_idx = (current_step // 10) % len(loading_steps)
+                    load_label.config(text=loading_steps[text_idx])
+                    
+                # Schedule next frame
+                splash.after(delay, lambda: animate_loader(current_step + 1))
+            else:
+                # Destroy splash and smoothly reveal the pre-built login window
+                splash.destroy()
+                self.root.deiconify()
+                
+        # Start the animation
+        animate_loader()
+
     def _center_window(self):
         self.root.update_idletasks()
         width = self.root.winfo_width()
@@ -181,705 +374,466 @@ class LoginWindow:
         y = (self.root.winfo_screenheight() // 2) - (height // 2)
         self.root.geometry(f'{width}x{height}+{x}+{y}')
 
-    def _show_hacker_error(self, title, message):
-        """Show a hacker-style error dialog"""
-        error_window = tk.Toplevel(self.root)
-        error_window.title("⚠ ACCESS VIOLATION")
-        error_window.geometry("400x250")
-        error_window.resizable(False, False)
-        error_window.configure(bg=self.bg_dark)
-        error_window.transient(self.root)
-        error_window.grab_set()
-        
-        # Center error window
-        error_window.update_idletasks()
-        e_width = error_window.winfo_width()
-        e_height = error_window.winfo_height()
-        e_x = (self.root.winfo_screenwidth() // 2) - (e_width // 2)
-        e_y = (self.root.winfo_screenheight() // 2) - (e_height // 2)
-        error_window.geometry(f'{e_width}x{e_height}+{e_x}+{e_y}')
-        
-        # Error header
-        error_header = tk.Frame(error_window, bg="#330000", height=50)
-        error_header.pack(fill=tk.X)
-        error_header.pack_propagate(False)
-        
-        # Alert symbol and title
-        alert_label = tk.Label(error_header,
-                             text="⚠ INTRUSION DETECTED ⚠",
-                             font=("Consolas", 12, "bold"),
-                             bg="#330000",
-                             fg=self.error_red)
-        alert_label.pack(expand=True)
-        
-        # Main error frame
-        error_frame = tk.Frame(error_window, 
-                              bg=self.bg_panel,
-                              highlightbackground=self.error_red,
-                              highlightthickness=2,
-                              padx=20, pady=20)
-        error_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-        
-        # Error title
-        error_title = tk.Label(error_frame,
-                             text=f"> {title} <",
-                             font=("Consolas", 11, "bold"),
-                             bg=self.bg_panel,
-                             fg=self.error_red)
-        error_title.pack(anchor="w", pady=(0, 10))
-        
-        # Error message
-        error_msg = tk.Label(error_frame,
-                           text=message,
-                           font=("Consolas", 10),
-                           bg=self.bg_panel,
-                           fg=self.text_primary,
-                           justify=tk.LEFT,
-                           wraplength=350)
-        error_msg.pack(fill=tk.X, pady=(0, 20))
-        
-        # Error details
-        details_label = tk.Label(error_frame,
-                               text="[SYSTEM LOG]: Unauthorized access attempt recorded",
-                               font=("Consolas", 8),
-                               bg=self.bg_panel,
-                               fg="#888888")
-        details_label.pack(anchor="w", pady=(0, 20))
-        
-        # OK button
-        ok_button = tk.Button(error_frame,
-                            text="[ ACKNOWLEDGE ]",
-                            command=error_window.destroy,
-                            bg="#220000",
-                            fg=self.error_red,
-                            font=("Consolas", 10, "bold"),
-                            bd=1,
-                            highlightbackground=self.error_red,
-                            highlightthickness=1,
-                            activebackground="#330000",
-                            activeforeground="#ff8888",
-                            padx=20,
-                            pady=8,
-                            cursor="hand2")
-        ok_button.pack()
-        
-        # Blinking effect for urgency
-        def blink():
-            current_color = alert_label.cget("fg")
-            new_color = "#ffffff" if current_color == self.error_red else self.error_red
-            try:
-                alert_label.config(fg=new_color)
-                error_window.after(500, blink)
-            except:
-                pass
-        
-        blink()
+    # ------------------------------------------------------------------
+    # Custom dialog helpers
+    # ------------------------------------------------------------------
+    def show_info(self, message):
+        CustomDialog(self.root, "Info", message, "info").wait()
 
+    def show_error(self, message):
+        CustomDialog(self.root, "Error", message, "error").wait()
+
+    def show_success(self, message):
+        CustomDialog(self.root, "Success", message, "success").wait()
+
+    def show_warning(self, message):
+        CustomDialog(self.root, "Warning", message, "warning").wait()
+
+    def show_security_alert(self, title, message):
+        SecurityAlertDialog(self.root, title, message).wait()
+
+    # ------------------------------------------------------------------
+    # Login UI (modern, professional)
+    # ------------------------------------------------------------------
     def _build_login_ui(self):
         for widget in self.root.winfo_children():
             widget.destroy()
-        # Main container with padding
-        main_container = tk.Frame(self.root, bg=self.bg_dark)
-        main_container.pack(fill=tk.BOTH, expand=True)
-        
-        # Create a canvas for scrolling with fixed size
-        canvas = tk.Canvas(main_container, bg=self.bg_dark, highlightthickness=0, width=430, height=520)
-        scrollbar = tk.Scrollbar(main_container, orient="vertical", command=canvas.yview)
-        scrollable_frame = tk.Frame(canvas, bg=self.bg_dark)
-        
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw", width=430)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        canvas.pack(side="left", fill="both", expand=True, padx=(10, 0))
-        scrollbar.pack(side="right", fill="y")
-        
-        # Header with terminal-style look
-        header_frame = tk.Frame(scrollable_frame, bg=self.bg_darker, height=100, width=410)
-        header_frame.pack(fill=tk.X, pady=(10, 20), padx=10)
-        header_frame.pack_propagate(False)
-        
-        # Terminal style header
-        terminal_header = tk.Frame(header_frame, bg="#001100", height=25)
-        terminal_header.pack(fill=tk.X)
-        terminal_header.pack_propagate(False)
-        
-        # Terminal dots
-        for i, color in enumerate(["#ff5555", "#ffff55", "#55ff55"]):
-            dot = tk.Frame(terminal_header, bg=color, width=10, height=10)
-            dot.place(x=15 + i*25, y=7)
-            dot.pack_propagate(False)
-        
-        # Terminal title
-        terminal_text = tk.Label(terminal_header, 
-                                text="root@integrity-monitor:~# login_system",
-                                font=("Consolas", 10, "bold"),
-                                bg="#001100",
-                                fg=self.accent_green)
-        terminal_text.place(relx=0.5, rely=0.5, anchor="center")
-        
+
+        # Main container with subtle gradient effect (simulated by frames)
+        main_container = ctk.CTkFrame(self.root, fg_color="#0f0f0f")
+        main_container.pack(fill="both", expand=True)
+
+        # Scrollable frame for content
+        scroll = ctk.CTkScrollableFrame(main_container, fg_color="#0f0f0f")
+        scroll.pack(fill="both", expand=True, padx=20, pady=20)
+
+        # Header card
+        header_card = ctk.CTkFrame(scroll, fg_color="#1a1a1a", corner_radius=12)
+        header_card.pack(fill="x", pady=(0, 20))
+
+        # Terminal-style header bar
+        term_bar = ctk.CTkFrame(header_card, fg_color="#002200", height=28, corner_radius=0)
+        term_bar.pack(fill="x")
+        term_bar.pack_propagate(False)
+
+        # Fake window dots
+        dots_frame = ctk.CTkFrame(term_bar, fg_color="#002200")
+        dots_frame.place(relx=0.02, rely=0.5, anchor="w")
+        for color in ["#ff5f56", "#ffbd2e", "#27c93f"]:
+            dot = ctk.CTkLabel(dots_frame, text="●", text_color=color, font=("Segoe UI", 14))
+            dot.pack(side="left", padx=2)
+
+        term_label = ctk.CTkLabel(term_bar, text="root@integrity-monitor:~# login_system",
+                                   font=("Consolas", 10), text_color="#00ff00")
+        term_label.place(relx=0.5, rely=0.5, anchor="center")
+
         # Main title
-        title = tk.Label(header_frame, 
-                        text="SYSTEM ACCESS PORTAL",
-                        font=("Courier New", 18, "bold"),
-                        bg=self.bg_darker,
-                        fg=self.accent_cyan)
-        title.pack(expand=True)
-        
-        # Subtitle with glitch effect simulation
-        subtitle = tk.Label(header_frame,
-                          text="[SECURITY LEVEL: MAXIMUM]",
-                          font=("Courier New", 9),
-                          bg=self.bg_darker,
-                          fg=self.text_secondary)
-        subtitle.pack(pady=(0, 15))
-        
-        # Login Panel
-        login_frame = tk.Frame(scrollable_frame, 
-                              bg=self.bg_panel,
-                              highlightbackground=self.border_color,
-                              highlightthickness=1,
-                              padx=25, pady=25)
-        login_frame.pack(fill=tk.X, pady=(0, 20), padx=10)
-        
-        # Admin Section Title
-        admin_title = tk.Label(login_frame,
-                             text="> ADMIN CREDENTIALS <",
-                             font=("Courier New", 11, "bold"),
-                             bg=self.bg_panel,
-                             fg=self.accent_blue)
-        admin_title.pack(anchor="w", pady=(0, 15))
-        
-        # Username Field
-        user_label = tk.Label(login_frame,
-                            text="USERNAME:",
-                            font=("Consolas", 9),
-                            bg=self.bg_panel,
-                            fg=self.text_secondary)
-        user_label.pack(anchor="w")
-        
-        # Username Entry Frame (for border effect)
-        user_entry_frame = tk.Frame(login_frame, 
-                                   bg=self.border_color, 
-                                   height=35)
-        user_entry_frame.pack(fill=tk.X, pady=(5, 15))
-        user_entry_frame.pack_propagate(False)
-        
-        self.user_entry = tk.Entry(user_entry_frame,
-                                   font=("Consolas", 11),
-                                   bg=self.input_bg,
-                                   fg=self.accent_green,
-                                   insertbackground=self.accent_green,
-                                   insertwidth=2,
-                                   relief=tk.FLAT,
-                                   bd=0,
-                                   highlightthickness=0)
-        self.user_entry.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+        title = ctk.CTkLabel(header_card, text="SYSTEM ACCESS PORTAL",
+                              font=("Segoe UI", 22, "bold"), text_color="#00ccff")
+        title.pack(pady=(20, 5))
+
+        subtitle = ctk.CTkLabel(header_card, text="[SECURITY LEVEL: MAXIMUM]",
+                                 font=("Consolas", 10), text_color="#aaaaaa")
+        subtitle.pack(pady=(0, 20))
+
+        # Admin login card
+        admin_card = ctk.CTkFrame(scroll, fg_color="#1a1a1a", corner_radius=12)
+        admin_card.pack(fill="x", pady=(0, 15))
+
+        admin_header = ctk.CTkLabel(admin_card, text="▸ ADMINISTRATOR LOGIN ◂",
+                                     font=("Segoe UI", 14, "bold"), text_color="#00ccff")
+        admin_header.pack(anchor="w", padx=25, pady=(20, 10))
+
+        # Username
+        user_label = ctk.CTkLabel(admin_card, text="USERNAME", font=("Segoe UI", 10, "bold"),
+                                   text_color="#aaaaaa")
+        user_label.pack(anchor="w", padx=25)
+
+        self.user_entry = ctk.CTkEntry(admin_card, placeholder_text="Enter your username",
+                                        font=("Consolas", 12), fg_color="#2a2a2a",
+                                        border_color="#3c3c3c", text_color="#00ff00")
+        self.user_entry.pack(fill="x", padx=25, pady=(5, 15))
         self.user_entry.focus()
-        
-        # Password Field
-        pass_label = tk.Label(login_frame,
-                            text="PASSWORD:",
-                            font=("Consolas", 9),
-                            bg=self.bg_panel,
-                            fg=self.text_secondary)
-        pass_label.pack(anchor="w")
-        
-        # Password Entry Frame (for border effect)
-        pass_entry_frame = tk.Frame(login_frame, 
-                                   bg=self.border_color, 
-                                   height=35)
-        pass_entry_frame.pack(fill=tk.X, pady=(5, 20))
-        pass_entry_frame.pack_propagate(False)
-        
-        self.pass_entry = tk.Entry(pass_entry_frame,
-                                   show="•",
-                                   font=("Consolas", 11),
-                                   bg=self.input_bg,
-                                   fg=self.accent_green,
-                                   insertbackground=self.accent_green,
-                                   insertwidth=2,
-                                   relief=tk.FLAT,
-                                   bd=0,
-                                   highlightthickness=0)
-        self.pass_entry.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
-        
-        # Admin Login Button
-        self.login_btn = tk.Button(login_frame,
-                                 text="[ ACCESS TERMINAL ]",
-                                 command=self._attempt_admin_login,
-                                 bg="#002200",
-                                 fg=self.accent_green,
-                                 font=("Consolas", 10, "bold"),
-                                 bd=1,
-                                 highlightbackground=self.accent_green,
-                                 highlightthickness=1,
-                                 activebackground="#003300",
-                                 activeforeground=self.accent_green,
-                                 padx=20,
-                                 pady=8,
-                                 cursor="hand2")
-        self.login_btn.pack(fill=tk.X, pady=(0, 10))
 
-        # --- NEW: Forgot Password Link ---
-        self.forgot_btn = tk.Button(login_frame, text="Forgot Password?", 
-                                    command=self._build_forgot_pass_ui, 
-                                    bg=self.bg_panel, fg=self.accent_blue, 
-                                    bd=0, cursor="hand2", font=("Consolas", 9, "underline"),
-                                    activebackground=self.bg_panel, activeforeground=self.accent_cyan)
-        self.forgot_btn.pack(pady=(0, 5))
+        # Password
+        pass_label = ctk.CTkLabel(admin_card, text="PASSWORD", font=("Segoe UI", 10, "bold"),
+                                   text_color="#aaaaaa")
+        pass_label.pack(anchor="w", padx=25)
 
+        self.pass_entry = ctk.CTkEntry(admin_card, placeholder_text="Enter your password",
+                                        show="•", font=("Consolas", 12),
+                                        fg_color="#2a2a2a", border_color="#3c3c3c",
+                                        text_color="#00ff00")
+        self.pass_entry.pack(fill="x", padx=25, pady=(5, 20))
 
-        # --- NEW: Google SSO Button ---
-        # A visually distinct button for Single Sign-On
-        google_btn = tk.Button(login_frame, text="🌐 Continue with Google", 
-                               font=('Segoe UI', 11, 'bold'),
-                               bg="#ffffff", fg="#4285F4", bd=0, pady=10, cursor="hand2",
-                               command=self._handle_google_login)
-        google_btn.pack(fill=tk.X, pady=(15, 0))
-        
-        # Hover effects to make it feel like a modern web app
-        google_btn.bind("<Enter>", lambda e: google_btn.configure(bg="#f8f9fa"))
-        google_btn.bind("<Leave>", lambda e: google_btn.configure(bg="#ffffff"))
-        
-        # Separator with terminal style
-        sep_frame = tk.Frame(scrollable_frame, bg=self.bg_dark, height=20)
-        sep_frame.pack(fill=tk.X, pady=10, padx=10)
-        sep_frame.pack_propagate(False)
-        
-        sep_line = tk.Frame(sep_frame, bg=self.border_color, height=1)
-        sep_line.pack(fill=tk.X, pady=9)
-        
-        sep_text = tk.Label(sep_frame,
-                          text="║ OR ║",
-                          font=("Consolas", 9),
-                          bg=self.bg_dark,
-                          fg=self.text_secondary)
+        # Login button
+        self.login_btn = ctk.CTkButton(admin_card, text="[ ACCESS TERMINAL ]",
+                                        command=self._attempt_admin_login,
+                                        fg_color="#004d00", hover_color="#006600",
+                                        text_color="#00ff00", font=("Consolas", 12, "bold"),
+                                        corner_radius=8, height=40)
+        self.login_btn.pack(fill="x", padx=25, pady=(0, 10))
+
+        # Forgot password
+        self.forgot_btn = ctk.CTkButton(admin_card, text="Forgot Password?",
+                                         command=self._build_forgot_pass_ui,
+                                         fg_color="transparent", text_color="#00ccff",
+                                         font=("Segoe UI", 10, "underline"), hover=False)
+        self.forgot_btn.pack(pady=(0, 15))
+
+        # Google SSO
+        google_btn = ctk.CTkButton(admin_card, text="🌐  Continue with Google",
+                                    command=self._handle_google_login,
+                                    fg_color="#ffffff", hover_color="#f0f0f0",
+                                    text_color="#4285F4", font=("Segoe UI", 11, "bold"),
+                                    corner_radius=8, height=40)
+        google_btn.pack(fill="x", padx=25, pady=(0, 20))
+
+        # Separator
+        sep_frame = ctk.CTkFrame(scroll, fg_color="#0f0f0f", height=20)
+        sep_frame.pack(fill="x")
+        sep_line = ctk.CTkFrame(sep_frame, fg_color="#333333", height=1)
+        sep_line.pack(fill="x", pady=9)
+        sep_text = ctk.CTkLabel(sep_frame, text="║  OR  ║", font=("Consolas", 10),
+                                 text_color="#aaaaaa")
         sep_text.place(relx=0.5, rely=0.5, anchor="center")
-        
-        # Guest Section
-        guest_frame = tk.Frame(scrollable_frame,
-                              bg=self.bg_panel,
-                              highlightbackground=self.border_color,
-                              highlightthickness=1,
-                              padx=25, pady=20)
-        guest_frame.pack(fill=tk.X, pady=(0, 20), padx=10)
-        
-        guest_title = tk.Label(guest_frame,
-                             text="> RESTRICTED VIEWER <",
-                             font=("Courier New", 11, "bold"),
-                             bg=self.bg_panel,
-                             fg=self.text_secondary)
-        guest_title.pack(anchor="w", pady=(0, 10))
-        
-        guest_desc = tk.Label(guest_frame,
-                            text="Read-only access with limited permissions\nNo credentials required",
-                            font=("Consolas", 8),
-                            bg=self.bg_panel,
-                            fg="#888888",
-                            justify=tk.LEFT)
-        guest_desc.pack(anchor="w", pady=(0, 15))
-        
-        # Guest Login Button
-        self.guest_btn = tk.Button(guest_frame,
-                                 text="[ READ-ONLY MODE ]",
-                                 command=self._attempt_guest_login,
-                                 bg="#222222",
-                                 fg="#aaaaaa",
-                                 font=("Consolas", 10),
-                                 bd=1,
-                                 highlightbackground="#666666",
-                                 highlightthickness=1,
-                                 activebackground="#333333",
-                                 activeforeground="#cccccc",
-                                 padx=20,
-                                 pady=8,
-                                 cursor="hand2")
-        self.guest_btn.pack(fill=tk.X)
-        
-        # Info frame at bottom
-        info_frame = tk.Frame(scrollable_frame, 
-                             bg="#001122",
-                             highlightbackground=self.accent_blue,
-                             highlightthickness=1,
-                             padx=15, pady=15)
-        info_frame.pack(fill=tk.X, pady=(0, 20), padx=10)
-        
-        info_text = tk.Label(info_frame,
-                           text="⚠ NOTE: All login attempts are logged and monitored.\nUnauthorized access will trigger security protocols.",
-                           font=("Consolas", 8),
-                           bg="#001122",
-                           fg=self.accent_cyan,
-                           justify=tk.LEFT)
-        info_text.pack(anchor="w")
-        
-        # Status bar
-        status_bar = tk.Frame(self.root, bg=self.bg_darker, height=30)
-        status_bar.pack(fill=tk.X, side=tk.BOTTOM)
-        status_bar.pack_propagate(False)
-        
-        status_text = tk.Label(status_bar,
-                             text="System: Online | Security: Active | Connection: Encrypted",
-                             font=("Consolas", 8),
-                             bg=self.bg_darker,
-                             fg=self.accent_green)
-        status_text.pack(side=tk.LEFT, padx=10)
-        
-        version_text = tk.Label(status_bar,
-                              text="v1.0.0",
-                              font=("Consolas", 8),
-                              bg=self.bg_darker,
-                              fg=self.text_secondary)
-        version_text.pack(side=tk.RIGHT, padx=10)
-        
-        # Bind enter key to admin login
-        self.root.bind('<Return>', lambda e: self._attempt_admin_login())
-        
-        # Make sure all content is visible
-        scrollable_frame.update_idletasks()
-        canvas.config(scrollregion=canvas.bbox("all"))
 
+        # Guest card
+        guest_card = ctk.CTkFrame(scroll, fg_color="#1a1a1a", corner_radius=12)
+        guest_card.pack(fill="x", pady=(15, 20))
+
+        guest_header = ctk.CTkLabel(guest_card, text="▸ RESTRICTED VIEWER ◂",
+                                     font=("Segoe UI", 14, "bold"), text_color="#aaaaaa")
+        guest_header.pack(anchor="w", padx=25, pady=(20, 5))
+
+        guest_desc = ctk.CTkLabel(guest_card,
+                                   text="Read‑only access · No credentials required",
+                                   font=("Segoe UI", 10), text_color="#888888")
+        guest_desc.pack(anchor="w", padx=25, pady=(0, 15))
+
+        self.guest_btn = ctk.CTkButton(guest_card, text="[ READ‑ONLY MODE ]",
+                                        command=self._attempt_guest_login,
+                                        fg_color="#2a2a2a", hover_color="#3a3a3a",
+                                        text_color="#aaaaaa", font=("Consolas", 11),
+                                        corner_radius=8, height=40)
+        self.guest_btn.pack(fill="x", padx=25, pady=(0, 25))
+
+        # Info card
+        info_card = ctk.CTkFrame(scroll, fg_color="#002233", corner_radius=8)
+        info_card.pack(fill="x", pady=(0, 20))
+
+        info_text = ctk.CTkLabel(info_card,
+                                  text="⚠ NOTE: All login attempts are logged and monitored.\n"
+                                       "Unauthorized access will trigger security protocols.",
+                                  font=("Consolas", 9), text_color="#00ccff", justify="left")
+        info_text.pack(padx=15, pady=15)
+
+        # Status bar
+        status_bar = ctk.CTkFrame(self.root, fg_color="#050505", height=30, corner_radius=0)
+        status_bar.pack(fill="x", side="bottom")
+
+        status_label = ctk.CTkLabel(status_bar,
+                                     text="System: Online | Security: Active | Connection: Encrypted",
+                                     font=("Consolas", 8), text_color="#00ff00")
+        status_label.pack(side="left", padx=10)
+
+        version_label = ctk.CTkLabel(status_bar, text="v1.0.0",
+                                      font=("Consolas", 8), text_color="#aaaaaa")
+        version_label.pack(side="right", padx=10)
+
+        # Bind Enter key
+        self.root.bind('<Return>', lambda e: self._attempt_admin_login())
+
+    # ------------------------------------------------------------------
+    # Registration UI (first time)
+    # ------------------------------------------------------------------
     def _build_register_ui(self):
-        """Builds the First-Time Setup / Registration Screen"""
-        # Clear anything currently on the window
         for widget in self.root.winfo_children():
             widget.destroy()
 
-        main_frame = tk.Frame(self.root, bg="#1e1e1e", padx=40, pady=40)
-        main_frame.pack(expand=True, fill=tk.BOTH)
+        # Card-like container
+        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
+        main_card.pack(expand=True, fill="both", padx=40, pady=40)
 
-        # Header
-        tk.Label(main_frame, text="🛡️", font=('Segoe UI', 40), bg="#1e1e1e", fg="#00a8ff").pack(pady=(0, 10))
-        tk.Label(main_frame, text="First-Time Setup", font=('Segoe UI', 20, 'bold'), bg="#1e1e1e", fg="#ffffff").pack()
-        tk.Label(main_frame, text="Register your admin account to continue", font=('Segoe UI', 10), bg="#1e1e1e", fg="#a0a0a0").pack(pady=(0, 20))
+        icon = ctk.CTkLabel(main_card, text="🛡️", font=("Segoe UI", 48), text_color="#00a8ff")
+        icon.pack(pady=(30, 10))
 
-        # Helper to create styled inputs
-        def create_input(parent, label_text, is_password=False):
-            frame = tk.Frame(parent, bg="#1e1e1e")
-            frame.pack(fill=tk.X, pady=5)
-            tk.Label(frame, text=label_text, font=('Segoe UI', 10), bg="#1e1e1e", fg="#a0a0a0").pack(anchor='w')
-            entry = ttk.Entry(frame, font=('Segoe UI', 12), show="•" if is_password else "")
-            entry.pack(fill=tk.X, pady=(5, 0))
-            return entry
+        title = ctk.CTkLabel(main_card, text="First‑Time Setup",
+                              font=("Segoe UI", 24, "bold"), text_color="#ffffff")
+        title.pack()
 
-        # Input Fields
-        self.reg_user_entry = create_input(main_frame, "Username:")
-        self.reg_user_entry.insert(0, "admin") # Default suggestion
-        self.reg_email_entry = create_input(main_frame, "Registered Email:")
-        self.reg_pass_entry = create_input(main_frame, "Password:", is_password=True)
-        self.reg_confirm_entry = create_input(main_frame, "Confirm Password:", is_password=True)
+        subtitle = ctk.CTkLabel(main_card, text="Register your admin account to continue",
+                                 font=("Segoe UI", 12), text_color="#a0a0a0")
+        subtitle.pack(pady=(0, 25))
 
-        # Register Button
-        tk.Button(main_frame, text="Create Account", command=self._attempt_register,
-                  font=('Segoe UI', 12, 'bold'), bg="#00a8ff", fg="white", bd=0, pady=10, cursor="hand2").pack(fill=tk.X, pady=(25, 0))
+        # Input fields
+        self.reg_user_entry = self._create_input(main_card, "Username:", default="admin")
+        self.reg_email_entry = self._create_input(main_card, "Registered Email:")
+        self.reg_pass_entry = self._create_input(main_card, "Password:", is_password=True)
+        self.reg_confirm_entry = self._create_input(main_card, "Confirm Password:", is_password=True)
 
-        # --- NEW: Google SSO Button (Registration) ---
-        reg_google_btn = tk.Button(main_frame, text="🌐 Sign up with Google", 
-                               font=('Segoe UI', 11, 'bold'),
-                               bg="#ffffff", fg="#4285F4", bd=0, pady=10, cursor="hand2",
-                               command=self._handle_google_login)
-        reg_google_btn.pack(fill=tk.X, pady=(15, 0))
-        
-        reg_google_btn.bind("<Enter>", lambda e: reg_google_btn.configure(bg="#f8f9fa"))
-        reg_google_btn.bind("<Leave>", lambda e: reg_google_btn.configure(bg="#ffffff"))
+        # Register button
+        ctk.CTkButton(main_card, text="Create Account", command=self._attempt_register,
+                      font=("Segoe UI", 14, "bold"), fg_color="#00a8ff", hover_color="#0077cc",
+                      corner_radius=8, height=45).pack(fill="x", padx=40, pady=(20, 10))
+
+        # Google SSO
+        ctk.CTkButton(main_card, text="🌐  Sign up with Google",
+                      command=self._handle_google_login,
+                      fg_color="#ffffff", hover_color="#f0f0f0",
+                      text_color="#4285F4", font=("Segoe UI", 12, "bold"),
+                      corner_radius=8, height=45).pack(fill="x", padx=40, pady=(0, 30))
+
+    def _create_input(self, parent, label_text, is_password=False, default=""):
+        frame = ctk.CTkFrame(parent, fg_color="transparent")
+        frame.pack(fill="x", padx=40, pady=5)
+        lbl = ctk.CTkLabel(frame, text=label_text, font=("Segoe UI", 11), text_color="#a0a0a0")
+        lbl.pack(anchor="w")
+        entry = ctk.CTkEntry(frame, font=("Segoe UI", 13), show="•" if is_password else "",
+                              fg_color="#2b2b2b", border_color="#3c3c3c")
+        if default:
+            entry.insert(0, default)
+        entry.pack(fill="x", pady=(2, 0))
+        return entry
 
     def _attempt_register(self):
-        """Handle the registration button click with Threaded Loading State"""
         username = self.reg_user_entry.get().strip()
         email = self.reg_email_entry.get().strip().lower()
         password = self.reg_pass_entry.get()
         confirm = self.reg_confirm_entry.get()
 
-        # Validation
         if not username or not email or not password:
-            messagebox.showerror("Error", "All fields are required.")
+            self.show_error("All fields are required.")
             return
         if password != confirm:
-            messagebox.showerror("Error", "Passwords do not match.")
+            self.show_error("Passwords do not match.")
             return
         if "@" not in email or "." not in email:
-            messagebox.showerror("Error", "Please enter a valid email address.")
+            self.show_error("Please enter a valid email address.")
             return
 
-        # --- 1. CREATE THE UI LOADER ---
-        self.root.config(cursor="watch") # Change mouse to loading spinner
-        
-        # Create a sleek popup loader
-        loader = tk.Toplevel(self.root)
-        loader.overrideredirect(True) # Remove windows borders
-        # Center it over the main window
+        self.root.config(cursor="watch")
+        loader = ctk.CTkToplevel(self.root)
+        loader.overrideredirect(True)
         x = self.root.winfo_x() + (self.root.winfo_width() // 2) - 100
         y = self.root.winfo_y() + (self.root.winfo_height() // 2) - 40
         loader.geometry(f"200x80+{x}+{y}")
-        loader.configure(bg="#1e1e1e", highlightbackground="#00a8ff", highlightthickness=2)
-        tk.Label(loader, text="⏳ Sending OTP...", font=('Segoe UI', 12, 'bold'), bg="#1e1e1e", fg="#00a8ff").pack(expand=True)
-        loader.update() # Force UI to draw it immediately
+        loader.configure(fg_color="#1e1e1e")
+        ctk.CTkLabel(loader, text="⏳ Sending OTP...", font=("Segoe UI", 12, "bold"),
+                     text_color="#00a8ff").pack(expand=True)
+        loader.update()
 
-        # --- 2. BACKGROUND THREAD TASK ---
         def _send_email_task():
             success, msg = email_service.send_otp_email(email, "verification")
-            
-            # --- 3. RETURN TO MAIN UI THREAD ---
             def _update_gui():
-                self.root.config(cursor="") # Reset mouse
-                loader.destroy() # Remove popup
-                
+                self.root.config(cursor="")
+                loader.destroy()
                 if success:
-                    messagebox.showinfo("OTP Sent", f"A 6-digit verification code has been sent to:\n{email}")
-                    self._build_otp_ui(username, email, password) # Switch to OTP Screen
+                    self.show_success(f"A 6‑digit verification code has been sent to:\n{email}")
+                    self._build_otp_ui(username, email, password)
                 else:
-                    messagebox.showerror("Email Error", f"Could not send email.\n\n{msg}")
-            
-            # Safely tell Tkinter to run _update_gui on the main thread
+                    self.show_error(f"Could not send email.\n\n{msg}")
             self.root.after(0, _update_gui)
 
-        # Start the background thread so the UI doesn't freeze!
         threading.Thread(target=_send_email_task, daemon=True).start()
 
     def _build_otp_ui(self, username, email, password):
-        """Builds the OTP Verification Screen"""
         for widget in self.root.winfo_children():
             widget.destroy()
 
-        main_frame = tk.Frame(self.root, bg="#1e1e1e", padx=40, pady=40)
-        main_frame.pack(expand=True, fill=tk.BOTH)
+        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
+        main_card.pack(expand=True, fill="both", padx=40, pady=40)
 
-        # Header
-        tk.Label(main_frame, text="📧", font=('Segoe UI', 40), bg="#1e1e1e", fg="#00a8ff").pack(pady=(0, 10))
-        tk.Label(main_frame, text="Verify Your Email", font=('Segoe UI', 20, 'bold'), bg="#1e1e1e", fg="#ffffff").pack()
-        tk.Label(main_frame, text=f"Enter the 6-digit code sent to\n{email}", font=('Segoe UI', 10), bg="#1e1e1e", fg="#a0a0a0", justify=tk.CENTER).pack(pady=(0, 20))
+        ctk.CTkLabel(main_card, text="📧", font=("Segoe UI", 48), text_color="#00a8ff").pack(pady=(30, 10))
+        ctk.CTkLabel(main_card, text="Verify Your Email",
+                     font=("Segoe UI", 24, "bold"), text_color="#ffffff").pack()
+        ctk.CTkLabel(main_card, text=f"Enter the 6‑digit code sent to\n{email}",
+                     font=("Segoe UI", 12), text_color="#a0a0a0", justify="center").pack(pady=(0, 20))
 
-        # OTP Input
-        frame = tk.Frame(main_frame, bg="#1e1e1e")
-        frame.pack(fill=tk.X, pady=5)
-        self.otp_entry = ttk.Entry(frame, font=('Segoe UI', 20, 'bold'), justify='center')
-        self.otp_entry.pack(fill=tk.X, pady=(5, 0))
+        self.otp_entry = ctk.CTkEntry(main_card, font=("Segoe UI", 20, "bold"),
+                                       justify="center", width=200)
+        self.otp_entry.pack(pady=5)
 
         def verify_and_create():
             otp = self.otp_entry.get().strip()
             if not otp:
-                messagebox.showerror("Error", "Please enter the OTP.")
+                self.show_error("Please enter the OTP.")
                 return
-            
-            # Check the OTP using our new service
             is_valid, msg = email_service.verify_otp(email, otp)
             if is_valid:
-                # OTP is correct, NOW we create the account in the database
                 success, auth_msg = auth.register_user(username, email, password, role="admin")
                 if success:
-                    messagebox.showinfo("Success", "Account created successfully! You can now log in.")
+                    self.show_success("Account created successfully! You can now log in.")
                     self._build_login_ui()
                 else:
-                    messagebox.showerror("Registration Failed", auth_msg)
+                    self.show_error(auth_msg)
             else:
-                messagebox.showerror("Verification Failed", msg)
+                self.show_error(msg)
 
-        # Buttons
-        tk.Button(main_frame, text="Verify & Create Account", command=verify_and_create,
-                  font=('Segoe UI', 12, 'bold'), bg="#00a8ff", fg="white", bd=0, pady=10, cursor="hand2").pack(fill=tk.X, pady=(25, 0))
-        tk.Button(main_frame, text="Cancel & Go Back", command=self._build_register_ui,
-                  font=('Segoe UI', 10), bg="#1e1e1e", fg="#a0a0a0", bd=0, cursor="hand2").pack(fill=tk.X, pady=(10, 0))
+        ctk.CTkButton(main_card, text="Verify & Create Account", command=verify_and_create,
+                      font=("Segoe UI", 14, "bold"), fg_color="#00a8ff", hover_color="#0077cc",
+                      corner_radius=8, height=45).pack(fill="x", padx=40, pady=(20, 10))
+        ctk.CTkButton(main_card, text="Cancel & Go Back", command=self._build_register_ui,
+                      font=("Segoe UI", 11), fg_color="transparent", text_color="#a0a0a0",
+                      hover=False).pack(pady=(0, 30))
 
-
-    
-
+    # ------------------------------------------------------------------
+    # Login attempts
+    # ------------------------------------------------------------------
     def _attempt_admin_login(self):
-        # 1. CHECK SECURITY LOCKOUT
         is_locked, wait_time = self.guard.is_locked_out()
-        
         if is_locked:
-            self._show_hacker_error("SYSTEM LOCKDOWN", 
-                                  f"Too many failed login attempts.\n\nSecurity protocols have locked this terminal.\nPlease wait {wait_time} seconds before retrying.")
+            self.show_security_alert(
+                "SYSTEM LOCKDOWN",
+                f"Too many failed login attempts.\n\nSecurity protocols have locked this terminal.\nPlease wait {wait_time} seconds before retrying."
+            )
             return
 
-        # 2. PROCEED WITH LOGIN
         username = self.user_entry.get().strip()
         password = self.pass_entry.get().strip()
-        
+
         if not username or not password:
-            self._show_hacker_error("MISSING CREDENTIALS", 
-                                   "Username and password fields cannot be empty.\nPlease provide valid administrator credentials.")
+            self.show_security_alert(
+                "MISSING CREDENTIALS",
+                "Username and password fields cannot be empty.\nPlease provide valid administrator credentials."
+            )
             return
-            
+
         success, role, msg = auth.login(username, password)
-        
+
         if success:
             if role != 'admin':
-                self._show_hacker_error("UNAUTHORIZED ROLE", 
-                                       "This terminal is reserved for ADMINISTRATOR access only.\nYour account does not have sufficient privileges.")
+                self.show_security_alert(
+                    "UNAUTHORIZED ROLE",
+                    "This terminal is reserved for ADMINISTRATOR access only.\nYour account does not have sufficient privileges."
+                )
                 return
-                
-            # SUCCESS: Reset guard and launch
             self.guard.reset()
-            self.root.destroy()
-            self._launch_main_app(role, username)
+            self._launch_main_app(role, username)   # Reuse root, no destroy
         else:
-            # FAILURE: Register attempt and warn
             attempts = self.guard.register_failed_attempt()
             remaining = self.guard.max_attempts - attempts
-            
+
             if remaining > 0:
-                self._show_hacker_error("ACCESS DENIED", 
-                                       f"Authentication failed: {msg}\n\nWARNING: {remaining} attempts remaining before system lockdown.")
+                self.show_security_alert(
+                    "ACCESS DENIED",
+                    f"Authentication failed: {msg}\n\nWARNING: {remaining} attempts remaining before system lockdown."
+                )
             else:
-                self._show_hacker_error("SECURITY ALERT", 
-                                       "Maximum attempts reached.\nSystem locked for 30 seconds.")
-            
+                self.show_security_alert(
+                    "SECURITY ALERT",
+                    "Maximum attempts reached.\nSystem locked for 30 seconds."
+                )
+
             self.pass_entry.delete(0, tk.END)
 
     def _attempt_guest_login(self):
-        # Direct login for viewer
-        self.root.destroy()
-        # Pass role='user' to trigger restrictions in main app
         self._launch_main_app(role='user', username='RestrictedViewer')
 
+    # ------------------------------------------------------------------
+    # Forgot password
+    # ------------------------------------------------------------------
     def _build_forgot_pass_ui(self):
-        """Builds the email entry screen for password recovery"""
         for widget in self.root.winfo_children():
             widget.destroy()
 
-        main_frame = tk.Frame(self.root, bg=self.bg_dark, padx=40, pady=40)
-        main_frame.pack(expand=True, fill=tk.BOTH)
+        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
+        main_card.pack(expand=True, fill="both", padx=40, pady=40)
 
-        tk.Label(main_frame, text="🔐", font=('Segoe UI', 40), bg=self.bg_dark, fg=self.accent_blue).pack(pady=(0, 10))
-        tk.Label(main_frame, text="Password Recovery", font=('Courier New', 18, 'bold'), bg=self.bg_dark, fg=self.accent_cyan).pack()
-        tk.Label(main_frame, text="Enter your registered email address", font=('Consolas', 10), bg=self.bg_dark, fg=self.text_secondary).pack(pady=(0, 20))
+        ctk.CTkLabel(main_card, text="🔐", font=("Segoe UI", 48), text_color="#00a8ff").pack(pady=(30, 10))
+        ctk.CTkLabel(main_card, text="Password Recovery",
+                     font=("Segoe UI", 24, "bold"), text_color="#ffffff").pack()
+        ctk.CTkLabel(main_card, text="Enter your registered email address",
+                     font=("Segoe UI", 12), text_color="#a0a0a0").pack(pady=(0, 20))
 
-        frame = tk.Frame(main_frame, bg=self.bg_dark)
-        frame.pack(fill=tk.X, pady=5)
-        self.fp_email_entry = ttk.Entry(frame, font=('Consolas', 12))
-        self.fp_email_entry.pack(fill=tk.X, pady=(5, 0))
+        self.fp_email_entry = ctk.CTkEntry(main_card, font=("Segoe UI", 13), width=300)
+        self.fp_email_entry.pack(pady=5)
 
         def send_reset_code():
             email = self.fp_email_entry.get().strip().lower()
             if not email:
-                messagebox.showerror("Error", "Please enter your email.")
+                self.show_error("Please enter your email.")
                 return
-            
             target_username = None
             for user, data in auth.users.items():
                 if data.get("registered_email") == email:
                     target_username = user
                     break
-            
             if not target_username:
-                messagebox.showerror("Security Notice", "No account found with this email.")
+                self.show_error("No account found with this email.")
                 return
 
-            # --- 1. CREATE THE UI LOADER ---
             self.root.config(cursor="watch")
-            loader = tk.Toplevel(self.root)
+            loader = ctk.CTkToplevel(self.root)
             loader.overrideredirect(True)
             x = self.root.winfo_x() + (self.root.winfo_width() // 2) - 125
             y = self.root.winfo_y() + (self.root.winfo_height() // 2) - 40
             loader.geometry(f"250x80+{x}+{y}")
-            loader.configure(bg="#111111", highlightbackground="#00ff00", highlightthickness=2)
-            tk.Label(loader, text="⏳ Routing Secure OTP...", font=('Courier New', 11, 'bold'), bg="#111111", fg="#00ff00").pack(expand=True)
+            loader.configure(fg_color="#111111")
+            ctk.CTkLabel(loader, text="⏳ Routing Secure OTP...",
+                         font=("Consolas", 11, "bold"), text_color="#00ff00").pack(expand=True)
             loader.update()
 
-            # --- 2. BACKGROUND THREAD TASK ---
             def _send_reset_task():
                 success, msg = email_service.send_otp_email(email, "reset")
-                
-                # --- 3. RETURN TO MAIN UI THREAD ---
                 def _update_gui():
                     self.root.config(cursor="")
                     loader.destroy()
-                    
                     if success:
-                        messagebox.showinfo("OTP Sent", f"A password reset code has been sent to {email}")
+                        self.show_success(f"A password reset code has been sent to {email}")
                         self._build_reset_pass_ui(target_username, email)
                     else:
-                        messagebox.showerror("Error", msg)
-                
+                        self.show_error(msg)
                 self.root.after(0, _update_gui)
 
-            # Start thread
             threading.Thread(target=_send_reset_task, daemon=True).start()
 
-        tk.Button(main_frame, text="[ SEND RECOVERY CODE ]", command=send_reset_code,
-                  font=('Consolas', 10, 'bold'), bg="#002200", fg=self.accent_green, bd=1, highlightbackground=self.accent_green, cursor="hand2", pady=8).pack(fill=tk.X, pady=(25, 0))
-        
-        tk.Button(main_frame, text="< Back to Login", command=self._build_login_ui,
-                  font=('Consolas', 10), bg=self.bg_dark, fg=self.text_secondary, bd=0, cursor="hand2").pack(fill=tk.X, pady=(10, 0))
-
-
-    def _handle_google_login(self):
-        """Triggers the Google SSO flow in a background thread to prevent GUI freezing"""
-        self.root.config(cursor="watch") # Change mouse to a loading spinner
-        self.root.update()
-
-        def _auth_thread():
-            from core.google_auth import authenticate_google_sso
-            success, result = authenticate_google_sso()
-            # Safely push the result back to the main Tkinter thread
-            self.root.after(0, lambda: self._process_google_result(success, result))
-
-        import threading
-        threading.Thread(target=_auth_thread, daemon=True).start()
-
-    def _process_google_result(self, success, result):
-        """Handles the data sent back from Google after the browser closes"""
-        self.root.config(cursor="") # Reset mouse
-        
-        if success:
-            email = result['email']
-            name = result['name']
-            
-            # Generate a username from the email (e.g. 'kumarmanish85211')
-            username = email.split('@')[0]
-            
-            # --- SEAMLESS REGISTRATION ---
-            # If this is their first time logging in, register them automatically!
-            # --- SEAMLESS REGISTRATION ---
-            from core.auth_manager import auth
-            if username not in auth.users:
-                import uuid
-                dummy_pass = str(uuid.uuid4()) 
-                auth.register_user(username, email, dummy_pass, role="admin")
-                
-                # We REMOVED the auto-upgrade! Google SSO users must buy a license.
-                auth._save_db()
-                
-                
-            
-            from tkinter import messagebox
-            messagebox.showinfo("Google SSO", f"Welcome back, {name}!\nSuccessfully authenticated via Google.")
-            
-            # Destroy the login screen and securely launch the main Dashboard
-            self.root.destroy()
-            self._launch_main_app(role="admin", username=username)
-        else:
-            from tkinter import messagebox
-            messagebox.showerror("SSO Error", result)
+        ctk.CTkButton(main_card, text="[ SEND RECOVERY CODE ]", command=send_reset_code,
+                      font=("Consolas", 12, "bold"), fg_color="#004d00", hover_color="#006600",
+                      text_color="#00ff00", corner_radius=8, height=45).pack(fill="x", padx=40, pady=(20, 10))
+        ctk.CTkButton(main_card, text="< Back to Login", command=self._build_login_ui,
+                      font=("Segoe UI", 11), fg_color="transparent", text_color="#a0a0a0",
+                      hover=False).pack(pady=(0, 30))
 
     def _build_reset_pass_ui(self, username, email):
-        """Builds the screen to enter the OTP and new password"""
         for widget in self.root.winfo_children():
             widget.destroy()
 
-        main_frame = tk.Frame(self.root, bg=self.bg_dark, padx=40, pady=40)
-        main_frame.pack(expand=True, fill=tk.BOTH)
+        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
+        main_card.pack(expand=True, fill="both", padx=40, pady=40)
 
-        tk.Label(main_frame, text="🔓", font=('Segoe UI', 40), bg=self.bg_dark, fg=self.accent_green).pack(pady=(0, 10))
-        tk.Label(main_frame, text="Reset Password", font=('Courier New', 18, 'bold'), bg=self.bg_dark, fg=self.accent_cyan).pack()
-        tk.Label(main_frame, text=f"Account: {username}", font=('Consolas', 10), bg=self.bg_dark, fg=self.accent_green).pack(pady=(0, 20))
+        ctk.CTkLabel(main_card, text="🔓", font=("Segoe UI", 48), text_color="#00ff00").pack(pady=(30, 10))
+        ctk.CTkLabel(main_card, text="Reset Password",
+                     font=("Segoe UI", 24, "bold"), text_color="#ffffff").pack()
+        ctk.CTkLabel(main_card, text=f"Account: {username}",
+                     font=("Consolas", 12), text_color="#00ff00").pack(pady=(0, 20))
 
-        def create_input(label_text, is_password=False):
-            frame = tk.Frame(main_frame, bg=self.bg_dark)
-            frame.pack(fill=tk.X, pady=5)
-            tk.Label(frame, text=label_text, font=('Consolas', 10), bg=self.bg_dark, fg=self.text_secondary).pack(anchor='w')
-            entry = ttk.Entry(frame, font=('Consolas', 12), show="•" if is_password else "")
-            entry.pack(fill=tk.X, pady=(2, 0))
-            return entry
+        # OTP
+        otp_frame = ctk.CTkFrame(main_card, fg_color="transparent")
+        otp_frame.pack(fill="x", padx=40, pady=5)
+        ctk.CTkLabel(otp_frame, text="6‑Digit OTP Code:", font=("Segoe UI", 11),
+                     text_color="#a0a0a0").pack(anchor="w")
+        self.rp_otp_entry = ctk.CTkEntry(otp_frame, font=("Consolas", 13),
+                                          fg_color="#2b2b2b", border_color="#3c3c3c")
+        self.rp_otp_entry.pack(fill="x", pady=(2, 0))
 
-        self.rp_otp_entry = create_input("6-Digit OTP Code:")
-        self.rp_pass_entry = create_input("New Password:", True)
-        self.rp_confirm_entry = create_input("Confirm Password:", True)
+        # New password
+        pass_frame = ctk.CTkFrame(main_card, fg_color="transparent")
+        pass_frame.pack(fill="x", padx=40, pady=5)
+        ctk.CTkLabel(pass_frame, text="New Password:", font=("Segoe UI", 11),
+                     text_color="#a0a0a0").pack(anchor="w")
+        self.rp_pass_entry = ctk.CTkEntry(pass_frame, show="•", font=("Consolas", 13),
+                                           fg_color="#2b2b2b", border_color="#3c3c3c")
+        self.rp_pass_entry.pack(fill="x", pady=(2, 0))
+
+        # Confirm
+        confirm_frame = ctk.CTkFrame(main_card, fg_color="transparent")
+        confirm_frame.pack(fill="x", padx=40, pady=5)
+        ctk.CTkLabel(confirm_frame, text="Confirm Password:", font=("Segoe UI", 11),
+                     text_color="#a0a0a0").pack(anchor="w")
+        self.rp_confirm_entry = ctk.CTkEntry(confirm_frame, show="•", font=("Consolas", 13),
+                                              fg_color="#2b2b2b", border_color="#3c3c3c")
+        self.rp_confirm_entry.pack(fill="x", pady=(2, 0))
 
         def execute_reset():
             otp = self.rp_otp_entry.get().strip()
@@ -887,45 +841,77 @@ class LoginWindow:
             confirm = self.rp_confirm_entry.get()
 
             if not otp or not new_pass or not confirm:
-                messagebox.showerror("Error", "All fields are required.")
+                self.show_error("All fields are required.")
                 return
             if new_pass != confirm:
-                messagebox.showerror("Error", "Passwords do not match.")
+                self.show_error("Passwords do not match.")
                 return
-            
-            # Verify OTP
+
             is_valid, msg = email_service.verify_otp(email, otp)
             if is_valid:
-                # Commit new password to the encrypted database
                 success, auth_msg = auth.update_password(username, new_pass)
                 if success:
-                    messagebox.showinfo("Success", "Password reset successfully! You can now log in.")
+                    self.show_success("Password reset successfully! You can now log in.")
                     self._build_login_ui()
                 else:
-                    messagebox.showerror("Error", auth_msg)
+                    self.show_error(auth_msg)
             else:
-                messagebox.showerror("Verification Failed", msg)
+                self.show_error(msg)
 
-        tk.Button(main_frame, text="[ COMMIT NEW PASSWORD ]", command=execute_reset,
-                  font=('Consolas', 10, 'bold'), bg="#002200", fg=self.accent_green, bd=1, highlightbackground=self.accent_green, cursor="hand2", pady=8).pack(fill=tk.X, pady=(25, 0))
-        tk.Button(main_frame, text="Cancel", command=self._build_login_ui,
-                  font=('Consolas', 10), bg=self.bg_dark, fg=self.text_secondary, bd=0, cursor="hand2").pack(fill=tk.X, pady=(10, 0))
+        ctk.CTkButton(main_card, text="[ COMMIT NEW PASSWORD ]", command=execute_reset,
+                      font=("Consolas", 12, "bold"), fg_color="#004d00", hover_color="#006600",
+                      text_color="#00ff00", corner_radius=8, height=45).pack(fill="x", padx=40, pady=(20, 10))
+        ctk.CTkButton(main_card, text="Cancel", command=self._build_login_ui,
+                      font=("Segoe UI", 11), fg_color="transparent", text_color="#a0a0a0",
+                      hover=False).pack(pady=(0, 30))
 
+    # ------------------------------------------------------------------
+    # Google SSO
+    # ------------------------------------------------------------------
+    def _handle_google_login(self):
+        self.root.config(cursor="watch")
+        self.root.update()
+
+        def _auth_thread():
+            from core.google_auth import authenticate_google_sso
+            success, result = authenticate_google_sso()
+            self.root.after(0, lambda: self._process_google_result(success, result))
+
+        threading.Thread(target=_auth_thread, daemon=True).start()
+
+    def _process_google_result(self, success, result):
+        self.root.config(cursor="")
+        if success:
+            email = result['email']
+            name = result['name']
+            username = email.split('@')[0]
+
+            if username not in auth.users:
+                import uuid
+                dummy_pass = str(uuid.uuid4())
+                auth.register_user(username, email, dummy_pass, role="admin")
+                auth._save_db()
+
+            self.show_success(f"Welcome back, {name}!\nSuccessfully authenticated via Google.")
+            self._launch_main_app(role="admin", username=username)
+        else:
+            self.show_error(result)
+
+    # ------------------------------------------------------------------
+    # Launch main app (reusing the same root window)
+    # ------------------------------------------------------------------
     def _launch_main_app(self, role, username):
-        # Create the main application root
-        # --- 🚨 FIX: Launch main application using CustomTkinter Engine ---
-        import customtkinter as ctk
-        ctk.set_appearance_mode("dark")
-        ctk.set_default_color_theme("blue")
-        
-        main_root = ctk.CTk()  # Uses CTk instead of standard Tk
-        app = ProIntegrityGUI(main_root, user_role=role, username=username)
-        
-        # IMPORTANT: Start the main loop for the new window
-        main_root.mainloop()
+        # Clear all widgets from the current root
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        # Build the main application inside the existing root
+        app = ProIntegrityGUI(self.root, user_role=role, username=username)
+        # No need to start a new mainloop – the existing one continues
 
     def run(self):
         self.root.mainloop()
+
 
 if __name__ == "__main__":
     app = LoginWindow()

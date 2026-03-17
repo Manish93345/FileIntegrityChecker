@@ -19,6 +19,7 @@ import time
 import threading
 import tkinter as tk
 import customtkinter as ctk
+import random
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
@@ -230,47 +231,152 @@ class SecurityAlertDialog:
 # ----------------------------------------------------------------------
 class LoginWindow:
     def __init__(self):
-        self.root = ctk.CTk()
+        self.root = tk.Tk()
         self.root.title("FMSecure v2.0 - Security Portal")
+        
         # --- 🚨 INJECT THE WINDOWS TASKBAR ICON ---
         try:
             if getattr(sys, 'frozen', False):
-                # When running as compiled .exe
                 icon_path = os.path.join(sys._MEIPASS, "assets", "icons", "app_icon.ico")
             else:
-                # When running as a Python script
                 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
                 icon_path = os.path.join(project_root, "assets", "icons", "app_icon.ico")
-                
             if os.path.exists(icon_path):
                 self.root.iconbitmap(icon_path)
-        except Exception as e:
-            print(f"Could not load taskbar icon: {e}")
+        except Exception:
+            pass
             
-        self.root.geometry("500x700")
+        # --- START HIDDEN FOR SPLASH SCREEN ---
+        self.root.withdraw()
+        
+        # Dark theme colors
+        self.bg_darker = "#050505"
+        self.bg_panel = "#111111"
+        self.accent_green = "#00ff00"
+        self.accent_cyan = "#00ffff"
+        self.accent_blue = "#0088ff"
+        self.text_primary = "#ffffff"
+        self.text_secondary = "#aaaaaa"
+        self.border_color = "#333333"
+        self.input_bg = "#1a1a1a"
+        self.error_red = "#ff4444"
+        self.root.geometry("450x650") 
+        self.root.configure(bg="#0a0a0a")
         self.root.resizable(False, False)
-
+        self.bg_dark = "#0a0a0a"
+        
         # Initialize Security Guard
         self.guard = BruteForceGuard(max_attempts=3, lockout_time=30)
 
-        # Hostile recovery bypass
+        # --- 🚨 HOSTILE RECOVERY BYPASS 🚨 ---
         if "--recovery" in sys.argv:
             recovered_user = "admin"
             for user, data in auth.users.items():
                 if data.get("role") == "admin":
                     recovered_user = user
                     break
-            self.root.withdraw()
             self.root.after(100, lambda: self._launch_main_app('admin', recovered_user))
-            return
+            return 
 
-        # Router
-        if not auth.has_users():
-            self._build_register_ui()
-        else:
-            self._build_login_ui()
-
+        # Configure styles & Center Window
         self._center_window()
+        # self._configure_styles()
+
+        # --- THE SMART ROUTER (Builds UI invisibly in the background) ---
+        if not auth.has_users():
+            self._build_register_ui()  
+        else:
+            self._build_login_ui()     
+            
+        # --- LAUNCH THE SPLASH SCREEN ---
+        self._show_splash_screen()
+
+    def _show_splash_screen(self):
+        """Displays a professional full-screen branding splash before the app loads"""
+        splash = tk.Toplevel(self.root)
+        splash.overrideredirect(True)  # Removes Windows borders and title bar
+        splash.configure(bg="#050505")
+        
+        # Splash dimensions and centering
+        width, height = 550, 320
+        x = (splash.winfo_screenwidth() // 2) - (width // 2)
+        y = (splash.winfo_screenheight() // 2) - (height // 2)
+        splash.geometry(f"{width}x{height}+{x}+{y}")
+        
+        # Main Canvas for drawing crisp vector graphics
+        canvas = tk.Canvas(splash, width=width, height=height, bg="#050505", highlightthickness=0)
+        canvas.pack(fill=tk.BOTH, expand=True)
+        
+        # Futuristic Top & Bottom Accent Lines
+        canvas.create_line(0, 0, width, 0, fill=self.accent_blue, width=6)
+        canvas.create_line(0, height-2, width, height-2, fill=self.accent_blue, width=6)
+        
+        # Draw Vector Shield Logo
+        cx, cy = width // 2, height // 2 - 40
+        canvas.create_polygon(cx, cy-40, cx+35, cy-30, cx+35, cy+15, cx, cy+45, cx-35, cy+15, cx-35, cy-30,
+                              fill="#0a0a0a", outline=self.accent_blue, width=3)
+        canvas.create_text(cx, cy+5, text="✓", fill=self.accent_blue, font=('Segoe UI', 20, 'bold'))
+        
+        # Branding Text
+        tk.Label(splash, text="FMSecure v2.0", font=('Segoe UI', 24, 'bold'), 
+                 bg="#050505", fg="#ffffff").place(relx=0.5, rely=0.6, anchor="center")
+        tk.Label(splash, text="Enterprise Endpoint Detection & Response", font=('Consolas', 9), 
+                 bg="#050505", fg=self.text_secondary).place(relx=0.5, rely=0.68, anchor="center")
+        
+        # Dynamic Loading Text
+        load_label = tk.Label(splash, text="Initializing cryptographic vault...", 
+                              font=('Consolas', 9, 'italic'), bg="#050505", fg=self.accent_cyan)
+        load_label.place(relx=0.5, rely=0.85, anchor="center")
+        
+        # Loading Bar Background
+        bar_y = height - 25
+        canvas.create_rectangle(60, bar_y, width-60, bar_y+4, fill="#1a1a1a", outline="")
+        progress_bar = canvas.create_rectangle(60, bar_y, 60, bar_y+4, fill=self.accent_blue, outline="")
+        
+        loading_steps = [
+            ("Loading FileIntegrityMonitor Engine...", random.randint(500, 1000)),
+            ("Booting Asynchronous Telemetry Server...", random.randint(200, 500)),
+            ("Verifying RSA/AES Encryption Keys...", random.randint(600, 1200)),
+            ("Injecting CustomTkinter UI Components...", random.randint(300, 700)),
+            ("Securing Local Environment...", random.randint(200, 500))
+        ]
+
+        
+        total_steps = len(loading_steps)
+        current_step_idx = [0]
+        
+        def process_next_step():
+            if current_step_idx[0] < total_steps:
+                # Get the text and the randomized time for THIS specific step
+                text, duration = loading_steps[current_step_idx[0]]
+                load_label.config(text=text)
+                
+                # Calculate where the bar should start and end for this chunk
+                start_width = 60 + ((width - 120) * (current_step_idx[0] / total_steps))
+                end_width = 60 + ((width - 120) * ((current_step_idx[0] + 1) / total_steps))
+                
+                # Smooth micro-animation for the bar within this random duration
+                frames = 15
+                frame_delay = duration // frames
+                
+                def animate_chunk(frame=0):
+                    if frame <= frames:
+                        current_w = start_width + ((end_width - start_width) * (frame / frames))
+                        canvas.coords(progress_bar, 60, bar_y, current_w, bar_y+4)
+                        splash.after(frame_delay, lambda: animate_chunk(frame + 1))
+                    else:
+                        # Move to the next text phase
+                        current_step_idx[0] += 1
+                        process_next_step()
+                
+                animate_chunk()
+            else:
+                # Destroy splash and smoothly reveal the login window
+                splash.destroy()
+                self.root.deiconify()
+                
+        # Kick off the dynamic animation
+        process_next_step()
 
     def _center_window(self):
         self.root.update_idletasks()
