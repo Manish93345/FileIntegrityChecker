@@ -388,6 +388,21 @@ class ProIntegrityGUI:
         self.username = username
 
         self.root.title('FMSecure v2.0 — Enterprise EDR')
+        # --- 🚨 INJECT THE WINDOWS TASKBAR ICON ---
+        try:
+            if getattr(sys, 'frozen', False):
+                # When running as compiled .exe
+                icon_path = os.path.join(sys._MEIPASS, "assets", "icons", "app_icon.ico")
+            else:
+                # When running as a Python script
+                project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                icon_path = os.path.join(project_root, "assets", "icons", "app_icon.ico")
+                
+            if os.path.exists(icon_path):
+                self.root.iconbitmap(icon_path)
+        except Exception:
+            pass # Fail silently so the app doesn't crash if the icon is moved
+
         self.root.geometry('1200x800')
         self.root.minsize(900, 600)
         self.root.resizable(True, True)

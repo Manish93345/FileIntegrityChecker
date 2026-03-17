@@ -231,7 +231,22 @@ class SecurityAlertDialog:
 class LoginWindow:
     def __init__(self):
         self.root = ctk.CTk()
-        self.root.title("FMSecure Security Monitor")
+        self.root.title("FMSecure v2.0 - Security Portal")
+        # --- 🚨 INJECT THE WINDOWS TASKBAR ICON ---
+        try:
+            if getattr(sys, 'frozen', False):
+                # When running as compiled .exe
+                icon_path = os.path.join(sys._MEIPASS, "assets", "icons", "app_icon.ico")
+            else:
+                # When running as a Python script
+                project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                icon_path = os.path.join(project_root, "assets", "icons", "app_icon.ico")
+                
+            if os.path.exists(icon_path):
+                self.root.iconbitmap(icon_path)
+        except Exception as e:
+            print(f"Could not load taskbar icon: {e}")
+            
         self.root.geometry("500x700")
         self.root.resizable(False, False)
 
