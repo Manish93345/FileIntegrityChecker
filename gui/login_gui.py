@@ -20,6 +20,7 @@ import threading
 import tkinter as tk
 import customtkinter as ctk
 import random
+import re
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
@@ -225,13 +226,17 @@ class SecurityAlertDialog:
             self.dialog.after_cancel(self.blink_after_id)
         self.dialog.destroy()
 
+    def wait(self):
+        self.dialog.wait_window()
+
 
 # ----------------------------------------------------------------------
 # Main Login Window
 # ----------------------------------------------------------------------
 class LoginWindow:
     def __init__(self):
-        self.root = tk.Tk()
+        # self.root = tk.Tk()
+        self.root = ctk.CTk()
         self.root.title("FMSecure v2.0 - Security Portal")
         
         # --- 🚨 INJECT THE WINDOWS TASKBAR ICON ---
@@ -261,7 +266,8 @@ class LoginWindow:
         self.input_bg = "#1a1a1a"
         self.error_red = "#ff4444"
         self.root.geometry("450x650") 
-        self.root.configure(bg="#0a0a0a")
+        # self.root.configure(bg="#0a0a0a")
+        self.root.configure(fg_color="#0a0a0a")
         self.root.resizable(False, False)
         self.bg_dark = "#0a0a0a"
         
@@ -402,7 +408,12 @@ class LoginWindow:
         CustomDialog(self.root, "Warning", message, "warning").wait()
 
     def show_security_alert(self, title, message):
-        SecurityAlertDialog(self.root, title, message).wait()
+        try:
+            SecurityAlertDialog(self.root, title, message).wait()
+            # alert.grab_set()
+            # dialog.wait()
+        except:
+            print(f"[Dialog Error]: {e}")
 
     # ------------------------------------------------------------------
     # Login UI (modern, professional)
@@ -584,17 +595,19 @@ class LoginWindow:
         self.reg_pass_entry = self._create_input(main_card, "Password:", is_password=True)
         self.reg_confirm_entry = self._create_input(main_card, "Confirm Password:", is_password=True)
 
-        # Register button
-        ctk.CTkButton(main_card, text="Create Account", command=self._attempt_register,
+        # Register button (Assigned to self.reg_btn)
+        self.reg_btn = ctk.CTkButton(main_card, text="Create Account", command=self._attempt_register,
                       font=("Segoe UI", 14, "bold"), fg_color="#00a8ff", hover_color="#0077cc",
-                      corner_radius=8, height=45).pack(fill="x", padx=40, pady=(20, 10))
+                      corner_radius=8, height=45)
+        self.reg_btn.pack(fill="x", padx=40, pady=(20, 10))
 
-        # Google SSO
-        ctk.CTkButton(main_card, text="🌐  Sign up with Google",
+        # Google SSO (Assigned to self.google_btn)
+        self.google_btn = ctk.CTkButton(main_card, text="🌐  Sign up with Google",
                       command=self._handle_google_login,
                       fg_color="#ffffff", hover_color="#f0f0f0",
                       text_color="#4285F4", font=("Segoe UI", 12, "bold"),
-                      corner_radius=8, height=45).pack(fill="x", padx=40, pady=(0, 30))
+                      corner_radius=8, height=45)
+        self.google_btn.pack(fill="x", padx=40, pady=(0, 30))
 
     def _create_input(self, parent, label_text, is_password=False, default=""):
         frame = ctk.CTkFrame(parent, fg_color="transparent")
@@ -609,47 +622,111 @@ class LoginWindow:
         return entry
 
     def _attempt_register(self):
+        # 1. Check if already processing BEFORE grabbing values
+        if getattr(self, 'is_processing', False):
+            return
+        self.is_processing = True
+
         username = self.reg_user_entry.get().strip()
         email = self.reg_email_entry.get().strip().lower()
         password = self.reg_pass_entry.get()
         confirm = self.reg_confirm_entry.get()
 
-        if not username or not email or not password:
-            self.show_error("All fields are required.")
-            return
-        if password != confirm:
-            self.show_error("Passwords do not match.")
-            return
-        if "@" not in email or "." not in email:
-            self.show_error("Please enter a valid email address.")
+        # 2. Mandatory Fields
+        if not username or not email or not password or not confirm:
+            self.show_error("All fields are mandatory.")
+            self.is_processing = False  # Reset flag so they can try again
             return
 
+        # 3. Email Validation
+        email_pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+        if not re.match(email_pattern, email):
+            self.show_error("Invalid email format. Use: user@domain.com")
+            self.is_processing = False  # Reset flag
+            return
+
+        # 4. Password Match
+        if password != confirm:
+            self.show_error("Passwords do not match.")
+            self.is_processing = False  # Reset flag
+            return
+
+        # 5. Password Length
+        if len(password) < 6:
+            self.show_error("Password must be at least 6 characters long.")
+            self.is_processing = False  # Reset flag
+            return
+
+        # ✅ Disable UI
+        self._set_ui_state("disabled")
         self.root.config(cursor="watch")
+
+        # Loader UI
         loader = ctk.CTkToplevel(self.root)
         loader.overrideredirect(True)
         x = self.root.winfo_x() + (self.root.winfo_width() // 2) - 100
         y = self.root.winfo_y() + (self.root.winfo_height() // 2) - 40
         loader.geometry(f"200x80+{x}+{y}")
         loader.configure(fg_color="#1e1e1e")
-        ctk.CTkLabel(loader, text="⏳ Sending OTP...", font=("Segoe UI", 12, "bold"),
-                     text_color="#00a8ff").pack(expand=True)
+
+        ctk.CTkLabel(
+            loader,
+            text="⏳ Sending OTP...",
+            font=("Segoe UI", 12, "bold"),
+            text_color="#00a8ff"
+        ).pack(expand=True)
+
         loader.update()
 
+        # Thread task
         def _send_email_task():
-            success, msg = email_service.send_otp_email(email, "verification")
+            try:
+                success, msg = email_service.send_otp_email(email, "verification")
+            except Exception as e:
+                success = False
+                msg = str(e)
+
             def _update_gui():
                 self.root.config(cursor="")
                 loader.destroy()
+
                 if success:
-                    self.show_success(f"A 6‑digit verification code has been sent to:\n{email}")
+                    self.show_success(f"Verification code sent to:\n{email}")
+
+                    #  IMPORTANT: UI enable mat karo yaha
+                    # kyunki ab OTP screen aa rahi hai
                     self._build_otp_ui(username, email, password)
+
                 else:
-                    self.show_error(f"Could not send email.\n\n{msg}")
+                    self.show_error(f"Failed to send OTP.\n\n{msg}")
+                    self.is_processing = False
+                    self._set_ui_state("normal")  # ✅ only on failure
+
             self.root.after(0, _update_gui)
 
         threading.Thread(target=_send_email_task, daemon=True).start()
 
+    def _set_ui_state(self, state="normal"):
+        """Toggles buttons to prevent double-clicks during processing"""
+        target_state = "normal" if state == "normal" else "disabled"
+        
+        # List of buttons to disable
+        buttons = [
+            "login_btn",
+            "reg_btn",
+            "google_btn",
+            "viewer_btn"
+        ]
+        
+        for btn_name in buttons:
+            if hasattr(self, btn_name):
+                try:
+                    getattr(self, btn_name).configure(state=target_state)
+                except:
+                    pass
+
     def _build_otp_ui(self, username, email, password):
+        self.is_processing = False
         for widget in self.root.winfo_children():
             widget.destroy()
 
@@ -721,6 +798,8 @@ class LoginWindow:
                 )
                 return
             self.guard.reset()
+            self.root.quit()
+            self.root.destroy()
             self._launch_main_app(role, username)   # Reuse root, no destroy
         else:
             attempts = self.guard.register_failed_attempt()

@@ -9,7 +9,7 @@ SCOPES = [
     'https://www.googleapis.com/auth/userinfo.email',
     'https://www.googleapis.com/auth/userinfo.profile'
 ]
-CREDENTIALS_FILE = 'credentials.json.json'
+CREDENTIALS_FILE = 'credentials.json'
 
 def authenticate_google_sso():
     """
