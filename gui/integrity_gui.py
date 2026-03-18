@@ -4175,38 +4175,76 @@ class ProIntegrityGUI:
 
     def _authenticate_action(self, action_name):
         """
-        Helper: Prompts for password.
+        Helper: Prompts for the user's credential before allowing a sensitive action.
         Must only be called from the Main Thread.
+ 
+        GAP 3 FIX — Phase A Part 4:
+            If the user registered via Google SSO they have no usable password.
+            Instead, we ask for their device PIN (same one used at login).
+            auth_manager.get_auth_method() tells us which path to take.
         """
         if not self.monitor_running:
             return True
-
-        # Use parent=None or parent=self.root. 
-        password = simpledialog.askstring(
-            f"Security Verification - {action_name}", 
-            f"Monitoring is ACTIVE.\n\nEnter password for '{self.username}' to access dashboard:",
-            parent=self.root, 
-            show='*'
-        )
-
-        if not password:
-            return False
-
+ 
+        # Reload the live database in case it changed in background
         if auth:
-            # --- THE FIX: Force the background tray to sync with the live database! ---
             auth._load_users()
-            
-            # Unpack 3 values (success, role, message)
+ 
+        auth_method = auth.get_auth_method(self.username) if auth else "manual"
+ 
+        if auth_method == "google":
+            # ── Google SSO users: verify device PIN ──────────────────────
+            pin = simpledialog.askstring(
+                f"Security Verification — {action_name}",
+                f"Monitoring is ACTIVE.\n\n"
+                f"Enter your device PIN for '{self.username}' to continue:",
+                parent=self.root,
+                show='●'
+            )
+ 
+            if not pin:
+                return False
+ 
+            if auth.verify_sso_pin(self.username, pin.strip()):
+                return True
+            else:
+                messagebox.showerror(
+                    "Access Denied",
+                    "Incorrect PIN.\nThis action has been logged."
+                )
+                self._append_log(
+                    f"SECURITY: Failed PIN verification for action "
+                    f"'{action_name}' by {self.username}"
+                )
+                return False
+ 
+        else:
+            # ── Manual users: verify password (original behaviour) ────────
+            password = simpledialog.askstring(
+                f"Security Verification — {action_name}",
+                f"Monitoring is ACTIVE.\n\n"
+                f"Enter password for '{self.username}' to continue:",
+                parent=self.root,
+                show='*'
+            )
+ 
+            if not password:
+                return False
+ 
             success, _, msg = auth.login(self.username, password)
-            
+ 
             if success:
                 return True
             else:
-                messagebox.showerror("Access Denied", "Incorrect Password.\nEvent has been logged.")
-                self._append_log(f"SECURITY: Failed dashboard access attempt for {self.username}")
+                messagebox.showerror(
+                    "Access Denied",
+                    "Incorrect password.\nThis action has been logged."
+                )
+                self._append_log(
+                    f"SECURITY: Failed password verification for action "
+                    f"'{action_name}' by {self.username}"
+                )
                 return False
-        
-        return True
 
     def show_window(self, icon=None, item=None):
         """

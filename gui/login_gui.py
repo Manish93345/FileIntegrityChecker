@@ -603,7 +603,7 @@ class LoginWindow:
 
         # Google SSO (Assigned to self.google_btn)
         self.google_btn = ctk.CTkButton(main_card, text="🌐  Sign up with Google",
-                      command=self._handle_google_login,
+                      command=lambda: self._handle_google_login(mode="register"),
                       fg_color="#ffffff", hover_color="#f0f0f0",
                       text_color="#4285F4", font=("Segoe UI", 12, "bold"),
                       corner_radius=8, height=45)
@@ -798,8 +798,8 @@ class LoginWindow:
                 )
                 return
             self.guard.reset()
-            self.root.quit()
-            self.root.destroy()
+            # self.root.quit()
+            # self.root.destroy()
             self._launch_main_app(role, username)   # Reuse root, no destroy
         else:
             attempts = self.guard.register_failed_attempt()
@@ -959,34 +959,278 @@ class LoginWindow:
     # ------------------------------------------------------------------
     # Google SSO
     # ------------------------------------------------------------------
-    def _handle_google_login(self):
+    def _handle_google_login(self, mode="login"):
+        """
+        Opens Google OAuth in the browser.
+        mode = "register"  →  first-time account creation via Google
+        mode = "login"     →  returning user login (allowlist check applies)
+        """
         self.root.config(cursor="watch")
         self.root.update()
-
+        self._google_mode = mode  # store mode so _process_google_result can read it
+ 
         def _auth_thread():
             from core.google_auth import authenticate_google_sso
             success, result = authenticate_google_sso()
             self.root.after(0, lambda: self._process_google_result(success, result))
-
+ 
         threading.Thread(target=_auth_thread, daemon=True).start()
 
     def _process_google_result(self, success, result):
+        """
+        Called after Google OAuth completes.
+ 
+        REGISTRATION mode (mode="register"):
+            - Google verifies identity.
+            - We auto-fill the email from Google.
+            - If the email is ALREADY registered → redirect to login (no duplicate).
+            - If the email is NEW → show PIN setup → create account.
+ 
+        LOGIN mode (mode="login"):
+            - GAP 2 FIX: Email allowlist — only registered emails pass.
+            - GAP 1 FIX: Device PIN required to confirm physical presence.
+        """
         self.root.config(cursor="")
-        if success:
-            email = result['email']
-            name = result['name']
-            username = email.split('@')[0]
-
-            if username not in auth.users:
-                import uuid
-                dummy_pass = str(uuid.uuid4())
-                auth.register_user(username, email, dummy_pass, role="admin")
-                auth._save_db()
-
-            self.show_success(f"Welcome back, {name}!\nSuccessfully authenticated via Google.")
-            self._launch_main_app(role="admin", username=username)
-        else:
+        mode = getattr(self, '_google_mode', 'login')
+ 
+        if not success:
             self.show_error(result)
+            return
+ 
+        email = result['email']
+        name  = result['name']
+ 
+        is_registered, existing_username = auth.is_google_email_registered(email)
+ 
+        # ── REGISTRATION MODE ─────────────────────────────────────────────
+        if mode == "register":
+            if is_registered:
+                # Account already exists — just log them in instead
+                self.show_info(
+                    f"{email} is already registered.\n\n"
+                    "Taking you to login instead."
+                )
+                # Route through normal login PIN flow
+                if auth.has_sso_pin(existing_username):
+                    self._build_sso_pin_verify_ui(existing_username, name)
+                else:
+                    self._build_sso_pin_setup_ui(existing_username, name)
+            else:
+                # Brand new user — derive a username from the email local-part
+                import uuid as _uuid
+                base_username = email.split('@')[0]
+                # Make username unique if somehow it collides with a manual user
+                username = base_username
+                counter  = 1
+                while username in auth.users:
+                    username = f"{base_username}{counter}"
+                    counter += 1
+ 
+                # Register silently with a random password (they'll use PIN + Google)
+                dummy_pass = _uuid.uuid4().hex
+                auth.register_user(
+                    username, email, dummy_pass,
+                    role="admin", auth_method="google"
+                )
+                auth._save_db()
+ 
+                # Now ask them to set a device PIN
+                self._build_sso_pin_setup_ui(username, name)
+ 
+        # ── LOGIN MODE ────────────────────────────────────────────────────
+        else:
+            # GAP 2: Reject any Google account not in our system
+            if not is_registered:
+                self.show_error(
+                    f"Access Denied.\n\n"
+                    f"{email} is not registered in FMSecure.\n\n"
+                    "Only pre-registered accounts can sign in with Google.\n"
+                    "Please use 'Create Account' on the registration screen first."
+                )
+                return
+ 
+            # GAP 1: PIN gate
+            if auth.has_sso_pin(existing_username):
+                self._build_sso_pin_verify_ui(existing_username, name)
+            else:
+                # Registered via Google but PIN was never set (edge case)
+                self._build_sso_pin_setup_ui(existing_username, name)
+
+    def _build_sso_pin_setup_ui(self, username, name):
+        """
+        First Google login — ask the user to create a 4-digit device PIN.
+        This PIN proves physical presence on this device every future login.
+        """
+        for widget in self.root.winfo_children():
+            widget.destroy()
+ 
+        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
+        main_card.pack(expand=True, fill="both", padx=40, pady=40)
+ 
+        ctk.CTkLabel(main_card, text="🔐", font=("Segoe UI", 48),
+                     text_color="#00a8ff").pack(pady=(30, 10))
+ 
+        ctk.CTkLabel(main_card, text=f"Welcome, {name}!",
+                     font=("Segoe UI", 22, "bold"),
+                     text_color="#ffffff").pack()
+ 
+        ctk.CTkLabel(main_card,
+                     text="Google identity verified.\n\n"
+                          "Set a 4-digit device PIN.\n"
+                          "You will enter this PIN every time\n"
+                          "you sign in with Google on this device.",
+                     font=("Segoe UI", 12), text_color="#a0a0a0",
+                     justify="center").pack(pady=(8, 20))
+ 
+        ctk.CTkLabel(main_card, text="NEW DEVICE PIN (4+ digits)",
+                     font=("Segoe UI", 10, "bold"),
+                     text_color="#aaaaaa").pack(anchor="w", padx=40)
+ 
+        self._pin_entry = ctk.CTkEntry(
+            main_card, show="●",
+            font=("Segoe UI", 18, "bold"),
+            justify="center", width=160)
+        self._pin_entry.pack(pady=(4, 16))
+        self._pin_entry.focus()
+ 
+        ctk.CTkLabel(main_card, text="CONFIRM PIN",
+                     font=("Segoe UI", 10, "bold"),
+                     text_color="#aaaaaa").pack(anchor="w", padx=40)
+ 
+        self._pin_confirm_entry = ctk.CTkEntry(
+            main_card, show="●",
+            font=("Segoe UI", 18, "bold"),
+            justify="center", width=160)
+        self._pin_confirm_entry.pack(pady=(4, 24))
+ 
+        def _save_pin():
+            pin     = self._pin_entry.get().strip()
+            confirm = self._pin_confirm_entry.get().strip()
+ 
+            if not pin or not confirm:
+                self.show_error("Both PIN fields are required.")
+                return
+            if pin != confirm:
+                self.show_error("PINs do not match. Please try again.")
+                self._pin_entry.delete(0, "end")
+                self._pin_confirm_entry.delete(0, "end")
+                self._pin_entry.focus()
+                return
+            if not pin.isdigit():
+                self.show_error("PIN must contain digits only (0–9).")
+                return
+            if len(pin) < 4:
+                self.show_error("PIN must be at least 4 digits.")
+                return
+ 
+            ok, msg = auth.set_sso_pin(username, pin)
+            if ok:
+                self.show_success(
+                    "Device PIN set!\n\n"
+                    "You are now logged in.\n"
+                    "Use this PIN next time you sign in with Google."
+                )
+                self._launch_main_app(role="admin", username=username)
+            else:
+                self.show_error(msg)
+ 
+        ctk.CTkButton(
+            main_card, text="Set PIN & Continue",
+            command=_save_pin,
+            fg_color="#004d00", hover_color="#006600",
+            text_color="#00ff00", font=("Consolas", 12, "bold"),
+            corner_radius=8, height=40
+        ).pack(fill="x", padx=40, pady=(0, 10))
+ 
+        ctk.CTkButton(
+            main_card, text="Cancel",
+            command=self._build_login_ui,
+            font=("Segoe UI", 11), fg_color="transparent",
+            text_color="#a0a0a0", hover=False
+        ).pack(pady=(0, 20))
+ 
+        self.root.bind('<Return>', lambda e: _save_pin())
+ 
+    def _build_sso_pin_verify_ui(self, username, name):
+        """
+        Returning Google user — verify device PIN to confirm physical presence.
+        Also used as the credential check for sensitive actions (Gap 3 fix).
+        """
+        for widget in self.root.winfo_children():
+            widget.destroy()
+ 
+        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
+        main_card.pack(expand=True, fill="both", padx=40, pady=40)
+ 
+        ctk.CTkLabel(main_card, text="🛡️", font=("Segoe UI", 48),
+                     text_color="#00a8ff").pack(pady=(30, 10))
+ 
+        ctk.CTkLabel(main_card, text=f"Welcome back, {name}!",
+                     font=("Segoe UI", 22, "bold"),
+                     text_color="#ffffff").pack()
+ 
+        ctk.CTkLabel(main_card,
+                     text="Google identity verified.\n\n"
+                          "Enter your device PIN to complete sign-in.",
+                     font=("Segoe UI", 12), text_color="#a0a0a0",
+                     justify="center").pack(pady=(8, 20))
+ 
+        ctk.CTkLabel(main_card, text="DEVICE PIN",
+                     font=("Segoe UI", 10, "bold"),
+                     text_color="#aaaaaa").pack(anchor="w", padx=40)
+ 
+        self._verify_pin_entry = ctk.CTkEntry(
+            main_card, show="●",
+            font=("Segoe UI", 20, "bold"),
+            justify="center", width=160)
+        self._verify_pin_entry.pack(pady=(4, 24))
+        self._verify_pin_entry.focus()
+ 
+        self._pin_attempts = 0
+ 
+        def _verify_pin():
+            pin = self._verify_pin_entry.get().strip()
+ 
+            if not pin:
+                self.show_error("Please enter your PIN.")
+                return
+ 
+            if auth.verify_sso_pin(username, pin):
+                self._launch_main_app(role="admin", username=username)
+            else:
+                self._pin_attempts += 1
+                self._verify_pin_entry.delete(0, "end")
+ 
+                if self._pin_attempts >= 3:
+                    self.show_security_alert(
+                        "DEVICE PIN LOCKED",
+                        "3 incorrect PINs entered.\n\n"
+                        "Returned to the login screen for security."
+                    )
+                    self._build_login_ui()
+                else:
+                    remaining = 3 - self._pin_attempts
+                    self.show_error(
+                        f"Incorrect PIN.\n\n"
+                        f"{remaining} attempt(s) remaining before lockout."
+                    )
+ 
+        ctk.CTkButton(
+            main_card, text="[ VERIFY PIN ]",
+            command=_verify_pin,
+            fg_color="#004d00", hover_color="#006600",
+            text_color="#00ff00", font=("Consolas", 12, "bold"),
+            corner_radius=8, height=40
+        ).pack(fill="x", padx=40, pady=(0, 10))
+ 
+        ctk.CTkButton(
+            main_card, text="Cancel",
+            command=self._build_login_ui,
+            font=("Segoe UI", 11), fg_color="transparent",
+            text_color="#a0a0a0", hover=False
+        ).pack(pady=(0, 20))
+ 
+        self.root.bind('<Return>', lambda e: _verify_pin())
 
     # ------------------------------------------------------------------
     # Launch main app (reusing the same root window)
