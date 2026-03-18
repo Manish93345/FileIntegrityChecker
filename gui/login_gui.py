@@ -317,17 +317,29 @@ class LoginWindow:
         canvas.create_line(0, 0, width, 0, fill=self.accent_blue, width=6)
         canvas.create_line(0, height-2, width, height-2, fill=self.accent_blue, width=6)
         
-        # Draw Vector Shield Logo
-        cx, cy = width // 2, height // 2 - 40
-        canvas.create_polygon(cx, cy-40, cx+35, cy-30, cx+35, cy+15, cx, cy+45, cx-35, cy+15, cx-35, cy-30,
-                              fill="#0a0a0a", outline=self.accent_blue, width=3)
-        canvas.create_text(cx, cy+5, text="✓", fill=self.accent_blue, font=('Segoe UI', 20, 'bold'))
-        
-        # Branding Text
-        tk.Label(splash, text="FMSecure v2.0", font=('Segoe UI', 24, 'bold'), 
-                 bg="#050505", fg="#ffffff").place(relx=0.5, rely=0.6, anchor="center")
-        tk.Label(splash, text="Enterprise Endpoint Detection & Response", font=('Consolas', 9), 
-                 bg="#050505", fg=self.text_secondary).place(relx=0.5, rely=0.68, anchor="center")
+        from PIL import Image, ImageTk
+        canvas.create_oval(
+            width//2 - 100, height//2 - 100,
+            width//2 + 100, height//2 + 100,
+            fill="#0a0a0a", outline=self.accent_blue, width=2
+        )
+                # Load logo
+        try:
+            if getattr(sys, 'frozen', False):
+                base_path = sys._MEIPASS
+            else:
+                base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+            logo_path = os.path.join(base_path, "assets", "icons", "app_icon.png")
+
+            img = Image.open(logo_path)
+            img = img.resize((260, 260))  # adjust size
+            self.logo_img = ImageTk.PhotoImage(img)
+
+            canvas.create_image(width//2, height//2 - 25, image=self.logo_img)
+
+        except Exception as e:
+            print("Logo load error:", e)
         
         # Dynamic Loading Text
         load_label = tk.Label(splash, text="Initializing cryptographic vault...", 
