@@ -1675,49 +1675,164 @@ class ProIntegrityGUI:
     # ── Toggle handlers (call original core methods, then sync toggle UI) ──
 
     def _toggle_active_defense(self):
-        """Toggle active defense — bridge to original logic."""
+        """Toggle active defense with PRO check and Pre-Popup Snap-back"""
+        tier = "FREE"
+        if auth:
+            tier = auth.get_user_tier(self.username).upper()
+            
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "PRO"
+        
+        if tier != "PRO":
+            # 🚨 FIX: Force the switch back to OFF and redraw BEFORE the popup freezes the app
+            self._ad_var.set(False)
+            self.ad_btn_text.set('OFF')
+            if hasattr(self, '_toggle_switches') and 'Active Defense' in self._toggle_switches:
+                self._toggle_switches['Active Defense'].refresh()
+                self.root.update_idletasks() # Forces Windows to paint the screen immediately
+                
+            from tkinter import messagebox
+            messagebox.showwarning("⭐ Premium Feature", "🛡️ Active Defense is a PRO feature.\n\nPlease activate a License Key to unlock.")
+            return 
+            
         new_state = self._ad_var.get()
         self.ad_btn_text.set('ON' if new_state else 'OFF')
         try:
-            from core.integrity_core import CONFIG
+            from core.integrity_core import CONFIG, CONFIG_FILE, load_config
+            import json
+            
             CONFIG['active_defense'] = new_state
-            self._append_log(
-                f'Active Defense {"ENABLED" if new_state else "DISABLED"} by {self.username}')
+            
+            if os.path.exists(CONFIG_FILE):
+                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                    file_cfg = json.load(f)
+            else:
+                file_cfg = dict(CONFIG)
+                
+            file_cfg["active_defense"] = new_state
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(file_cfg, f, indent=4)
+                
+            load_config(CONFIG_FILE)
+            self._append_log(f'Active Defense {"ENABLED" if new_state else "DISABLED"} by {self.username}')
         except Exception as e:
-            print(f'Active defense toggle: {e}')
+            print(f'Active defense toggle error: {e}')
 
     def _toggle_killswitch(self):
-        """Toggle ransomware killswitch."""
+        """Toggle ransomware killswitch with PRO check and Pre-Popup Snap-back"""
+        tier = "FREE"
+        if auth:
+            tier = auth.get_user_tier(self.username).upper()
+            
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "PRO"
+        
+        if tier != "PRO":
+            # 🚨 FIX: Force the switch back to OFF and redraw BEFORE the popup freezes the app
+            self._ks_var.set(False)
+            self.ks_btn_text.set('OFF')
+            if hasattr(self, '_toggle_switches') and 'Ransomware Killswitch' in self._toggle_switches:
+                self._toggle_switches['Ransomware Killswitch'].refresh()
+                self.root.update_idletasks()
+                
+            from tkinter import messagebox
+            messagebox.showwarning("⭐ Premium Feature", "🛑 Ransomware Killswitch is a PRO feature.\n\nPlease activate a License Key to unlock.")
+            return
+            
         new_state = self._ks_var.get()
         self.ks_btn_text.set('ON' if new_state else 'OFF')
         try:
-            from core.integrity_core import CONFIG
+            from core.integrity_core import CONFIG, CONFIG_FILE, load_config
+            import json
+            
             CONFIG['ransomware_killswitch'] = new_state
-            self._append_log(
-                f'Ransomware Killswitch {"ARMED" if new_state else "DISARMED"} by {self.username}')
+            if os.path.exists(CONFIG_FILE):
+                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                    file_cfg = json.load(f)
+            else:
+                file_cfg = dict(CONFIG)
+                
+            file_cfg["ransomware_killswitch"] = new_state
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(file_cfg, f, indent=4)
+                
+            load_config(CONFIG_FILE)
+            self._append_log(f'Ransomware Killswitch {"ARMED" if new_state else "DISARMED"} by {self.username}')
         except Exception as e:
-            print(f'Killswitch toggle: {e}')
-        # Legacy button references
+            print(f'Killswitch toggle error: {e}')
+            
         try:
-            self.ks_toggle_btn = type('obj', (object,), {
-                'configure': lambda self_inner, **kw: None})()
+            self.ks_toggle_btn = type('obj', (object,), {'configure': lambda self_inner, **kw: None})()
         except Exception:
             pass
 
     def _toggle_usb_control(self):
-        """Toggle USB device control."""
+        """Toggle USB device control with PRO check and Pre-Popup Snap-back"""
+        tier = "FREE"
+        if auth:
+            tier = auth.get_user_tier(self.username).upper()
+            
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "PRO"
+        
+        if tier != "PRO":
+            # 🚨 FIX: Force the switch back to OFF and redraw BEFORE the popup freezes the app
+            self._usb_var.set(False)
+            self.usb_btn_text.set('ALLOWED')
+            if hasattr(self, '_toggle_switches') and 'USB Device Control' in self._toggle_switches:
+                self._toggle_switches['USB Device Control'].refresh()
+                self.root.update_idletasks()
+                
+            from tkinter import messagebox
+            messagebox.showwarning("⭐ Premium Feature", "🔌 USB Device Control is a PRO feature.\n\nPlease activate a License Key to unlock.")
+            return
+            
+        # Password prompt check
+        if not self._authenticate_action("Modify USB Device Policy"):
+            from core.integrity_core import CONFIG
+            current_state = CONFIG.get("usb_readonly", False)
+            self._usb_var.set(current_state)
+            self.usb_btn_text.set('LOCKED' if current_state else 'ALLOWED')
+            if hasattr(self, '_toggle_switches') and 'USB Device Control' in self._toggle_switches:
+                self._toggle_switches['USB Device Control'].refresh()
+                self.root.update_idletasks()
+            return
+
         new_state = self._usb_var.get()
         self.usb_btn_text.set('LOCKED' if new_state else 'ALLOWED')
+        
         try:
-            from core.usb_policy import usb_policy
-            if new_state:
-                usb_policy.enable_readonly()
+            from core.usb_policy import set_usb_read_only
+            success, msg = set_usb_read_only(enable=new_state)
+            if not success:
+                from tkinter import messagebox
+                messagebox.showerror("Policy Error", msg)
+                self._usb_var.set(not new_state)
+                self.usb_btn_text.set('LOCKED' if not new_state else 'ALLOWED')
+                if hasattr(self, '_toggle_switches') and 'USB Device Control' in self._toggle_switches:
+                    self._toggle_switches['USB Device Control'].refresh()
+                    self.root.update_idletasks()
+                return
+                
+            from core.integrity_core import CONFIG, CONFIG_FILE, load_config
+            import json
+            
+            CONFIG['usb_readonly'] = new_state
+            if os.path.exists(CONFIG_FILE):
+                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                    file_cfg = json.load(f)
             else:
-                usb_policy.disable_readonly()
-            self._append_log(
-                f'USB Control {"LOCKED (read-only)" if new_state else "UNLOCKED"} by {self.username}')
+                file_cfg = dict(CONFIG)
+                
+            file_cfg["usb_readonly"] = new_state
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(file_cfg, f, indent=4)
+                
+            load_config(CONFIG_FILE)
+            self._append_log(f'USB Control {"LOCKED (read-only)" if new_state else "UNLOCKED"} by {self.username}')
+            
         except Exception as e:
-            print(f'USB toggle: {e}')
+            print(f'USB toggle error: {e}')
 
     # Legacy toggle_btn stubs so old code that calls .configure() doesn't crash
     @property
@@ -2841,189 +2956,6 @@ class ProIntegrityGUI:
         ttk.Button(btn_frame, text="💾 Save Settings", command=save_settings, style='Modern.TButton').pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="❌ Cancel", command=win.destroy, style='Modern.TButton').pack(side=tk.LEFT, padx=5)
 
-
-    def _toggle_active_defense(self):
-        # 1. FOOLPROOF TIER CHECK
-        tier = "FREE"
-        if auth:
-            tier = auth.get_user_tier(self.username).upper()
-            
-        # GUI OVERRIDE: If the PRO badge is on screen, force unlock!
-        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
-            tier = "PRO"
-        
-        if tier != "PRO":
-            from tkinter import messagebox
-            messagebox.showwarning("⭐ Premium Feature", "🛡️ Active Defense is a PRO feature.\n\nPlease activate a License Key to unlock.")
-            # Snap back to OFF
-            current_state = CONFIG.get("active_defense", False)
-            self.ad_btn_text.set("ON" if current_state else "OFF")
-            self.ad_toggle_btn.configure(bg=self.colors['accent_success'] if current_state else self.colors['text_muted'])
-            return 
-            
-        # 2. Toggle the state
-        current_state = CONFIG.get("active_defense", False)
-        new_state = not current_state
-        CONFIG["active_defense"] = new_state
-        
-        # 3. Update the UI appearance
-        if new_state:
-            self.ad_btn_text.set("ON")
-            self.ad_toggle_btn.configure(bg=self.colors['accent_success'])
-            self._append_log("🛡️ Active Defense ENABLED. Files will be auto-restored.")
-        else:
-            self.ad_btn_text.set("OFF")
-            self.ad_toggle_btn.configure(bg=self.colors['text_muted'])
-            self._append_log("🛡️ Active Defense DISABLED.")
-            
-        # 4. Save to config.json AND Reload Backend Engine
-        try:
-            import json
-            from core.integrity_core import CONFIG_FILE, load_config
-            
-            if os.path.exists(CONFIG_FILE):
-                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                    file_cfg = json.load(f)
-            else:
-                file_cfg = dict(CONFIG)
-                
-            file_cfg["active_defense"] = new_state
-            
-            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(file_cfg, f, indent=4)
-                
-            # Tell backend to reload the exact same Universal Brain file
-            load_config(CONFIG_FILE)
-            
-        except Exception as e:
-            print(f"Error saving Active Defense state: {e}")
-
-    def _toggle_killswitch(self):
-        # 1. FOOLPROOF TIER CHECK
-        tier = "FREE"
-        if auth:
-            tier = auth.get_user_tier(self.username).upper()
-            
-        # GUI OVERRIDE: If the PRO badge is on screen, force unlock!
-        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
-            tier = "PRO"
-        
-        if tier != "PRO":
-            from tkinter import messagebox
-            messagebox.showwarning("⭐ Premium Feature", "🛑 Ransomware Killswitch is a PRO feature.\n\nPlease activate a License Key to unlock.")
-            # Snap back to OFF
-            current_state = CONFIG.get("ransomware_killswitch", False)
-            self.ks_btn_text.set("ON" if current_state else "OFF")
-            self.ks_toggle_btn.configure(bg=self.colors['accent_success'] if current_state else self.colors['text_muted'])
-            return
-            
-        # 2. Toggle the state
-        current_state = CONFIG.get("ransomware_killswitch", False)
-        new_state = not current_state
-        CONFIG["ransomware_killswitch"] = new_state
-        
-        # 3. Update the UI appearance
-        if new_state:
-            self.ks_btn_text.set("ON")
-            self.ks_toggle_btn.configure(bg=self.colors['accent_success'])
-            self._append_log("🛑 Ransomware Killswitch ENABLED. Burst-protection active.")
-        else:
-            self.ks_btn_text.set("OFF")
-            self.ks_toggle_btn.configure(bg=self.colors['text_muted'])
-            self._append_log("🛑 Ransomware Killswitch DISABLED.")
-            
-        # 4. Save to config.json AND Reload Backend Engine
-        try:
-            import json
-            from core.integrity_core import CONFIG_FILE, load_config
-            
-            if os.path.exists(CONFIG_FILE):
-                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                    file_cfg = json.load(f)
-            else:
-                file_cfg = dict(CONFIG)
-                
-            file_cfg["ransomware_killswitch"] = new_state
-            
-            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(file_cfg, f, indent=4)
-                
-            # Tell backend to reload the exact same Universal Brain file
-            load_config(CONFIG_FILE)
-            
-        except Exception as e:
-            print(f"Error saving Killswitch state: {e}")
-
-    def _toggle_usb_control(self):
-        # 1. FOOLPROOF TIER CHECK
-        tier = "FREE"
-        if auth:
-            tier = auth.get_user_tier(self.username).upper()
-            
-        # GUI OVERRIDE
-        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
-            tier = "PRO"
-        
-        if tier != "PRO":
-            from tkinter import messagebox
-            messagebox.showwarning("⭐ Premium Feature", "🔌 USB Device Control is a PRO feature.\n\nPlease activate a License Key to unlock.")
-            return
-
-        # 2. ADMIN AUTHORIZATION (Registry edits are highly sensitive!)
-        if not self._authenticate_action("Modify USB Device Policy"):
-            return
-            
-        # 3. Toggle the state
-        current_state = CONFIG.get("usb_readonly", False)
-        new_state = not current_state
-        
-        # 4. Call Backend System Registry Script
-        try:
-            from core.usb_policy import set_usb_read_only
-            success, msg = set_usb_read_only(enable=new_state)
-            if not success:
-                from tkinter import messagebox
-                messagebox.showerror("Policy Error", msg)
-                return
-        except Exception as e:
-            from tkinter import messagebox
-            messagebox.showerror("Execution Error", f"Failed to execute USB policy: {e}")
-            return
-
-        # 5. Update the UI appearance
-        CONFIG["usb_readonly"] = new_state
-        
-        if new_state:
-            self.usb_btn_text.set("LOCKED")
-            self.usb_toggle_btn.configure(bg=self.colors['accent_success'])
-            self._append_log("🔌 USB Policy ENABLED: All USB Storage devices set to Read-Only.")
-            self._show_alert("USB Policy Updated", "USB Storage devices are now LOCKED (Read-Only).", "high")
-        else:
-            self.usb_btn_text.set("ALLOWED")
-            self.usb_toggle_btn.configure(bg=self.colors['text_muted'])
-            self._append_log("🔌 USB Policy DISABLED: USB Read/Write allowed.")
-            self._show_alert("USB Policy Updated", "USB Storage devices are now UNLOCKED.", "info")
-            
-        # 6. Save to Universal Brain AND Reload Backend Engine
-        try:
-            import json
-            from core.integrity_core import CONFIG_FILE, load_config
-            
-            if os.path.exists(CONFIG_FILE):
-                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                    file_cfg = json.load(f)
-            else:
-                file_cfg = dict(CONFIG)
-                
-            file_cfg["usb_readonly"] = new_state
-            
-            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(file_cfg, f, indent=4)
-                
-            load_config(CONFIG_FILE)
-            
-        except Exception as e:
-            print(f"Error saving USB Policy state: {e}")
 
     # ===== HELPER METHODS FROM BACKUP =====
     
