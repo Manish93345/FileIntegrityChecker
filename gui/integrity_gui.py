@@ -1483,7 +1483,7 @@ class ProIntegrityGUI:
         c2_rows = [
             ('Machine ID',  str(uuid.getnode())[:16] + '…'),
             ('Hostname',    socket.gethostname()),
-            ('C2 Endpoint', 'http://127.0.0.1:8000'),
+            ('C2 Endpoint', 'fmsecure-c2-server-production.up.railway.app'),
             ('Heartbeat',   'Every 10s'),
         ]
         for i, (k, v) in enumerate(c2_rows):
@@ -2852,7 +2852,7 @@ class ProIntegrityGUI:
             # Generate a unique hardware ID and get the PC name
             machine_id = str(uuid.getnode())
             hostname = socket.gethostname()
-            c2_url = "http://127.0.0.1:8000/api/heartbeat"
+            c2_url = "https://fmsecure-c2-server-production.up.railway.app/api/heartbeat"
             
             while True:
                 try:
