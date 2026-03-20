@@ -21,7 +21,7 @@ from core.encryption_manager import crypto_manager
 from core.vault_manager import vault  # <-- NEW: Import the Vault
 from core.lockdown_manager import lockdown  # <-- NEW: Import the Killswitch
 import requests
-from core import email_service
+from core.email_service import email_service
 
 # --- THE UNIVERSAL BRAIN ---
 # This forces the app to ALWAYS look in your Windows AppData folder
@@ -231,7 +231,7 @@ SEVERITY_COUNTER_FILE = os.path.join(log_dir, "severity_counters.json")
 CONFIG = dict(DEFAULT_CONFIG)
 
 # Additional temp patterns to ignore (lowercase)
-TEMP_PATTERNS = [".tmp", ".part", ".crdownload", ".ds_store", ".swp", ".bak", "~", ".~"]
+TEMP_PATTERNS = [".tmp", ".part", ".crdownload", ".ds_store", ".swp", ".bak", "~", ".~", ".pyc", "__pycache__", ".git"]
 
 
 def get_severity(event_type):
@@ -961,42 +961,114 @@ class IntegrityHandler(FileSystemEventHandler):
 
 
 
-    def _check_burst_operations(self, event_type):
-        """Check for burst operations (Ransomware Heuristics)"""
+    def _check_burst_operations(self, event_type, path=None):
+        """
+        Check for burst operations (Ransomware Heuristics) with Forensic Capture.
+
+        When the killswitch fires:
+        1. Lock down all watched folders via icacls
+        2. Generate an AES-encrypted forensic snapshot
+        3. Register the snapshot in the local index
+        4. Send a text-only alert email (snapshot ID included, no binary attachment)
+        5. Reset the burst tracker
+        """
         current_time = time.time()
-        # Clean old events
-        self.recent_events = [t for t in self.recent_events if current_time - t < self.burst_time_window]
-        self.recent_events.append(current_time)
-        
-        # Check for burst (Default is 5 events in 10 seconds)
-        if len(self.recent_events) >= self.burst_threshold:
-            severity = "HIGH"
-            message = f"Burst operation detected: {len(self.recent_events)} events in {self.burst_time_window} seconds"
-            
-            # --- NEW: RANSOMWARE KILLSWITCH EXECUTION ---
-            if CONFIG.get("ransomware_killswitch", False):
-                severity = "CRITICAL" # Escalate to critical immediately
-                message = f"🚨 RANSOMWARE BEHAVIOR DETECTED! ({len(self.recent_events)} rapid edits)"
-                
-                # Instantly lock down ALL monitored folders to stop the virus
-                for folder in self.watch_folders:
+
+        if not hasattr(self, 'burst_tracker'):
+            self.burst_tracker = []
+
+        # Clean old events (keep only last N seconds)
+        self.burst_tracker = [
+            evt for evt in self.burst_tracker
+            if current_time - evt['time'] < self.burst_time_window
+        ]
+
+        # Add new event
+        if path:
+            self.burst_tracker.append({'time': current_time, 'path': path, 'type': event_type})
+        else:
+            self.burst_tracker.append({'time': current_time, 'path': "Unknown File", 'type': event_type})
+
+        # Check for burst threshold
+        if len(self.burst_tracker) < self.burst_threshold:
+            return False
+
+        # ── Burst confirmed ───────────────────────────────────────────────────
+        severity = "HIGH"
+        message  = f"Burst operation detected: {len(self.burst_tracker)} events in {self.burst_time_window}s"
+
+        affected_files = list(set(evt['path'] for evt in self.burst_tracker))
+        snapshot_result = None
+
+        if CONFIG.get("ransomware_killswitch", False):
+            severity = "CRITICAL"
+            message  = f"RANSOMWARE BEHAVIOR DETECTED! ({len(self.burst_tracker)} rapid file operations)"
+
+            # ── Step 1: OS-level folder lockdown ─────────────────────────────
+            locked_folders = []
+            for folder in self.watch_folders:
+                try:
+                    from core.lockdown_manager import lockdown
                     success, msg = lockdown.trigger_killswitch(folder)
                     if success:
-                        message += f"\n[KILLSWITCH ENGAGED] Write access revoked for: {folder}"
-                    else:
-                        message += f"\n[KILLSWITCH ERROR] Could not lock {folder}: {msg}"
-            
-            # Log the event and notify the GUI
-            append_log_line(message, event_type="BURST_OPERATION", severity=severity)
-            send_webhook_safe("RANSOMWARE_BURST", message, filepath=None, severity=severity)
-            
-            self._notify_gui("BURST_OPERATION", "Multiple Files", severity)
-            
-            # Reset the recent events so we don't spam the killswitch command
-            self.recent_events = []
-            return True
-            
-        return False
+                        locked_folders.append(folder)
+                        message += f"\n[KILLSWITCH] Write access revoked: {folder}"
+                except Exception as e:
+                    print(f"[KILLSWITCH] Error locking {folder}: {e}")
+
+            # ── Step 2: Generate encrypted forensic snapshot ──────────────────
+            try:
+                from core.incident_snapshot import generate_incident_snapshot
+                snapshot_result = generate_incident_snapshot(
+                    event_type     = "RANSOMWARE_BURST",
+                    severity       = severity,
+                    message        = message,
+                    affected_files = affected_files,
+                    additional_data= {
+                        "locked_folders":   locked_folders,
+                        "burst_threshold":  self.burst_threshold,
+                        "burst_window_sec": self.burst_time_window,
+                    }
+                )
+
+                if snapshot_result:
+                    snapshot_id  = snapshot_result["snapshot_id"]
+                    email_block  = snapshot_result["email_summary"]
+                    message     += f"\n[FORENSICS] Snapshot captured — ID: {snapshot_id}"
+                else:
+                    snapshot_id  = "CAPTURE-FAILED"
+                    email_block  = "Forensic snapshot capture failed."
+
+            except Exception as e:
+                print(f"[FORENSICS] Snapshot generation error: {e}")
+                snapshot_id = "CAPTURE-ERROR"
+                email_block = f"Forensic snapshot error: {e}"
+
+            # ── Step 3: Build full alert message for email ────────────────────
+            full_alert_msg = f"{message}\n\n{email_block}"
+
+        else:
+            # Killswitch not enabled — just log the burst, no lockdown
+            full_alert_msg = message
+
+        # ── Step 4: Log to integrity log ──────────────────────────────────────
+        append_log_line(message, event_type="BURST_OPERATION", severity=severity)
+
+        # ── Step 5: Send alert email (text only, no binary attachment) ────────
+        # Pass filepath=None so email_service does NOT try to attach a .dat file
+        send_webhook_safe(
+            "RANSOMWARE_BURST",
+            full_alert_msg,
+            filepath=None,          # No attachment — snapshot stays local
+            severity=severity
+        )
+
+        # ── Step 6: Notify GUI ────────────────────────────────────────────────
+        self._notify_gui("BURST_OPERATION", "Multiple Files", severity)
+
+        # ── Step 7: Reset tracker to prevent email spam ────────────────────────
+        self.burst_tracker = []
+        return True
 
     def save_records(self):
         save_hash_records(self.records)
@@ -1142,7 +1214,7 @@ class IntegrityHandler(FileSystemEventHandler):
                             
                         # --- FIX: KILLSWITCH BYPASS ---
                         # Report this attack to the burst tracker BEFORE we return!
-                        self._check_burst_operations("MODIFY")
+                        self._check_burst_operations("MODIFY", path)
                         
                         return # Stop here! Do not log a normal modification.
             # ... (Existing log_detail logic for metadata or normal modifications)
@@ -1172,47 +1244,106 @@ class IntegrityHandler(FileSystemEventHandler):
         path = os.path.abspath(event.src_path)
         if is_ignored_filename(os.path.basename(path)): return
 
-        # --- 🚨 NEW: HONEYPOT TRIPWIRE 🚨 ---
+        # --- 🚨 HONEYPOT TRIPWIRE 🚨 ---
         if os.path.basename(path).lower() == "secret_passwords.txt":
             self._trigger_honeypot(path)
             return
         
-        # Burst Logic
-        current_time = time.time()
-        self.recent_deletes.append(current_time)
-        self.recent_deletes = [t for t in self.recent_deletes if current_time - t < self.burst_time_window]
-        
-        if len(self.recent_deletes) >= 3:
-            severity = "HIGH"
-            message = f"Multiple deletes detected: {len(self.recent_deletes)} files"
-            append_log_line(message, event_type="MULTIPLE_DELETES", severity=severity)
-            send_webhook_safe("MULTIPLE_DELETES", message, None)
-            self._notify_gui("MULTIPLE_DELETES", "Multiple Files", severity) # <--- NOTIFY GUI
-        
-        # Individual Logic
+        # 1. ACTIVE DEFENSE INTERCEPT (Heals the file instantly)
         if path in self.records:
-            # --- ACTIVE DEFENSE INTERCEPT ---
             if CONFIG.get("active_defense", False):
                 from core.vault_manager import vault
                 success, msg = vault.restore_file(path)
                 if success:
                     append_log_line(f"RESTORED: {path} (Malicious deletion reverted!)", event_type="RESTORED", severity="INFO")
                     self._notify_gui("RESTORED", path, "INFO")
-                    
-                    # --- FIX: KILLSWITCH BYPASS ---
-                    # Report this attack to the burst tracker BEFORE we return!
-                    self._check_burst_operations("DELETE")
-                    
-                    return # Stop here! Do not remove the file from the database!
+                    # Send to generic burst tracker since we aren't queuing restored files
+                    self._check_burst_operations("DELETE", path)
+                    return 
             
-            # Normal deletion logic (if Active Defense is OFF)
+            # 2. NORMAL DELETION (Remove from database)
             self.records.pop(path, None)
             self.save_records()
-            append_log_line(f"DELETED: {path}", event_type="DELETED", severity="MEDIUM")
-            send_webhook_safe("DELETED", "File deleted", path)
+            
+            # 3. 🚨 THE AGGREGATOR (DEBOUNCE LOGIC) 🚨
+            # Initialize the queue if it doesn't exist
+            if not hasattr(self, 'delete_queue'):
+                self.delete_queue = []
+            if not hasattr(self, 'delete_timer'):
+                self.delete_timer = None
+
+            # Add to the holding pen
+            self.delete_queue.append(path)
+
+            # Cancel the old timer (resets the 1.5-second clock)
+            if self.delete_timer:
+                self.delete_timer.cancel()
+
+            # Start a new countdown. If it hits 0, the storm is over.
+            self.delete_timer = threading.Timer(1.5, self._process_delete_queue)
+            self.delete_timer.start()
+
+            # Instantly update the local GUI so the dashboard stays fast and responsive
             self._notify_gui("DELETED", path, "MEDIUM")
-        
-        self._check_burst_operations("DELETE")
+
+    def _process_delete_queue(self):
+        """Analyzes the deleted files after the 1.5s storm has settled"""
+        if not hasattr(self, 'delete_queue') or not self.delete_queue:
+            return
+
+        # Lock in the casualties and clear the queue for the next event
+        casualties = list(self.delete_queue)
+        self.delete_queue.clear()
+        count = len(casualties)
+
+        # --- BRANCH A: RANSOMWARE BURST DETECTED ---
+        if count >= self.burst_threshold:
+            severity = "CRITICAL"
+            message = f"🚨 RANSOMWARE BEHAVIOR DETECTED! ({count} files rapidly deleted)"
+            
+            # 1. TRIGGER OS KILLSWITCH
+            if CONFIG.get("ransomware_killswitch", False):
+                from core.lockdown_manager import lockdown
+                for folder in self.watch_folders:
+                    success, msg = lockdown.trigger_killswitch(folder)
+                    if success:
+                        message += f"\n[KILLSWITCH ENGAGED] Write access revoked for: {folder}"
+
+            # 2. GENERATE FORENSIC SNAPSHOT
+            snapshot_path = None
+            try:
+                from core.incident_snapshot import IncidentSnapshot
+                snapshot_path = IncidentSnapshot().generate_incident_snapshot(
+                    event_type="MASS_DELETION_BURST",
+                    severity=severity,
+                    message=message,
+                    additional_data={"deleted_files": casualties}
+                )
+                if snapshot_path:
+                    message += f"\n[FORENSICS] System Snapshot securely captured."
+            except Exception as e:
+                print(f"Snapshot generation error: {e}")
+
+            # 3. BUILD AND SEND THE MASTER INCIDENT EMAIL
+            # Format a clean list of the first 15 files so the email is readable
+            file_list = "\n".join([f" - {os.path.basename(p)}" for p in casualties[:15]])
+            if count > 15:
+                file_list += f"\n ... and {count - 15} more files."
+
+            full_alert_msg = f"{message}\n\nCASUALTY LIST:\n{file_list}"
+
+            # Write to encrypted log, notify GUI, and send EXACTLY ONE email/webhook
+            append_log_line(f"BURST DELETE DETECTED: {count} files", event_type="BURST_OPERATION", severity=severity)
+            self._notify_gui("BURST_OPERATION", f"{count} Files Deleted", severity)
+            
+            # Passing snapshot_path preps us for the email attachment upgrade!
+            send_webhook_safe("RANSOMWARE_BURST", full_alert_msg, filepath=snapshot_path, severity=severity)
+
+        # --- BRANCH B: NORMAL FILE DELETION ---
+        else:
+            for path in casualties:
+                append_log_line(f"DELETED: {path}", event_type="DELETED", severity="MEDIUM")
+                send_webhook_safe("DELETED", "File deleted", path, severity="MEDIUM")
 
     
     def on_moved(self, event):

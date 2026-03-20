@@ -1232,6 +1232,227 @@ class ProIntegrityGUI:
                       self._open_audit_logs,
                       C['button_bg'], fg=C['text_secondary'],
                       font_size=10).pack(fill=tk.X, padx=16, pady=(0, 12))
+        
+        _ActionButton(parent, '🔬  Open Forensic Incident Vault',
+              self._open_forensic_viewer,
+              C['accent_danger'], fg='#ffffff',
+              font_size=10).pack(fill=tk.X, padx=16, pady=(0, 12))
+
+    def _open_forensic_viewer(self):
+        """
+        Open the Forensic Incident Viewer.
+        Lists all encrypted snapshots from the index and decrypts on demand.
+        Accessible only to admins.
+        """
+        if self.user_role != 'admin':
+            messagebox.showerror(
+                "Access Denied",
+                "Only administrators can view forensic incident reports."
+            )
+            return
+
+        self._append_log("Opening forensic incident vault...")
+
+        # ── Window ────────────────────────────────────────────────────────────
+        viewer = tk.Toplevel(self.root)
+        viewer.title("Forensic Incident Vault — FMSecure")
+        viewer.geometry("1100x680")
+        viewer.configure(bg=self.colors['bg'])
+        viewer.transient(self.root)
+
+        # ── Header ────────────────────────────────────────────────────────────
+        hdr = tk.Frame(viewer, bg=self.colors['header_bg'], height=50)
+        hdr.pack(fill=tk.X)
+        hdr.pack_propagate(False)
+
+        tk.Label(hdr, text="Forensic Incident Vault",
+                 font=('Segoe UI', 14, 'bold'),
+                 bg=self.colors['header_bg'],
+                 fg=self.colors['accent_danger']).pack(side=tk.LEFT, padx=20, pady=12)
+
+        tk.Label(hdr,
+                 text="All reports are AES-encrypted. Decrypted content is displayed in-app only.",
+                 font=('Segoe UI', 9),
+                 bg=self.colors['header_bg'],
+                 fg=self.colors['text_muted']).pack(side=tk.LEFT, padx=10, pady=12)
+
+        tk.Frame(viewer, height=1, bg=self.colors['divider']).pack(fill=tk.X)
+
+        # ── Layout: left list + right detail ─────────────────────────────────
+        body = tk.Frame(viewer, bg=self.colors['bg'])
+        body.pack(fill=tk.BOTH, expand=True, padx=16, pady=16)
+
+        # Left: snapshot list
+        left = tk.Frame(body, bg=self.colors['card_bg'],
+                        highlightbackground=self.colors['card_border'],
+                        highlightthickness=1, width=340)
+        left.pack(side=tk.LEFT, fill=tk.Y)
+        left.pack_propagate(False)
+
+        tk.Label(left, text="Incident Reports",
+                 font=('Segoe UI', 10, 'bold'),
+                 bg=self.colors['card_bg'],
+                 fg=self.colors['text_primary']).pack(anchor='w', padx=14, pady=(12, 6))
+
+        tk.Frame(left, height=1, bg=self.colors['divider']).pack(fill=tk.X)
+
+        snap_list = tk.Listbox(
+            left,
+            bg=self.colors['input_bg'],
+            fg=self.colors['text_primary'],
+            selectbackground=self.colors['accent_danger'],
+            selectforeground='#ffffff',
+            font=('Consolas', 9),
+            relief='flat',
+            activestyle='none',
+            highlightthickness=0
+        )
+        snap_list.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+
+        # Right: decrypted content display
+        right = tk.Frame(body, bg=self.colors['card_bg'],
+                         highlightbackground=self.colors['card_border'],
+                         highlightthickness=1)
+        right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(12, 0))
+
+        right_hdr = tk.Frame(right, bg=self.colors['card_bg'])
+        right_hdr.pack(fill=tk.X, padx=14, pady=(12, 6))
+
+        self._forensic_detail_title = tk.Label(
+            right_hdr,
+            text="Select a report from the list",
+            font=('Segoe UI', 10, 'bold'),
+            bg=self.colors['card_bg'],
+            fg=self.colors['text_primary']
+        )
+        self._forensic_detail_title.pack(side=tk.LEFT)
+
+        # Export button (top-right of detail panel)
+        def _export_plain():
+            content = detail_box.get("1.0", tk.END).strip()
+            if not content or content == "Select a report from the list":
+                messagebox.showinfo("Export", "No report loaded.")
+                return
+            import tkinter.filedialog as fd
+            path = fd.asksaveasfilename(
+                defaultextension=".txt",
+                filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+                title="Export Forensic Report (Plain Text)"
+            )
+            if path:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                messagebox.showinfo("Exported", f"Report saved to:\n{path}")
+
+        tk.Button(
+            right_hdr, text="Export Plain Text",
+            command=_export_plain,
+            font=('Segoe UI', 9),
+            bg=self.colors['button_bg'],
+            fg=self.colors['text_secondary'],
+            bd=0, cursor='hand2', padx=10, pady=4
+        ).pack(side=tk.RIGHT)
+
+        tk.Frame(right, height=1, bg=self.colors['divider']).pack(fill=tk.X)
+
+        detail_box = scrolledtext.ScrolledText(
+            right,
+            bg=self.colors['input_bg'],
+            fg=self.colors['text_primary'],
+            font=('Consolas', 9),
+            wrap=tk.WORD,
+            relief='flat',
+            state='disabled',
+            padx=12,
+            pady=10
+        )
+        detail_box.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+
+        # Colour tags for severity highlighting
+        detail_box.tag_config("critical", foreground=self.colors['accent_danger'])
+        detail_box.tag_config("high",     foreground=self.colors['accent_warning'])
+        detail_box.tag_config("header",   foreground=self.colors['accent_primary'],
+                              font=('Consolas', 9, 'bold'))
+        detail_box.tag_config("id",       foreground=self.colors['accent_success'],
+                              font=('Consolas', 9, 'bold'))
+
+        # ── Load index ────────────────────────────────────────────────────────
+        try:
+            from core.incident_snapshot import list_snapshots, read_snapshot, format_snapshot_for_display
+            snapshots = list_snapshots()
+        except Exception as e:
+            snapshots = []
+            messagebox.showerror("Forensic Vault", f"Could not load index:\n{e}")
+
+        # Track filename per listbox index
+        _filename_map = {}
+
+        if not snapshots:
+            snap_list.insert(tk.END, "  No snapshots found")
+        else:
+            for i, entry in enumerate(snapshots):
+                ts   = entry.get("timestamp_pretty", "Unknown time")
+                sev  = entry.get("severity", "?")
+                etype= entry.get("event_type", "?")
+                hits = entry.get("affected_files", 0)
+                label = f"[{sev}] {ts}\n  {etype} — {hits} file(s)"
+                snap_list.insert(tk.END, f" {ts}")
+                snap_list.insert(tk.END, f"   {sev} · {etype} · {hits} files")
+                snap_list.insert(tk.END, "")
+                _filename_map[i * 3]     = entry.get("filename")
+                _filename_map[i * 3 + 1] = entry.get("filename")
+
+        def _on_select(event):
+            sel = snap_list.curselection()
+            if not sel:
+                return
+            idx      = sel[0]
+            filename = _filename_map.get(idx)
+            if not filename:
+                return
+
+            try:
+                data    = read_snapshot(filename)
+                content = format_snapshot_for_display(data)
+            except Exception as e:
+                content = f"Error decrypting snapshot:\n{e}"
+
+            if data:
+                meta = data.get("meta", {})
+                self._forensic_detail_title.configure(
+                    text=f"Snapshot {meta.get('snapshot_id', '?')}  —  {meta.get('generated_at_pretty', '')}"
+                )
+
+            detail_box.configure(state='normal')
+            detail_box.delete("1.0", tk.END)
+
+            # Insert with basic highlighting
+            for line in content.split('\n'):
+                if line.startswith("="):
+                    detail_box.insert(tk.END, line + '\n', "header")
+                elif "CRITICAL" in line:
+                    detail_box.insert(tk.END, line + '\n', "critical")
+                elif "HIGH" in line:
+                    detail_box.insert(tk.END, line + '\n', "high")
+                elif "Snapshot ID" in line:
+                    detail_box.insert(tk.END, line + '\n', "id")
+                else:
+                    detail_box.insert(tk.END, line + '\n')
+
+            detail_box.configure(state='disabled')
+            detail_box.see("1.0")
+
+        snap_list.bind("<<ListboxSelect>>", _on_select)
+
+        # Close button
+        tk.Button(
+            viewer, text="Close",
+            command=viewer.destroy,
+            font=('Segoe UI', 10),
+            bg=self.colors['button_bg'],
+            fg=self.colors['text_primary'],
+            bd=0, cursor='hand2', padx=20, pady=8
+        ).pack(pady=(0, 16))
 
     def _build_network_tab(self, parent):
         C = self.colors
