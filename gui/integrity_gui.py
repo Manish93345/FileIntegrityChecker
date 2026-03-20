@@ -494,6 +494,7 @@ class ProIntegrityGUI:
         self._check_safe_mode_status()
         self._start_telemetry_heartbeat()
         self._setup_tray_icon()
+        self._check_for_updates()
 
         self.root.protocol('WM_DELETE_WINDOW', self.on_closing)
 
@@ -5398,6 +5399,64 @@ class ProIntegrityGUI:
         
         update_btn_colors(self.root)
 
+
+    # ─────────────────────────────────────────
+    #  OTA UPDATE ENGINE
+    # ─────────────────────────────────────────
+    
+    def _check_for_updates(self):
+        """Silently checks GitHub Gist for a newer version on a background thread."""
+        CURRENT_VERSION = 2.0
+        # REPLACE THIS with your actual Raw Gist URL from Step 1
+        import time
+        UPDATE_URL = f"https://gist.githubusercontent.com/Manish93345/f339aeaae5ef231abf2be28bb750e4d8/raw/fmsecure_version.json?nocache={int(time.time())}"
+        
+        def fetch_version():
+            try:
+                import requests
+                # 3-second timeout so it never freezes the app if offline
+                response = requests.get(UPDATE_URL, timeout=3) 
+                if response.status_code == 200:
+                    data = response.json()
+                    latest = float(data.get("latest_version", 2.0))
+                    
+                    if latest > CURRENT_VERSION:
+                        url = data.get("download_url", "")
+                        # Push UI updates back to the main thread
+                        self.root.after(1000, lambda: self._show_update_banner(latest, url))
+            except Exception as e:
+                print(f"Update check skipped (Offline or unreachable): {e}")
+
+        # Run immediately without blocking the Splash Screen or GUI load
+        threading.Thread(target=fetch_version, daemon=True).start()
+
+    def _show_update_banner(self, latest_version, download_url):
+        """Injects a sleek update banner right below the top navigation bar."""
+        import webbrowser
+        
+        banner = tk.Frame(self.root, bg=self.colors['accent_primary'], height=40)
+        # Place it exactly under the 56px top bar
+        banner.place(x=0, y=56, relwidth=1.0) 
+        banner.pack_propagate(False)
+        
+        tk.Label(banner, text=f"🚀 UPDATE AVAILABLE", 
+                 bg=self.colors['accent_primary'], fg="#ffffff", 
+                 font=('Segoe UI', 9, 'bold')).pack(side=tk.LEFT, padx=(20, 5), pady=10)
+                 
+        tk.Label(banner, text=f"FMSecure v{latest_version} is now available.", 
+                 bg=self.colors['accent_primary'], fg="#ffffff", 
+                 font=('Segoe UI', 9)).pack(side=tk.LEFT, pady=10)
+                 
+        close_btn = tk.Button(banner, text="✕", command=banner.destroy,
+                              bg=self.colors['accent_primary'], fg="#ffffff", bd=0, 
+                              font=('Segoe UI', 12), cursor="hand2", activebackground=self.colors['accent_primary'])
+        close_btn.pack(side=tk.RIGHT, padx=15)
+        
+        dl_btn = tk.Button(banner, text="Download Update", 
+                           command=lambda: webbrowser.open(download_url) if download_url else None,
+                           bg="#ffffff", fg=self.colors['accent_primary'], bd=0,
+                           font=('Segoe UI', 9, 'bold'), cursor="hand2", padx=15, pady=4)
+        dl_btn.pack(side=tk.RIGHT, padx=10, pady=7)
 
 # ---------- Run ----------
 # ---------- Run ----------
