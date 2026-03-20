@@ -2,22 +2,41 @@
 """
 integrity_cli.py
 Command Line Interface for Secure File Integrity Monitor
-- Uses integrity_core for all backend logic
-- Handles CLI arguments and user interaction
 """
 
 import os
 import sys
 import argparse
 import time
-sys.path.append('core')
+
+# Get the absolute path of the 'cli' folder
+current_dir = os.path.dirname(os.path.abspath(__file__))
+# Get the parent directory (the root of LISA_PROJECT)
+root_dir = os.path.abspath(os.path.join(current_dir, ".."))
+# Safely append the core directory to path
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'core'))
+
+# Add the root directory to sys.path so it can find the 'core' folder
+if root_dir not in sys.path:
+    sys.path.append(root_dir)
+
 from core.integrity_core import (
-    load_config, FileIntegrityMonitor, 
-    verify_all_files_and_update, get_summary,
-    CONFIG, now_pretty, atomic_write_text,
-    LOG_FILE, LOG_SIG_FILE
+    load_config, FileIntegrityMonitor, append_log_line,
+    CONFIG, LOG_FILE
 )
 
+def cli_callback(event_type, path, severity):
+    """Real-time terminal feedback for file events."""
+    # Color coding for terminal output
+    colors = {
+        "INFO": "\033[94m",     # Blue
+        "MEDIUM": "\033[93m",   # Yellow
+        "HIGH": "\033[91m",     # Red
+        "CRITICAL": "\033[1;91m" # Bold Red
+    }
+    reset = "\033[0m"
+    color = colors.get(severity, reset)
+    print(f"{color}[{severity}] {event_type} - {path}{reset}")
 
 def main():
     parser = argparse.ArgumentParser(description="Secure File Integrity Monitor CLI")
@@ -30,62 +49,65 @@ def main():
     args = parser.parse_args()
 
     # Load configuration
-    config_path = args.config or os.path.join("config", "config.json")
     if not load_config(args.config):
+        print("[ERROR] Failed to load configuration.")
         sys.exit(1)
-    
+
     # Apply CLI overrides
     if args.watch:
-        CONFIG["watch_folder"] = os.path.abspath(args.watch)
+        abs_watch = os.path.abspath(args.watch)
+        CONFIG["watch_folders"] = [abs_watch]  # v2.0 Array Logic
+        CONFIG["watch_folder"] = abs_watch     # Legacy Fallback
+
     if args.webhook:
         CONFIG["webhook_url"] = args.webhook
     if args.interval:
         CONFIG["verify_interval"] = int(args.interval)
 
-    wf = CONFIG["watch_folder"]
-    if not os.path.exists(wf):
-        print(f"[ERROR] Watch folder does not exist: {wf}")
+    # Check if watch folders exist
+    watch_folders = CONFIG.get("watch_folders", [])
+    if not watch_folders and CONFIG.get("watch_folder"):
+        watch_folders = [CONFIG["watch_folder"]]
+
+    if not watch_folders or not all(os.path.exists(f) for f in watch_folders):
+        print(f"[ERROR] One or more watch folders do not exist: {watch_folders}")
         sys.exit(1)
 
     # Startup info
     print("========================================")
     print("Secure File Integrity Monitor CLI")
-    print(f"Watch folder: {wf}")
-    print(f"Verify interval: {CONFIG['verify_interval']}s")
+    print(f"Watch folders: {watch_folders}")
+    print(f"Verify interval: {CONFIG.get('verify_interval', 60)}s")
     print(f"Webhook: {'enabled' if CONFIG.get('webhook_url') else 'disabled'}")
     print("========================================")
 
     # Ensure log files exist via proper logging method
-    from core.integrity_core import append_log_line
-    
     if not os.path.exists(LOG_FILE):
-        # This will create the file AND the signature correctly
         append_log_line("CLI Monitor started", severity="INFO")
-
-    if args.summary_only:
-        monitor = FileIntegrityMonitor()
-        print(monitor.get_summary())
-        return
 
     monitor = FileIntegrityMonitor()
 
+    if args.summary_only:
+        print(monitor.get_summary())
+        return
+
     if args.verify:
         print("Running one-shot full verification...")
-        summary = monitor.run_verification()
+        summary = monitor.run_verification(watch_folders=watch_folders)
         print("One-shot verification completed.")
         return
 
-    # Start continuous monitoring
-    if not monitor.start_monitoring():
-        print("Failed to start monitoring")
+    # Start continuous monitoring with real-time callback
+    if not monitor.start_monitoring(watch_folders=watch_folders, event_callback=cli_callback):
+        print("[ERROR] Failed to start monitoring")
         sys.exit(1)
 
-    print("Monitor running. Press Ctrl+C to stop.")
+    print("🟢 Monitor running. Press Ctrl+C to stop.")
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("Stopping monitor...")
+        print("\n🛑 Stopping monitor...")
         monitor.stop_monitoring()
 
 if __name__ == "__main__":
