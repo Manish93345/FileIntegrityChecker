@@ -2870,7 +2870,8 @@ class ProIntegrityGUI:
                     }
                     
                     # 2. Send to Cloud & Read Response
-                    response = requests.post(c2_url, json=payload, timeout=5)
+                    headers = {"x-api-key": "fmsecure-enterprise-key-99"}
+                    response = requests.post(c2_url, json=payload, headers=headers, timeout=5)
                     if response.status_code == 200:
                         server_data = response.json()
                         # --- NEW: EXECUTE CLOUD COMMANDS ---
