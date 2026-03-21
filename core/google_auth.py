@@ -4,12 +4,18 @@ from googleapiclient.discovery import build
 
 # --- SCOPES FOR SINGLE SIGN-ON ---
 # We are asking Google for the user's email and basic profile info
+import sys
+
+def resource_path(path):
+    if getattr(sys, 'frozen', False):
+        return os.path.join(sys._MEIPASS, path)
+    return os.path.join(os.path.abspath("."), path)
 SCOPES = [
     'openid',
     'https://www.googleapis.com/auth/userinfo.email',
     'https://www.googleapis.com/auth/userinfo.profile'
 ]
-CREDENTIALS_FILE = 'credentials.json'
+CREDENTIALS_FILE = resource_path('credentials.json')
 
 def authenticate_google_sso():
     """

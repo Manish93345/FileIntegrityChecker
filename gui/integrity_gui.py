@@ -559,13 +559,26 @@ class ProIntegrityGUI:
         self.menu_btn.pack(side=tk.LEFT, padx=(4, 10), pady=14)
 
         # Shield icon (canvas-drawn, no image needed)
-        shield_cv = tk.Canvas(left_hdr, width=28, height=28,
-                              bg=C['header_bg'], highlightthickness=0)
-        shield_cv.pack(side=tk.LEFT, pady=14)
-        shield_cv.create_polygon(14, 2, 26, 7, 26, 16, 14, 26, 2, 16, 2, 7,
-                                 fill=C['accent_primary'], outline='')
-        shield_cv.create_text(14, 15, text='✓', fill='#ffffff',
-                              font=('Segoe UI', 9, 'bold'))
+        from PIL import Image, ImageTk
+
+        def resource_path(path):
+            if getattr(sys, 'frozen', False):
+                return os.path.join(sys._MEIPASS, path)
+            return os.path.join(os.path.abspath("."), path)
+
+        try:
+            logo_path = resource_path("assets/icons/app_icon.png")
+
+            img = Image.open(logo_path)
+            img = img.resize((32, 32))  # 👈 small header size
+
+            self.header_logo = ImageTk.PhotoImage(img)
+
+            logo_label = tk.Label(left_hdr, image=self.header_logo, bg=C['header_bg'])
+            logo_label.pack(side=tk.LEFT, pady=10)
+
+        except Exception as e:
+            print("Header logo error:", e)
 
         tk.Label(left_hdr, text='FMSecure', font=('Segoe UI', 16, 'bold'),
                  bg=C['header_bg'], fg=C['text_primary']).pack(side=tk.LEFT, padx=(6, 4))

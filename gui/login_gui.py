@@ -590,8 +590,27 @@ class LoginWindow:
         main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
         main_card.pack(expand=True, fill="both", padx=40, pady=40)
 
-        icon = ctk.CTkLabel(main_card, text="🛡️", font=("Segoe UI", 48), text_color="#00a8ff")
-        icon.pack(pady=(30, 10))
+        from PIL import Image, ImageTk
+        import sys, os
+
+        def resource_path(path):
+            if getattr(sys, 'frozen', False):
+                return os.path.join(sys._MEIPASS, path)
+            return os.path.join(os.path.abspath("."), path)
+
+        try:
+            logo_path = resource_path("assets/icons/app_icon.png")
+
+            img = Image.open(logo_path)
+            img = img.resize((120, 120))  # size adjust kar sakte ho
+
+            self.register_logo = ImageTk.PhotoImage(img)
+
+            logo_label = ctk.CTkLabel(main_card, image=self.register_logo, text="")
+            logo_label.pack(pady=(30, 10))
+
+        except Exception as e:
+            print("Register logo error:", e)
 
         title = ctk.CTkLabel(main_card, text="First‑Time Setup",
                               font=("Segoe UI", 24, "bold"), text_color="#ffffff")
