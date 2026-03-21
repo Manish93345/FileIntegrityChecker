@@ -462,6 +462,8 @@ class ProIntegrityGUI:
         self.watch_folder_var    = tk.StringVar(value=os.path.abspath(CONFIG.get('watch_folder', os.getcwd())))
         self.status_var          = tk.StringVar(value='Stopped')
         self.status_var.trace_add('write', lambda *args: self._update_status_color())
+        self._log_filter = 'ALL'
+        self._log_lines  = []
         self.total_files_var     = tk.StringVar(value='0')
         self.created_var         = tk.StringVar(value='0')
         self.modified_var        = tk.StringVar(value='0')
@@ -701,32 +703,21 @@ class ProIntegrityGUI:
     # ─────────────────────────────────────────
 
     def _update_dashboard(self):
-        """Update dashboard with current statistics"""
+        """Update dashboard statistics without resetting session counters."""
         try:
-            # Update total files
-            current_total = 0
-            if self.monitor and hasattr(self.monitor, 'records'):
-                records = self.monitor.records
-                current_total = len(records)
-                self.total_files_var.set(str(current_total))
-            
-            # Update session counts
-            self.created_var.set(str(self.file_tracking['session_created']))
-            self.modified_var.set(str(self.file_tracking['session_modified']))
-            self.deleted_var.set(str(self.file_tracking['session_deleted']))
-
+            # FIX: The records live inside the handler, not the monitor!
+            if self.monitor_running and self.monitor and hasattr(self.monitor, 'handler'):
+                if hasattr(self.monitor.handler, 'records'):
+                    records = self.monitor.handler.records
+                    if records is not None:
+                        self.total_files_var.set(str(len(records)))
+ 
         except Exception as e:
-            print(f"Dashboard update error: {e}")
-            self.total_files_var.set("0")
-            self.created_var.set("0")
-            self.modified_var.set("0")
-            self.deleted_var.set("0")
-
-        # Update tamper indicators using the new Theme Colors
-        self._update_tamper_indicators()
-
-        # Schedule next update
+            print(f'Dashboard update error: {e}')
+ 
+        # FIX: Restart the background loop so the GUI auto-heals every 3 seconds
         self.root.after(3000, self._update_dashboard)
+        
 
     def _update_severity_counters(self):
         """Update severity counters from disk"""
@@ -802,25 +793,25 @@ class ProIntegrityGUI:
                                f"{deleted_count} file(s) were deleted.", "high")
 
     def _tail_log_loop(self):
-        """Tail log file dynamically to populate the Live Security Feed"""
+        """Tail log file and populate Live Security Feed with filter support."""
         try:
             if os.path.exists(LOG_FILE):
                 try:
-                    # Uses your secure decryptor logic!
-                    lines = get_decrypted_logs()[-400:]
+                    fresh_lines = get_decrypted_logs()[-400:]
                 except Exception:
-                    lines = []
-                
-                existing = self.log_box.get("1.0", tk.END)
-                for line in lines:
-                    if line.strip() and (line not in existing):
-                        self.log_box.configure(state="normal")
-                        self.log_box.insert(tk.END, line + "\n")
-                        self.log_box.configure(state="disabled")
-                        self.log_box.see(tk.END)
+                    fresh_lines = []
+ 
+                if not hasattr(self, '_log_lines'):
+                    self._log_lines = []
+ 
+                # Only update if there are new lines
+                if len(fresh_lines) != len(self._log_lines):
+                    self._log_lines = [l for l in fresh_lines if l.strip()]
+                    self._render_filtered_logs()
+ 
         except Exception as e:
-            print(f"Error in log tail: {e}")
-        
+            print(f'Error in log tail: {e}')
+ 
         self.root.after(2000, self._tail_log_loop)
     # ─────────────────────────────────────────
     #  LEFT COLUMN
@@ -1139,35 +1130,41 @@ class ProIntegrityGUI:
 
     def _build_logs_tab(self, parent):
         C = self.colors
-
+ 
         header = tk.Frame(parent, bg=C['card_bg'])
         header.pack(fill=tk.X, padx=16, pady=(10, 6))
-
+ 
         tk.Label(header, text='Live Security Feed',
                  font=('Segoe UI', 11, 'bold'),
                  bg=C['card_bg'], fg=C['text_primary']).pack(side=tk.LEFT)
-
-        # Severity filter pills
+ 
+        # Severity filter pills — now FUNCTIONAL
         filter_frame = tk.Frame(header, bg=C['card_bg'])
         filter_frame.pack(side=tk.LEFT, padx=16)
-
-        for sev, clr in [('ALL', C['text_muted']), ('CRITICAL', SEVERITY_COLORS['CRITICAL']),
-                          ('HIGH', SEVERITY_COLORS['HIGH']), ('INFO', SEVERITY_COLORS['INFO'])]:
+ 
+        self._filter_pills = {}
+ 
+        for sev, clr in [('ALL',      C['text_muted']),
+                          ('CRITICAL', SEVERITY_COLORS['CRITICAL']),
+                          ('HIGH',     SEVERITY_COLORS['HIGH']),
+                          ('INFO',     SEVERITY_COLORS['INFO'])]:
             pill = tk.Label(filter_frame, text=sev,
                             font=('Segoe UI', 8, 'bold'),
                             bg=C['tag_bg'], fg=clr,
                             padx=8, pady=2, cursor='hand2',
                             relief='flat')
             pill.pack(side=tk.LEFT, padx=3)
-
+            pill.bind('<Button-1>', lambda e, s=sev: self._set_log_filter(s))
+            self._filter_pills[sev] = (pill, clr)
+ 
         _ActionButton(header, 'Clear', self._clear_logs,
                       C['button_bg'], fg=C['text_secondary'],
                       font_size=9).pack(side=tk.RIGHT)
-
+ 
         # Log display
         log_frame = tk.Frame(parent, bg=C['input_bg'])
         log_frame.pack(fill=tk.BOTH, expand=True, padx=16, pady=(0, 12))
-
+ 
         self.log_box = scrolledtext.ScrolledText(
             log_frame, wrap=tk.WORD,
             font=('Cascadia Code', 9) if self._font_exists('Cascadia Code')
@@ -1178,8 +1175,8 @@ class ProIntegrityGUI:
             relief='flat', padx=10, pady=8)
         self.log_box.pack(fill=tk.BOTH, expand=True)
         self.log_box.configure(state='disabled')
-
-        # Colour tags
+ 
+        # Colour tags for severity highlighting
         for tag, colour in [
             ('CRITICAL', SEVERITY_COLORS['CRITICAL']),
             ('HIGH',     SEVERITY_COLORS['HIGH']),
@@ -1188,6 +1185,51 @@ class ProIntegrityGUI:
             ('OK',       C['accent_success']),
         ]:
             self.log_box.tag_config(tag, foreground=colour)
+ 
+        # Highlight the active filter pill on load
+        self._highlight_active_pill()
+ 
+ 
+    def _set_log_filter(self, level):
+        """Set the active log filter and refresh the display."""
+        self._log_filter = level
+        self._highlight_active_pill()
+        self._render_filtered_logs()
+
+    def _highlight_active_pill(self):
+        """Visually mark the currently active filter pill."""
+        if not hasattr(self, '_filter_pills'):
+            return
+        C = self.colors
+        for sev, (pill, clr) in self._filter_pills.items():
+            if sev == self._log_filter:
+                pill.configure(
+                    bg=clr,
+                    fg='#ffffff' if sev != 'ALL' else C['bg'],
+                    relief='solid'
+                )
+            else:
+                pill.configure(bg=C['tag_bg'], fg=clr, relief='flat')
+ 
+ 
+    def _render_filtered_logs(self):
+        """Re-render log_box with only lines matching the current filter."""
+        level = getattr(self, '_log_filter', 'ALL')
+        lines = getattr(self, '_log_lines', [])
+ 
+        self.log_box.configure(state='normal')
+        self.log_box.delete('1.0', tk.END)
+ 
+        for line in lines:
+            if level == 'ALL':
+                self.log_box.insert(tk.END, line + '\n')
+            else:
+                # Show line if it contains the filter keyword (case-insensitive)
+                if level.upper() in line.upper():
+                    self.log_box.insert(tk.END, line + '\n')
+ 
+        self.log_box.configure(state='disabled')
+        self.log_box.see(tk.END)
 
     def _build_vault_tab(self, parent):
         C = self.colors
@@ -1740,14 +1782,81 @@ class ProIntegrityGUI:
         self._update_status_color()
 
     def _apply_theme(self):
+        """Apply the current theme to ALL widgets including listbox and side menu."""
         C = self.colors
         self.root.configure(bg=C['bg'])
+ 
+        # Walk the main widget tree
         self._update_widget_colors(self.root)
-        if hasattr(self, 'file_counter_labels'):
+ 
+        # Explicitly update folder listbox (tk.Listbox is not in the generic walk)
+        if hasattr(self, 'folder_listbox'):
+            try:
+                self.folder_listbox.configure(
+                    bg=C['input_bg'],
+                    fg=C['text_primary'],
+                    selectbackground=C['accent_primary'],
+                    selectforeground='#ffffff'
+                )
+            except Exception:
+                pass
+ 
+        # Explicitly update log_box scrolled text
+        if hasattr(self, 'log_box'):
+            try:
+                self.log_box.configure(
+                    bg=C['input_bg'],
+                    fg=C['text_primary'],
+                    insertbackground=C['text_primary']
+                )
+            except Exception:
+                pass
+ 
+        # Update the ENTIRE side menu tree (canvas + menu_frame + all children)
+        if hasattr(self, 'side_menu') and self.side_menu.winfo_exists():
+            self._theme_side_menu(C)
+ 
+        # Counter badge colours
+        if hasattr(self, 'file_counter_labels') and hasattr(self, 'severity_counter_labels'):
             self._update_counter_colors()
+ 
         self._update_button_states()
-        if hasattr(self, 'status_label'):
-            self._update_status_color()
+        self._update_status_color()
+ 
+        # Update filter pills if they exist
+        if hasattr(self, '_filter_pills'):
+            self._highlight_active_pill()
+ 
+ 
+    def _theme_side_menu(self, C):
+        """Recursively re-theme the side menu and its canvas-based menu_frame."""
+        def _walk(widget):
+            try:
+                if isinstance(widget, tk.Frame):
+                    widget.configure(bg=C['sidebar_bg'])
+                elif isinstance(widget, tk.Canvas):
+                    widget.configure(bg=C['sidebar_bg'])
+                elif isinstance(widget, tk.Label):
+                    widget.configure(bg=C['sidebar_bg'], fg=C['text_muted'])
+                elif isinstance(widget, tk.Button):
+                    widget.configure(
+                        bg=C['sidebar_bg'],
+                        fg=C['text_primary'],
+                        activebackground=C['button_hover']
+                    )
+                elif isinstance(widget, tk.Scrollbar):
+                    widget.configure(
+                        bg=C['card_border'],
+                        troughcolor=C['sidebar_bg'],
+                        activebackground=C['button_hover']
+                    )
+            except Exception:
+                pass
+ 
+            for child in widget.winfo_children():
+                _walk(child)
+ 
+        _walk(self.side_menu)
 
     def _update_status_color(self):
         C = self.colors
@@ -1888,14 +1997,62 @@ class ProIntegrityGUI:
             messagebox.showerror('Vault Restore Error', str(e))
 
     def _sync_to_cloud(self):
-        self._append_log('Starting cloud sync…')
+        """Upload all encrypted vault files to Google Drive."""
+        self._append_log('Starting cloud sync...')
         try:
             from core.cloud_sync import cloud_sync
-            if hasattr(cloud_sync, 'sync_vault'):
-                threading.Thread(target=cloud_sync.sync_vault, daemon=True).start()
-                messagebox.showinfo('Cloud Sync', 'Cloud sync started in background.')
+            from core.utils import get_app_data_dir
+            import os
+ 
+            if not cloud_sync.is_active:
+                messagebox.showerror(
+                    'Cloud Sync Offline',
+                    'Google Drive is not authenticated.\n\n'
+                    'Make sure credentials.json is present and re-launch the app\n'
+                    'to complete the one-time OAuth login.'
+                )
+                return
+ 
+            vault_dir = os.path.join(get_app_data_dir(), 'system32_vault')
+ 
+            if not os.path.exists(vault_dir):
+                messagebox.showinfo('Cloud Sync', 'Vault is empty — nothing to sync.')
+                return
+ 
+            enc_files = [f for f in os.listdir(vault_dir) if f.endswith('.enc')]
+ 
+            if not enc_files:
+                messagebox.showinfo('Cloud Sync', 'No encrypted vault files found.')
+                return
+ 
+            def _do_sync():
+                uploaded = 0
+                for fname in enc_files:
+                    fpath = os.path.join(vault_dir, fname)
+                    try:
+                        cloud_sync.upload_encrypted_backup(fpath)
+                        uploaded += 1
+                    except Exception as e:
+                        self._append_log(f'Cloud sync error for {fname}: {e}')
+ 
+                self._append_log(
+                    f'Cloud sync complete — {uploaded}/{len(enc_files)} files queued for upload.'
+                )
+                self.root.after(0, lambda: messagebox.showinfo(
+                    'Cloud Sync',
+                    f'{uploaded} file(s) queued for upload to Google Drive.\n'
+                    'Check the terminal / log for progress.'
+                ))
+ 
+            threading.Thread(target=_do_sync, daemon=True).start()
+            messagebox.showinfo(
+                'Cloud Sync Started',
+                f'Syncing {len(enc_files)} vault file(s) in background.'
+            )
+ 
         except Exception as e:
-            messagebox.showinfo('Cloud Sync', f'Cloud sync: {e}')
+            messagebox.showerror('Cloud Sync Error', str(e))
+            self._append_log(f'Cloud sync failed: {e}')
 
     def _restore_from_cloud(self):
         self._append_log('Restoring from cloud…')
@@ -2970,6 +3127,11 @@ class ProIntegrityGUI:
                                    f"Started monitoring {len(folders)} folders.", 
                                    "info")
                     self.reset_session_counts()
+                    # FIX: Read the initial baseline count from the handler
+                    if self.monitor.handler and hasattr(self.monitor.handler, 'records'):
+                        records = self.monitor.handler.records
+                        if records is not None:
+                            self.total_files_var.set(str(len(records)))
                 else:
                     self._append_log("Monitor failed to start")
                     messagebox.showerror("Error", "Monitor failed to start.")
@@ -3012,13 +3174,14 @@ class ProIntegrityGUI:
                 self._append_log("Manual security verification started...")
                 
                 # Run the backend verification
-                summary = self.monitor.run_verification(watch_folder=folder)
+                summary = self.monitor.run_verification(watch_folders=[folder])
                 
                 # Normalize AND SAVE to JSON cache automatically
                 normalized = self.normalize_report_data(summary)
                 
                 # Track file changes with severity
                 self._track_file_changes(normalized)
+                self.total_files_var.set(str(normalized.get('total', 0)))
 
                 # Update UI Status Indicators based on verification results
                 rec_status = "TAMPERED" if normalized['tampered_records'] else "OK"
@@ -3338,11 +3501,12 @@ class ProIntegrityGUI:
     # ===== THEME AND UI METHODS =====
     
     def _clear_logs(self):
-        """Clear the log display"""
-        self.log_box.configure(state="normal")
-        self.log_box.delete("1.0", tk.END)
-        self.log_box.configure(state="disabled")
-        self._append_log("Log display cleared")
+        """Clear the log display and in-memory cache."""
+        self._log_lines = []
+        self.log_box.configure(state='normal')
+        self.log_box.delete('1.0', tk.END)
+        self.log_box.configure(state='disabled')
+        self._append_log('Log display cleared')
 
     def _show_profile_panel(self):
         """Display a sleek, modern dropdown profile card"""
@@ -4180,38 +4344,43 @@ class ProIntegrityGUI:
 
     def toggle_menu(self):
         """Toggle the side menu visibility with enhanced animation"""
-        if not self.menu_visible:
-            # Show menu with matrix animation
+        if not getattr(self, 'menu_visible', False):
+            # Start sliding IN. Animations will trigger AFTER it finishes moving.
             self._animate_menu(0)
-            self.menu_visible = True
-            # Start animations
-            self._blink_menu_title()
-            self._blink_status_dots()
-            self._start_matrix_animation()
         else:
-            # Hide menu
-            self._animate_menu(-self.menu_width)
+            # Immediately kill the heavy Matrix animation BEFORE sliding OUT
             self.menu_visible = False
+            self._animate_menu(-self.menu_width)
 
     def _animate_menu(self, target_x):
-        """Animate menu sliding in/out"""
+        """Animate menu sliding in/out with Anti-Tearing"""
         current_x = self.side_menu.winfo_x()
         
+        # Increased step size for a snappier, cleaner transition
         if current_x < target_x:
-            step = 30  # Slide right
+            step = 45  # Slide right
         else:
-            step = -30  # Slide left
+            step = -45 # Slide left
         
         if abs(target_x - current_x) < abs(step):
-            # FIX: Use place_configure or pass all arguments so it doesn't lose its height!
             self.side_menu.place(x=target_x, y=0, width=self.menu_width, relheight=1.0)
-            if target_x == -self.menu_width:
-                self.menu_visible = False
+            
+            if target_x == 0:
+                # The menu has fully arrived. NOW it is safe to start the heavy animations.
+                self.menu_visible = True
+                self._start_matrix_animation()
+                self._blink_menu_title()
+                self._blink_status_dots()
             return
         
         new_x = current_x + step
-        # FIX: Keep the y, width, and relheight properties during the animation frame
         self.side_menu.place(x=new_x, y=0, width=self.menu_width, relheight=1.0)
+        
+        # 🚨 THE MAGIC LINE: This forces Windows to completely draw the frame 
+        # before moving to the next step, eliminating the vertical tearing lines!
+        self.root.update_idletasks() 
+        
+        # 10ms delay for 60FPS smoothness
         self.root.after(10, lambda: self._animate_menu(target_x))
 
     # ===== DEMO AND ARCHIVE METHODS =====
@@ -4340,6 +4509,108 @@ class ProIntegrityGUI:
             print(f"CRITICAL TRAY ERROR: {e}")
             self.tray_icon = None
 
+    def _show_credential_dialog(self, action_name, prompt_label, show_char='●'):
+        """
+        Professional modal credential dialog.
+        Returns the entered string, or None if cancelled.
+        Works in both script and frozen EXE environments.
+        """
+        C = self.colors
+        result = {'value': None}
+ 
+        dlg = tk.Toplevel(self.root)
+        dlg.title('Security Verification')
+        dlg.geometry('420x260')
+        dlg.resizable(False, False)
+        dlg.configure(bg=C['card_bg'])
+        dlg.transient(self.root)
+        dlg.grab_set()
+ 
+        # Centre on parent
+        dlg.update_idletasks()
+        px = self.root.winfo_x() + (self.root.winfo_width()  // 2) - 210
+        py = self.root.winfo_y() + (self.root.winfo_height() // 2) - 130
+        dlg.geometry(f'+{px}+{py}')
+ 
+        # Header strip
+        hdr = tk.Frame(dlg, bg=C['accent_danger'], height=4)
+        hdr.pack(fill=tk.X)
+ 
+        # Icon + title row
+        title_row = tk.Frame(dlg, bg=C['card_bg'])
+        title_row.pack(fill=tk.X, padx=24, pady=(18, 0))
+ 
+        tk.Label(title_row, text='🔒', font=('Segoe UI', 22),
+                 bg=C['card_bg'], fg=C['accent_danger']).pack(side=tk.LEFT, padx=(0, 12))
+ 
+        title_col = tk.Frame(title_row, bg=C['card_bg'])
+        title_col.pack(side=tk.LEFT, fill=tk.X, expand=True)
+ 
+        tk.Label(title_col, text='Security Verification',
+                 font=('Segoe UI', 13, 'bold'),
+                 bg=C['card_bg'], fg=C['text_primary']).pack(anchor='w')
+ 
+        tk.Label(title_col, text=action_name,
+                 font=('Segoe UI', 9),
+                 bg=C['card_bg'], fg=C['text_secondary']).pack(anchor='w')
+ 
+        # Divider
+        tk.Frame(dlg, height=1, bg=C['divider']).pack(fill=tk.X, padx=24, pady=(14, 0))
+ 
+        # Prompt label
+        tk.Label(dlg, text=prompt_label,
+                 font=('Segoe UI', 10),
+                 bg=C['card_bg'], fg=C['text_secondary'],
+                 anchor='w').pack(fill=tk.X, padx=24, pady=(12, 4))
+ 
+        # Entry field
+        entry_var = tk.StringVar()
+        entry = tk.Entry(dlg,
+                         textvariable=entry_var,
+                         show=show_char,
+                         font=('Segoe UI', 12),
+                         bg=C['input_bg'],
+                         fg=C['text_primary'],
+                         insertbackground=C['text_primary'],
+                         relief='flat',
+                         highlightthickness=1,
+                         highlightbackground=C['input_border'],
+                         highlightcolor=C['accent_primary'])
+        entry.pack(fill=tk.X, padx=24, pady=(0, 16))
+        entry.focus_set()
+ 
+        # Buttons
+        btn_row = tk.Frame(dlg, bg=C['card_bg'])
+        btn_row.pack(fill=tk.X, padx=24, pady=(0, 20))
+ 
+        def _confirm():
+            result['value'] = entry_var.get()
+            dlg.destroy()
+ 
+        def _cancel():
+            result['value'] = None
+            dlg.destroy()
+ 
+        tk.Button(btn_row, text='Confirm',
+                  command=_confirm,
+                  font=('Segoe UI', 10, 'bold'),
+                  bg=C['accent_primary'], fg='#ffffff',
+                  bd=0, padx=20, pady=7, cursor='hand2',
+                  activebackground=C['accent_primary']).pack(side=tk.RIGHT)
+ 
+        tk.Button(btn_row, text='Cancel',
+                  command=_cancel,
+                  font=('Segoe UI', 10),
+                  bg=C['button_bg'], fg=C['text_secondary'],
+                  bd=0, padx=20, pady=7, cursor='hand2',
+                  activebackground=C['button_hover']).pack(side=tk.RIGHT, padx=(0, 8))
+ 
+        entry.bind('<Return>', lambda e: _confirm())
+        entry.bind('<Escape>', lambda e: _cancel())
+ 
+        dlg.wait_window()
+        return result['value']
+
 
     def _authenticate_action(self, action_name):
         """
@@ -4362,12 +4633,9 @@ class ProIntegrityGUI:
  
         if auth_method == "google":
             # ── Google SSO users: verify device PIN ──────────────────────
-            pin = simpledialog.askstring(
-                f"Security Verification — {action_name}",
-                f"Monitoring is ACTIVE.\n\n"
-                f"Enter your device PIN for '{self.username}' to continue:",
-                parent=self.root,
-                show='●'
+            pin = self._show_credential_dialog(
+                action_name,
+                f"Enter your device PIN for  '{self.username}'  to continue:"
             )
  
             if not pin:
@@ -4388,12 +4656,10 @@ class ProIntegrityGUI:
  
         else:
             # ── Manual users: verify password (original behaviour) ────────
-            password = simpledialog.askstring(
-                f"Security Verification — {action_name}",
-                f"Monitoring is ACTIVE.\n\n"
-                f"Enter password for '{self.username}' to continue:",
-                parent=self.root,
-                show='*'
+            password = self._show_credential_dialog(
+                action_name,
+                f"Enter your password for  '{self.username}'  to continue:",
+                show_char='*'
             )
  
             if not password:
@@ -4753,18 +5019,143 @@ class ProIntegrityGUI:
     # ===== PASSWORD CHANGE METHODS =====
     
     def change_admin_password(self):
-        """Allow admin to change their password with hacker-themed UI"""
+        """
+        Change credential — opens PIN change for Google SSO users,
+        password change for manual users.
+        """
         if self.user_role != 'admin':
-            messagebox.showerror("Permission Denied", "Only administrators can change passwords.")
+            messagebox.showerror('Permission Denied',
+                                 'Only administrators can change credentials.')
             return
-
+ 
         if not auth:
-            messagebox.showerror("Error", "Authentication backend not loaded.")
-            self._append_log(f"Auth module state: auth={auth}")
+            messagebox.showerror('Error', 'Authentication backend not loaded.')
             return
+ 
+        auth_method = auth.get_auth_method(self.username)
+ 
+        if auth_method == 'google':
+            self._create_pin_change_window()
+        else:
+            self._create_hacker_password_window()
 
-        # Create hacker-themed password change window
-        self._create_hacker_password_window()
+    def _create_pin_change_window(self):
+        """
+        Clean PIN-change dialog for Google SSO users.
+        Verifies the old PIN first, then sets a new one.
+        """
+        C = self.colors
+ 
+        win = tk.Toplevel(self.root)
+        win.title('Change Device PIN')
+        win.geometry('420x320')
+        win.resizable(False, False)
+        win.configure(bg=C['card_bg'])
+        win.transient(self.root)
+        win.grab_set()
+ 
+        win.update_idletasks()
+        px = self.root.winfo_x() + (self.root.winfo_width()  // 2) - 210
+        py = self.root.winfo_y() + (self.root.winfo_height() // 2) - 160
+        win.geometry(f'+{px}+{py}')
+ 
+        # Header
+        tk.Frame(win, bg=C['accent_primary'], height=4).pack(fill=tk.X)
+ 
+        title_row = tk.Frame(win, bg=C['card_bg'])
+        title_row.pack(fill=tk.X, padx=24, pady=(18, 0))
+        tk.Label(title_row, text='🔐', font=('Segoe UI', 22),
+                 bg=C['card_bg'], fg=C['accent_primary']).pack(side=tk.LEFT, padx=(0, 12))
+        col = tk.Frame(title_row, bg=C['card_bg'])
+        col.pack(side=tk.LEFT)
+        tk.Label(col, text='Change Device PIN',
+                 font=('Segoe UI', 13, 'bold'),
+                 bg=C['card_bg'], fg=C['text_primary']).pack(anchor='w')
+        tk.Label(col, text=f'Account: {self.username}  (Google SSO)',
+                 font=('Segoe UI', 9),
+                 bg=C['card_bg'], fg=C['text_secondary']).pack(anchor='w')
+ 
+        tk.Frame(win, height=1, bg=C['divider']).pack(fill=tk.X, padx=24, pady=(14, 0))
+ 
+        def _make_field(parent, label_text):
+            tk.Label(parent, text=label_text,
+                     font=('Segoe UI', 10),
+                     bg=C['card_bg'], fg=C['text_secondary']).pack(
+                fill=tk.X, padx=24, pady=(10, 2))
+            var = tk.StringVar()
+            e = tk.Entry(parent, textvariable=var, show='●',
+                         font=('Segoe UI', 12),
+                         bg=C['input_bg'], fg=C['text_primary'],
+                         insertbackground=C['text_primary'],
+                         relief='flat',
+                         highlightthickness=1,
+                         highlightbackground=C['input_border'],
+                         highlightcolor=C['accent_primary'])
+            e.pack(fill=tk.X, padx=24, pady=(0, 0))
+            return var, e
+ 
+        old_var,  old_entry  = _make_field(win, 'Current PIN')
+        new_var,  new_entry  = _make_field(win, 'New PIN  (4+ digits)')
+        conf_var, conf_entry = _make_field(win, 'Confirm New PIN')
+        old_entry.focus_set()
+ 
+        status_lbl = tk.Label(win, text='',
+                              font=('Segoe UI', 9),
+                              bg=C['card_bg'], fg=C['accent_danger'])
+        status_lbl.pack(pady=(8, 0))
+ 
+        def _save():
+            old  = old_var.get().strip()
+            new  = new_var.get().strip()
+            conf = conf_var.get().strip()
+ 
+            if not old or not new or not conf:
+                status_lbl.configure(text='All fields are required.')
+                return
+            if not auth.verify_sso_pin(self.username, old):
+                status_lbl.configure(text='Current PIN is incorrect.')
+                old_entry.delete(0, tk.END)
+                old_entry.focus_set()
+                return
+            if new != conf:
+                status_lbl.configure(text='New PINs do not match.')
+                new_entry.delete(0, tk.END)
+                conf_entry.delete(0, tk.END)
+                new_entry.focus_set()
+                return
+            if not new.isdigit() or len(new) < 4:
+                status_lbl.configure(text='PIN must be 4+ digits (numbers only).')
+                return
+ 
+            ok, msg = auth.set_sso_pin(self.username, new)
+            if ok:
+                messagebox.showinfo('PIN Changed', 'Device PIN updated successfully.')
+                self._append_log(f'Device PIN changed for user: {self.username}')
+                win.destroy()
+            else:
+                status_lbl.configure(text=f'Error: {msg}')
+ 
+        btn_row = tk.Frame(win, bg=C['card_bg'])
+        btn_row.pack(fill=tk.X, padx=24, pady=(12, 0))
+ 
+        tk.Button(btn_row, text='Save PIN',
+                  command=_save,
+                  font=('Segoe UI', 10, 'bold'),
+                  bg=C['accent_primary'], fg='#ffffff',
+                  bd=0, padx=20, pady=7, cursor='hand2',
+                  activebackground=C['accent_primary']).pack(side=tk.RIGHT)
+ 
+        tk.Button(btn_row, text='Cancel',
+                  command=win.destroy,
+                  font=('Segoe UI', 10),
+                  bg=C['button_bg'], fg=C['text_secondary'],
+                  bd=0, padx=20, pady=7, cursor='hand2',
+                  activebackground=C['button_hover']).pack(side=tk.RIGHT, padx=(0, 8))
+ 
+        old_entry.bind('<Return>', lambda e: new_entry.focus_set())
+        new_entry.bind('<Return>', lambda e: conf_entry.focus_set())
+        conf_entry.bind('<Return>', lambda e: _save())
+        win.bind('<Escape>', lambda e: win.destroy())
 
     def _create_hacker_password_window(self):
         """Create a professional hacker-themed password change window"""
