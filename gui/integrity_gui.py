@@ -745,7 +745,7 @@ class ProIntegrityGUI:
             pass
 
         # Schedule next update
-        self.root.after(500, self._update_severity_counters)
+        self.root.after(1500, self._update_severity_counters)
 
     def _update_tamper_indicators(self):
         """Update tamper indicator colors based on active theme"""
@@ -1563,118 +1563,7 @@ class ProIntegrityGUI:
                  font=('Segoe UI', 9),
                  bg=C['card_bg'], fg=C['text_muted']).pack(padx=16, pady=(0, 8))
 
-    # ─────────────────────────────────────────
-    #  SIDE MENU (sliding drawer)
-    # ─────────────────────────────────────────
-
-    def _create_side_menu(self):
-        C = self.colors
-        self.menu_width = 260
-        self.menu_visible = False
-
-        self.side_menu = tk.Frame(self.root, bg=C['sidebar_bg'],
-                                   width=self.menu_width,
-                                   highlightbackground=C['card_border'],
-                                   highlightthickness=1)
-        self.side_menu.place(x=-self.menu_width, y=0,
-                              width=self.menu_width,
-                              relheight=1.0)
-        self.side_menu.lift()
-
-        # ── Header (always visible) ──────────────────────────
-        mh = tk.Frame(self.side_menu, bg=C['sidebar_bg'])
-        mh.pack(fill=tk.X, padx=20, pady=(20, 8))
-
-        sh_cv = tk.Canvas(mh, width=22, height=22,
-                          bg=C['sidebar_bg'], highlightthickness=0)
-        sh_cv.pack(side=tk.LEFT, padx=(0, 8))
-        sh_cv.create_polygon(11, 1, 21, 5, 21, 13, 11, 21, 1, 13, 1, 5,
-                             fill=C['accent_primary'], outline='')
-        sh_cv.create_text(11, 12, text='✓', fill='#fff',
-                          font=('Segoe UI', 7, 'bold'))
-
-        tk.Label(mh, text='FMSecure', font=('Segoe UI', 13, 'bold'),
-                 bg=C['sidebar_bg'], fg=C['text_primary']).pack(side=tk.LEFT)
-
-        # Top close button (X) – optional
-        tk.Button(self.side_menu, text='✕', font=('Segoe UI', 12),
-                  bg=C['sidebar_bg'], fg=C['text_muted'],
-                  bd=0, cursor='hand2',
-                  activebackground=C['sidebar_bg'],
-                  command=self.toggle_menu).place(x=self.menu_width - 36, y=16)
-
-        # Divider
-        tk.Frame(self.side_menu, height=1,
-                 bg=C['divider']).pack(fill=tk.X, padx=16, pady=(4, 12))
-
-        # ── SCROLLABLE AREA for menu items ────────────────────
-        # Create a canvas and a vertical scrollbar
-        self.menu_canvas = tk.Canvas(self.side_menu, bg=C['sidebar_bg'],
-                                     highlightthickness=0, borderwidth=0)
-        v_scroll = tk.Scrollbar(self.side_menu, orient=tk.VERTICAL,
-                                 command=self.menu_canvas.yview,
-                                 bg=C['card_border'],
-                                 troughcolor=C['sidebar_bg'],
-                                 activebackground=C['button_hover'])
-        self.menu_canvas.configure(yscrollcommand=v_scroll.set)
-
-        # Pack canvas and scrollbar to fill all remaining space above bottom widgets
-        self.menu_canvas.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=0, pady=0)
-        v_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # Frame inside canvas to hold the actual menu items
-        self.menu_frame = tk.Frame(self.menu_canvas, bg=C['sidebar_bg'])
-        self.canvas_window = self.menu_canvas.create_window((0, 0), window=self.menu_frame,
-                                                             anchor='nw')
-
-        # Update scroll region when the inner frame changes size
-        def _configure_menu_frame(event):
-            self.menu_canvas.configure(scrollregion=self.menu_canvas.bbox('all'))
-        self.menu_frame.bind('<Configure>', _configure_menu_frame)
-
-        # Update the inner frame's width to match the canvas width when canvas resizes
-        def _configure_canvas(event):
-            self.menu_canvas.itemconfig(self.canvas_window, width=event.width)
-        self.menu_canvas.bind('<Configure>', _configure_canvas)
-
-        # ── Populate menu_frame with all menu items ──
-        self._menu_section(self.menu_frame, 'Monitoring')
-        self._menu_item(self.menu_frame, '▶  Start Monitor',   self.start_monitor,  C['accent_success'])
-        self._menu_item(self.menu_frame, '■  Stop Monitor',    self.stop_monitor,   C['accent_danger'])
-        self._menu_item(self.menu_frame, '⟳  Verify Now',     self.run_verification, C['accent_primary'])
-
-        self._menu_divider(self.menu_frame)
-
-        self._menu_section(self.menu_frame, 'Security')
-        self._menu_item(self.menu_frame, '🔐  Audit Log Vault', self._open_audit_logs,     C['accent_info'])
-        self._menu_item(self.menu_frame, '🎬  Demo Mode',       self.run_demo_mode,         C['accent_secondary'])
-        self._menu_item(self.menu_frame, '🛑  Emergency Lock',  self._emergency_lockdown,   C['accent_danger'])
-
-        self._menu_divider(self.menu_frame)
-
-        self._menu_section(self.menu_frame, 'Data')
-        self._menu_item(self.menu_frame, '📦  Archive & Reset', self.archive_and_reset,    C['accent_warning'])
-
-        self._menu_divider(self.menu_frame)
-
-        # ── BOTTOM FIXED WIDGETS (packed directly into side_menu, after canvas) ──
-        close_btn = tk.Button(self.side_menu,
-                              text='✕  Close Menu',
-                              font=('Segoe UI', 10),
-                              bg=C['button_bg'],
-                              fg=C['text_primary'],
-                              bd=0,
-                              cursor='hand2',
-                              pady=8,
-                              activebackground=C['button_hover'],
-                              command=self.toggle_menu)
-        close_btn.pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(0, 4))
-
-        tk.Label(self.side_menu,
-                 text='FMSecure v2.0 — Enterprise EDR',
-                 font=('Segoe UI', 8),
-                 bg=C['sidebar_bg'], fg=C['text_muted']).pack(
-            side=tk.BOTTOM, pady=(0, 12))
+    
 
     def _menu_section(self, parent, text):
         C = self.colors
@@ -1683,9 +1572,6 @@ class ProIntegrityGUI:
                  bg=C['sidebar_bg'], fg=C['text_muted']).pack(
             anchor='w', padx=20, pady=(8, 2))
 
-    def _menu_divider(self, parent):
-        tk.Frame(parent, height=1,
-                 bg=self.colors['divider']).pack(fill=tk.X, padx=16, pady=8)
 
     def _menu_divider(self, parent):
         tk.Frame(parent, height=1,
@@ -1772,83 +1658,45 @@ class ProIntegrityGUI:
     #  THEME SYSTEM
     # ─────────────────────────────────────────
 
-    def toggle_theme(self):
-        self.dark_mode = not self.dark_mode
-        self.colors = DARK_THEME if self.dark_mode else LIGHT_THEME
-        self.theme_btn.configure(text='🌙' if self.dark_mode else '☀️')
-        ctk.set_appearance_mode('dark' if self.dark_mode else 'light')
-        self._configure_styles()
-        self._apply_theme()
-        self._update_status_color()
-
-    def _apply_theme(self):
-        """Apply the current theme to ALL widgets including listbox and side menu."""
-        C = self.colors
-        self.root.configure(bg=C['bg'])
- 
-        # Walk the main widget tree
-        self._update_widget_colors(self.root)
- 
-        # Explicitly update folder listbox (tk.Listbox is not in the generic walk)
-        if hasattr(self, 'folder_listbox'):
-            try:
-                self.folder_listbox.configure(
-                    bg=C['input_bg'],
-                    fg=C['text_primary'],
-                    selectbackground=C['accent_primary'],
-                    selectforeground='#ffffff'
-                )
-            except Exception:
-                pass
- 
-        # Explicitly update log_box scrolled text
-        if hasattr(self, 'log_box'):
-            try:
-                self.log_box.configure(
-                    bg=C['input_bg'],
-                    fg=C['text_primary'],
-                    insertbackground=C['text_primary']
-                )
-            except Exception:
-                pass
- 
-        # Update the ENTIRE side menu tree (canvas + menu_frame + all children)
-        if hasattr(self, 'side_menu') and self.side_menu.winfo_exists():
-            self._theme_side_menu(C)
- 
-        # Counter badge colours
-        if hasattr(self, 'file_counter_labels') and hasattr(self, 'severity_counter_labels'):
-            self._update_counter_colors()
- 
-        self._update_button_states()
-        self._update_status_color()
- 
-        # Update filter pills if they exist
-        if hasattr(self, '_filter_pills'):
-            self._highlight_active_pill()
- 
  
     def _theme_side_menu(self, C):
-        """Recursively re-theme the side menu and its canvas-based menu_frame."""
+        """
+        Recursively re-theme the side menu and all its children.
+        The side menu is intentionally kept in its hacker-terminal style
+        (dark, green text) regardless of the app theme — it's a design choice.
+        But in light mode we soften it to a very dark navy instead of pure black.
+        """
+        # In dark mode: pure black. In light mode: dark navy (still readable).
+        menu_bg    = '#000000'   if self.dark_mode else '#0f172a'
+        menu_fg    = '#00ff00'   if self.dark_mode else '#4ade80'
+        menu_muted = '#00ffff'   if self.dark_mode else '#38bdf8'
+        border_col = '#00ff00'   if self.dark_mode else '#334155'
+ 
         def _walk(widget):
             try:
                 if isinstance(widget, tk.Frame):
-                    widget.configure(bg=C['sidebar_bg'])
+                    widget.configure(bg=menu_bg)
                 elif isinstance(widget, tk.Canvas):
-                    widget.configure(bg=C['sidebar_bg'])
+                    widget.configure(bg=menu_bg)
                 elif isinstance(widget, tk.Label):
-                    widget.configure(bg=C['sidebar_bg'], fg=C['text_muted'])
+                    fg = widget.cget('fg')
+                    # Preserve colour-coded status dots and accent labels
+                    if fg in ('#ff9900', '#ff0000', '#00ff00', '#00ffff', '#ffffff'):
+                        widget.configure(bg=menu_bg)
+                    else:
+                        widget.configure(bg=menu_bg, fg=menu_muted)
                 elif isinstance(widget, tk.Button):
                     widget.configure(
-                        bg=C['sidebar_bg'],
-                        fg=C['text_primary'],
-                        activebackground=C['button_hover']
+                        bg=menu_bg,
+                        fg=menu_fg,
+                        activebackground='#111111' if self.dark_mode else '#1e293b',
+                        activeforeground=menu_fg
                     )
                 elif isinstance(widget, tk.Scrollbar):
                     widget.configure(
-                        bg=C['card_border'],
-                        troughcolor=C['sidebar_bg'],
-                        activebackground=C['button_hover']
+                        bg='#222222' if self.dark_mode else '#1e293b',
+                        troughcolor=menu_bg,
+                        activebackground='#444444' if self.dark_mode else '#334155'
                     )
             except Exception:
                 pass
@@ -1857,75 +1705,16 @@ class ProIntegrityGUI:
                 _walk(child)
  
         _walk(self.side_menu)
-
-    def _update_status_color(self):
-        C = self.colors
-        status = self.status_var.get()
-        if any(x in status for x in ('Running', 'Armed', '▶')):
-            pill_bg = C['accent_success']
-        elif 'SAFE' in status or 'DEMO' in status:
-            pill_bg = C['accent_danger']
-        else:
-            pill_bg = C['accent_danger']
-        if hasattr(self, '_status_pill_frame'):
-            self._status_pill_frame.configure(bg=pill_bg)
-            self._status_pill_dot.configure(bg=pill_bg)
-            self.status_label.configure(bg=pill_bg)
-
-    def _update_counter_colors(self):
-        for val_lbl, lbl_text, clr in self.file_counter_labels:
-            val_lbl.configure(bg=clr)
-        for val_lbl, lbl_text, clr in self.severity_counter_labels:
-            val_lbl.configure(bg=clr)
-
-    def _update_widget_colors(self, widget):
-        C = self.colors
+ 
+        # Update the menu's own border colour
         try:
-            w_class = widget.winfo_class()
-            if w_class == 'Frame':
-                bg = widget.cget('bg')
-                for old, new in [
-                    (DARK_THEME['bg'],       C['bg']),
-                    (DARK_THEME['bg2'],      C['bg2']),
-                    (DARK_THEME['card_bg'],  C['card_bg']),
-                    (DARK_THEME['sidebar_bg'], C['sidebar_bg']),
-                    (DARK_THEME['header_bg'],  C['header_bg']),
-                    (LIGHT_THEME['bg'],       C['bg']),
-                    (LIGHT_THEME['card_bg'],  C['card_bg']),
-                ]:
-                    if bg == old:
-                        widget.configure(bg=new)
-                        break
-            elif w_class == 'Label':
-                try:
-                    bg = widget.cget('bg')
-                    fg = widget.cget('fg')
-                    for old_bg, new_bg in [
-                        (DARK_THEME['bg'],      C['bg']),
-                        (DARK_THEME['card_bg'], C['card_bg']),
-                        (DARK_THEME['sidebar_bg'], C['sidebar_bg']),
-                        (DARK_THEME['header_bg'],  C['header_bg']),
-                        (LIGHT_THEME['bg'],      C['bg']),
-                        (LIGHT_THEME['card_bg'], C['card_bg']),
-                    ]:
-                        if bg == old_bg:
-                            widget.configure(bg=new_bg)
-                            break
-                    for old_fg, new_fg in [
-                        (DARK_THEME['text_primary'],   C['text_primary']),
-                        (DARK_THEME['text_secondary'], C['text_secondary']),
-                        (DARK_THEME['text_muted'],     C['text_muted']),
-                        (LIGHT_THEME['text_primary'],  C['text_primary']),
-                    ]:
-                        if fg == old_fg:
-                            widget.configure(fg=new_fg)
-                            break
-                except Exception:
-                    pass
+            self.side_menu.configure(
+                bg=menu_bg,
+                highlightbackground=border_col
+            )
         except Exception:
             pass
-        for child in widget.winfo_children():
-            self._update_widget_colors(child)
+
 
     # ─────────────────────────────────────────
     #  HELPERS
@@ -1945,10 +1734,6 @@ class ProIntegrityGUI:
         tk.Frame(f, height=1, bg=C['divider']).pack(
             side=tk.LEFT, fill=tk.X, expand=True, padx=(8, 0), pady=4)
 
-    def _is_side_menu_widget(self, widget):
-        if not hasattr(self, '_side_menu_widgets'):
-            return False
-        return widget in self._side_menu_widgets
 
     @staticmethod
     def _lighten_color(color, factor=0.2):
@@ -2869,44 +2654,6 @@ class ProIntegrityGUI:
             self._append_log(f"Selected monitor folder: {d}")
 
 
-    def _show_activation_dialog(self):
-        """Popup to enter the commercial license key"""
-        key = simpledialog.askstring(
-            "Activate FMSecure PRO", 
-            "Enter your PRO License Key:\n(Purchased from the FMSecure website)",
-            parent=self.root
-        )
-        
-        if key:
-            # Clean up the key just in case they accidentally copied a space
-            clean_key = key.strip()
-            success, msg = auth.activate_license(self.username, clean_key)
-            
-            if success:
-                messagebox.showinfo("Activation Successful! 🎉", msg)
-                self.status_var.set("⭐ Premium Active")
-                
-                # 1. Destroy the upgrade button completely
-                if hasattr(self, 'upgrade_btn') and self.upgrade_btn.winfo_exists():
-                    self.upgrade_btn.destroy()
-                    
-                # 2. Inject the sleek PRO badge exactly where the button used to be
-                self.pro_badge = tk.Label(self.top_btn_frame, text="⭐ PRO ACTIVE", 
-                                        font=('Segoe UI', 10, 'bold'), 
-                                        bg=self.colors['header_bg'], fg="#ffd700")
-                # Pack it before the theme toggle button so it sits on the far left
-                self.pro_badge.pack(side=tk.LEFT, padx=(0, 15), before=self.theme_btn)
-                    
-                # Update the visual footer
-                if hasattr(self, 'footer_label'):
-                    self.footer_label.config(
-                        text=f"🔐 FMSecure PRO • Licensed to: {registered_email}", 
-                        fg=self.colors['accent_success']
-                    )
-            else:
-                messagebox.showerror("Activation Failed", msg)
-
-
     def _add_folder_gui(self):
         """Add a folder to the list (Fail-Safe Premium Check)"""
         current_count = self.folder_listbox.size()
@@ -3357,17 +3104,6 @@ class ProIntegrityGUI:
 
 
     # ===== HELPER METHODS FROM BACKUP =====
-    
-    def _append_log(self, text):
-        """Append text to the log display - IMPORTED FROM BACKUP"""
-        try:
-            self.log_box.configure(state="normal")
-            now = datetime.now().strftime("%H:%M:%S")
-            self.log_box.insert(tk.END, f"[{now}] {text}\n")
-            self.log_box.configure(state="disabled")
-            self.log_box.see(tk.END)
-        except Exception as e:
-            print(f"Error appending to log: {e}")
 
     def reset_session_counts(self):
         """Reset session counts - IMPORTED FROM BACKUP"""
@@ -3620,49 +3356,60 @@ class ProIntegrityGUI:
         self._update_status_color()
 
     def _apply_theme(self):
-        """Apply current theme to all widgets"""
-        # Update root window
-        self.root.configure(bg=self.colors['bg'])
-        
-        # Update all widgets with force refresh
+        """Apply current theme to ALL widgets including listbox and side menu."""
+        C = self.colors
+        self.root.configure(bg=C['bg'])
+ 
+        # Walk the main widget tree (handles frames, labels, buttons, scrolledtext)
         self._update_widget_colors(self.root)
-        
-        # Update counter colors
+ 
+        # ── Explicit fix: tk.Listbox is skipped by the generic walker ──────
+        if hasattr(self, 'folder_listbox'):
+            try:
+                self.folder_listbox.configure(
+                    bg=C['input_bg'],
+                    fg=C['text_primary'],
+                    selectbackground=C['accent_primary'],
+                    selectforeground='#ffffff'
+                )
+            except Exception:
+                pass
+ 
+        # ── Explicit fix: log box scrolled text ─────────────────────────────
+        if hasattr(self, 'log_box'):
+            try:
+                self.log_box.configure(
+                    bg=C['input_bg'],
+                    fg=C['text_primary'],
+                    insertbackground=C['text_primary']
+                )
+            except Exception:
+                pass
+ 
+        # ── Side menu — call _theme_side_menu which was never called before ──
+        if hasattr(self, 'side_menu') and self.side_menu.winfo_exists():
+            self._theme_side_menu(C)
+ 
+        # ── Dummy ghost frame must also match the sidebar colour ─────────────
+        if hasattr(self, 'dummy_menu') and self.dummy_menu.winfo_exists():
+            try:
+                self.dummy_menu.configure(
+                    bg=C['sidebar_bg'],
+                    highlightbackground=C['card_border']
+                )
+            except Exception:
+                pass
+ 
+        # Counter badge colours
         if hasattr(self, 'file_counter_labels') and hasattr(self, 'severity_counter_labels'):
             self._update_counter_colors()
-        
-        # Force update button states (fix hover colors)
+ 
         self._update_button_states()
-        
-        # Update status label color
-        if hasattr(self, 'status_label'):
-            current_status = self.status_var.get()
-            if "Running" in current_status or "🟢" in current_status:
-                self.status_label.configure(fg=self.colors['accent_success'])
-            elif "DEMO" in current_status or "SAFE" in current_status:
-                self.status_label.configure(fg=self.colors['accent_danger'])
-            elif "Read-Only" in current_status:
-                self.status_label.configure(fg=self.colors['accent_warning'])
-            else:  # Stopped
-                self.status_label.configure(fg=self.colors['accent_primary'])
-        
-        # Update menu button colors
-        if hasattr(self, 'menu_btn'):
-            self.menu_btn.configure(bg=self.colors['header_bg'], 
-                                fg=self.colors['text_primary'])
-        
-        # Update side menu colors if it exists
-        if hasattr(self, 'side_menu'):
-            self.side_menu.configure(bg=self.colors['sidebar_bg'])
-            for child in self.side_menu.winfo_children():
-                if isinstance(child, tk.Button):
-                    if "Demo" in child.cget('text'):
-                        child.configure(bg='#8b5cf6')
-                    elif "Archive" in child.cget('text'):
-                        child.configure(bg='#ef4444')
-                    elif "Close" in child.cget('text'):
-                        child.configure(bg=self.colors['sidebar_bg'], 
-                                    fg=self.colors['text_secondary'])
+        self._update_status_color()
+ 
+        # Filter pills (if they exist from the log filter fix)
+        if hasattr(self, '_filter_pills'):
+            self._highlight_active_pill()
 
     def _update_counter_colors(self):
         """Update the colors of counter labels after theme change"""
@@ -3687,70 +3434,6 @@ class ProIntegrityGUI:
         for label_widget, label_text, color in self.severity_counter_labels:
             label_widget.configure(bg=color, fg='white')
 
-    def _update_counter_widgets(self, widget):
-        """Recursively find and update counter widget colors"""
-        try:
-            if isinstance(widget, tk.Label):
-                # Check if this is a counter label by its styling
-                text = widget.cget('text')
-                bg = widget.cget('bg')
-                
-                # Check if it's a statistic counter (has specific colors)
-                if bg in [DARK_THEME['accent_primary'], LIGHT_THEME['accent_primary'],
-                        DARK_THEME['accent_success'], LIGHT_THEME['accent_success'],
-                        DARK_THEME['accent_warning'], LIGHT_THEME['accent_warning'],
-                        DARK_THEME['accent_danger'], LIGHT_THEME['accent_danger']]:
-                    
-                    # Determine which color to use based on text content
-                    if "Total" in str(widget.master) or text == "0":  # Total files
-                        widget.configure(bg=self.colors['accent_primary'], fg='white')
-                    elif "Created" in str(widget.master):  # Created files
-                        widget.configure(bg=self.colors['accent_success'], fg='white')
-                    elif "Modified" in str(widget.master):  # Modified files
-                        widget.configure(bg=self.colors['accent_warning'], fg='white')
-                    elif "Deleted" in str(widget.master):  # Deleted files
-                        widget.configure(bg=self.colors['accent_danger'], fg='white')
-            
-            # Recursively check children
-            for child in widget.winfo_children():
-                self._update_counter_widgets(child)
-        except:
-            pass
-
-
-    def _update_severity_counter_colors(self):
-        """Update severity counter colors after theme change"""
-        # Find and update severity counter labels
-        try:
-            # CRITICAL counter
-            if hasattr(self, 'critical_var'):
-                # Find the label showing critical count
-                for widget in self.root.winfo_children():
-                    self._find_and_update_severity_label(widget, "CRITICAL", self.critical_var.get())
-            
-            # Similar for HIGH, MEDIUM, INFO
-            # You would implement similar logic for each severity level
-            # This is a simplified version - you might need to adjust based on your actual widget structure
-            
-        except Exception as e:
-            print(f"Error updating severity colors: {e}")
-
-
-    def _find_and_update_severity_label(self, widget, severity, value):
-        """Find and update a specific severity label"""
-        try:
-            if isinstance(widget, tk.Label):
-                # Check if this is the severity label
-                if severity in widget.cget('text') or widget.cget('textvariable') == getattr(self, f'{severity.lower()}_var', None):
-                    # Update color based on severity
-                    color = SEVERITY_COLORS.get(severity, self.colors['accent_info'])
-                    widget.configure(bg=color, fg='white')
-            
-            # Check children
-            for child in widget.winfo_children():
-                self._find_and_update_severity_label(child, severity, value)
-        except:
-            pass
 
     def _update_status_color(self):
         """Update the status pill background color based on current status"""
@@ -3887,6 +3570,10 @@ class ProIntegrityGUI:
         """Create a professional hacker-themed sliding side menu"""
         self.menu_width = 320  # Increased width for better layout
         self.menu_visible = False
+
+        # --- NEW: THE ANTI-LAG GHOST FRAME ---
+        self.dummy_menu = tk.Frame(self.root, bg='#000000', bd=2, relief='ridge',
+                                   highlightbackground='#00ff00', highlightthickness=1)
         
         # Create side menu frame with hacker theme
         self.side_menu = tk.Frame(self.root, 
@@ -3896,7 +3583,7 @@ class ProIntegrityGUI:
                                 relief='ridge',
                                 highlightbackground='#00ff00',  # Matrix green border
                                 highlightthickness=1)
-        self.side_menu.place(x=-self.menu_width, y=0, width=self.menu_width, relheight=1.0)
+        # self.side_menu.place(x=-self.menu_width, y=0, width=self.menu_width, relheight=1.0)
         
         # Create matrix background FIRST
         self._create_matrix_background()
@@ -4340,48 +4027,66 @@ class ProIntegrityGUI:
             self._show_alert("SYSTEM LOCKDOWN", "All operations halted. Admin override required.", "critical")
         
 
-    
-
     def toggle_menu(self):
-        """Toggle the side menu visibility with enhanced animation"""
+        """Toggle side menu open/close — smooth, no flicker."""
         if not getattr(self, 'menu_visible', False):
-            # Start sliding IN. Animations will trigger AFTER it finishes moving.
-            self._animate_menu(0)
+            # ── OPEN ─────────────────────────────────────────────────────────
+            # Hide the heavy real menu, show the lightweight ghost frame instead
+            self.side_menu.place_forget()
+            self.dummy_menu.place(x=-self.menu_width, y=0,
+                                  width=self.menu_width, relheight=1.0)
+            self.dummy_menu.lift()
+            # No update_idletasks() here — let Tk schedule naturally
+            self._animate_menu(0, is_opening=True)
         else:
-            # Immediately kill the heavy Matrix animation BEFORE sliding OUT
+            # ── CLOSE ────────────────────────────────────────────────────────
             self.menu_visible = False
-            self._animate_menu(-self.menu_width)
+ 
+            # Stop matrix animation FIRST to free the CPU before sliding
+            if hasattr(self, 'matrix_canvas'):
+                try:
+                    self.matrix_canvas.delete('all')
+                except Exception:
+                    pass
+ 
+            # Swap real → ghost immediately (no partial-draw of the heavy menu)
+            self.side_menu.place_forget()
+            self.dummy_menu.place(x=0, y=0,
+                                  width=self.menu_width, relheight=1.0)
+            self.dummy_menu.lift()
+            # No update_idletasks() — avoid forced synchronous redraws
+            self._animate_menu(-self.menu_width, is_opening=False)
 
-    def _animate_menu(self, target_x):
-        """Animate menu sliding in/out with Anti-Tearing"""
-        current_x = self.side_menu.winfo_x()
-        
-        # Increased step size for a snappier, cleaner transition
-        if current_x < target_x:
-            step = 45  # Slide right
-        else:
-            step = -45 # Slide left
-        
-        if abs(target_x - current_x) < abs(step):
-            self.side_menu.place(x=target_x, y=0, width=self.menu_width, relheight=1.0)
-            
-            if target_x == 0:
-                # The menu has fully arrived. NOW it is safe to start the heavy animations.
+    def _animate_menu(self, target_x, is_opening):
+        """
+        Smooth ghost-frame slide animation.
+        Step size: 20px — small enough for smooth motion, no paint artifacts.
+        No update_idletasks() calls — Tk handles compositing naturally.
+        """
+        current_x = self.dummy_menu.winfo_x()
+        step = 20 if is_opening else -20
+ 
+        if abs(target_x - current_x) <= abs(step):
+            # Reached (or passed) the target — snap to final position
+            if is_opening:
+                self.dummy_menu.place_forget()
+                self.side_menu.place(x=0, y=0,
+                                     width=self.menu_width, relheight=1.0)
+                self.side_menu.lift()
                 self.menu_visible = True
-                self._start_matrix_animation()
-                self._blink_menu_title()
-                self._blink_status_dots()
+                # Start matrix only AFTER the slide completes
+                self.root.after(50, self._start_matrix_animation)
+                self.root.after(50, self._blink_menu_title)
+                self.root.after(50, self._blink_status_dots)
+            else:
+                self.dummy_menu.place_forget()
             return
-        
+ 
         new_x = current_x + step
-        self.side_menu.place(x=new_x, y=0, width=self.menu_width, relheight=1.0)
-        
-        # 🚨 THE MAGIC LINE: This forces Windows to completely draw the frame 
-        # before moving to the next step, eliminating the vertical tearing lines!
-        self.root.update_idletasks() 
-        
-        # 10ms delay for 60FPS smoothness
-        self.root.after(10, lambda: self._animate_menu(target_x))
+        self.dummy_menu.place(x=new_x, y=0,
+                              width=self.menu_width, relheight=1.0)
+        # 12ms ≈ ~80 fps cap — smooth on most hardware, not CPU-intensive
+        self.root.after(12, lambda: self._animate_menu(target_x, is_opening))
 
     # ===== DEMO AND ARCHIVE METHODS =====
     
@@ -5718,92 +5423,6 @@ class ProIntegrityGUI:
                 self.status_label.configure(foreground=self.colors['text_primary'])
             else:
                 messagebox.showerror("Error", "Failed to disable Safe Mode.")
-
-    def _update_button_states(self):
-        """Force button colors to update by toggling state"""
-        # Get all buttons and force color update
-        def update_btn_colors(widget):
-            # SKIP side menu buttons
-            if self._is_side_menu_widget(widget):
-                return
-
-            for child in widget.winfo_children():
-                # Recursively check children FIRST
-                update_btn_colors(child)
-                
-                if isinstance(child, tk.Button):
-                    # Skip theme and special buttons
-                    if child not in [self.theme_btn, getattr(self, 'menu_btn', None), getattr(self, 'pass_btn', None), 
-                                getattr(self, 'unlock_btn', None), getattr(self, 'logout_btn', None)]:
-                        
-                        # SKIP side menu buttons (double check for direct children)
-                        if self._is_side_menu_widget(child):
-                            continue
-
-                        # ... REST OF YOUR EXISTING LOGIC ...
-                        # (Set colors for Start/Stop/Verify etc...)
-                        btn_text = child.cget('text')
-                        
-                        # Default Colors
-                        new_bg = self.colors['button_bg']
-                        new_fg = self.colors['text_primary']
-                        
-                        # Specific Buttons
-                        if "Start" in btn_text: new_bg = self.colors['accent_success']; new_fg = 'white'
-                        elif "Stop" in btn_text: new_bg = self.colors['accent_danger']; new_fg = 'white'
-                        elif "Verify" in btn_text: new_bg = self.colors['accent_primary']; new_fg = 'white'
-                        elif "Check" in btn_text: new_bg = self.colors['accent_secondary']; new_fg = 'white'
-                        elif "Settings" in btn_text: new_bg = self.colors['accent_info']; new_fg = 'white'
-                        elif "Reset" in btn_text: new_bg = self.colors['accent_warning']; new_fg = 'white'
-                        
-                        try:
-                            child.configure(bg=new_bg, fg=new_fg)
-                        except: pass
-                        
-                        # Re-bind hover events
-                        btn_text = child.cget('text')
-                        if "Start" in btn_text:
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self._lighten_color(self.colors['accent_success'])))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['accent_success']))
-                        elif "Stop" in btn_text:
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self._lighten_color(self.colors['accent_danger'])))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['accent_danger']))
-                        elif "Verify" in btn_text:
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self._lighten_color(self.colors['accent_primary'])))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['accent_primary']))
-                        elif "Check" in btn_text:
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self._lighten_color(self.colors['accent_secondary'])))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['accent_secondary']))
-                        elif "Settings" in btn_text:
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self._lighten_color(self.colors['accent_info'])))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['accent_info']))
-                        elif "Reset" in btn_text:
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self._lighten_color(self.colors['accent_warning'])))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['accent_warning']))
-                        else:
-                            # For report buttons
-                            child.bind("<Enter>", lambda e, b=child: b.configure(
-                                bg=self.colors['button_hover']))
-                            child.bind("<Leave>", lambda e, b=child: b.configure(
-                                bg=self.colors['button_bg']))
-                
-                # Recursively update children
-                update_btn_colors(child)
-        
-        update_btn_colors(self.root)
-
 
     # ─────────────────────────────────────────
     #  OTA UPDATE ENGINE
