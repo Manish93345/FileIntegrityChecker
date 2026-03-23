@@ -168,21 +168,40 @@ class AuthManager:
 
     # ── Tier / License ────────────────────────────────────────────────────
 
-    def get_user_tier(self, username):
-        """Calculate tier based on stored override OR the license key."""
+    def get_user_tier(self, username: str) -> str:
+        """
+        Return the user's active tier by validating their license key
+        against the subscription server (or local cache).
+ 
+        Returns: "free" | "pro_monthly" | "pro_annual" | "PRO" (legacy)
+        """
         user = self.users.get(username, {})
-
+ 
+        # ── 1. Check for a hard-coded override (legacy activation path) ────────
+        # Users who activated via the old static-key system have tier="PRO"
+        # stored directly in users.dat. Honour this so existing customers
+        # are not broken when you deploy the new system.
         if user.get("tier") == "PRO":
             return "PRO"
-
+ 
+        # ── 2. No license key stored → definitely free ─────────────────────────
         key   = user.get("license_key", "")
         email = user.get("registered_email", "")
-
+ 
         if not key or not email:
             return "free"
-
-        is_valid, tier = license_verifier.verify_license(email, key)
-        return tier if is_valid else "free"
+ 
+        # ── 3. Validate against server (uses 24h encrypted local cache) ─────────
+        try:
+            from core.license_verifier import license_verifier
+            is_valid, tier = license_verifier.verify_license(email, key)
+            if is_valid:
+                return tier
+            else:
+                return "free"
+        except Exception as e:
+            print(f"[AUTH] License check error for {username}: {e}")
+            return "free"
 
     def activate_license(self, username, key):
         """Attempt to activate a license key using the already registered email."""
