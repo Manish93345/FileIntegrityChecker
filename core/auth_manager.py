@@ -1,150 +1,80 @@
 #!/usr/bin/env python3
 """
-auth_manager.py
-Backend logic for Authentication System.
-Handles user storage, password hashing (SHA-256 + Salt), role, and LICENSE VERIFICATION.
-Now secured with AES-128 Encryption at rest.
-
-Phase A Part 4 additions:
-- auth_method field ("manual" | "google") stored per user
-- SSO PIN: a 4-digit local device code set during first Google login
-- verify_sso_pin() / set_sso_pin() for PIN management
-- Google email allowlist: only registered emails can log in via Google
+auth_manager.py — FMSecure v2.0
+Key fix: get_user_tier() now calls license_verifier WITHOUT email (device-based).
+activate_license() also changed to not require email match.
 """
-
-import os
-import hashlib
-import uuid
+import os, hashlib, uuid
 from core.utils import get_app_data_dir
-from core.license_verifier import license_verifier
 from core.encryption_manager import crypto_manager
 
 USERS_DB_FILE = os.path.join(get_app_data_dir(), "logs", "users.dat")
-
 
 class AuthManager:
     def __init__(self):
         self.users = {}
         self._load_users()
 
-    # ── Hashing ──────────────────────────────────────────────────────────
-
     def _hash_password(self, password, salt=None):
-        """Hash password using SHA-256 and a salt."""
-        if not salt:
-            salt = uuid.uuid4().hex
-        hashed = hashlib.sha256((password + salt).encode('utf-8')).hexdigest()
-        return hashed, salt
-
-    # ── Persistence ──────────────────────────────────────────────────────
+        if not salt: salt = uuid.uuid4().hex
+        return hashlib.sha256((password + salt).encode('utf-8')).hexdigest(), salt
 
     def _load_users(self):
-        """Load users from the encrypted vault."""
         if not os.path.exists(USERS_DB_FILE):
-            self._save_db()
-            return
-
-        decrypted_data = crypto_manager.decrypt_json(USERS_DB_FILE)
-
-        if decrypted_data is None:
-            print("SECURITY ALERT: users.dat is corrupted or tampered with. Starting fresh.")
-            self.users = {}
-            self._save_db()
+            self._save_db(); return
+        data = crypto_manager.decrypt_json(USERS_DB_FILE)
+        if data is None:
+            print("SECURITY ALERT: users.dat tampered. Starting fresh.")
+            self.users = {}; self._save_db()
         else:
-            self.users = decrypted_data
+            self.users = data
 
     def _save_db(self):
-        """Save users to the encrypted vault."""
         try:
             os.makedirs(os.path.dirname(USERS_DB_FILE), exist_ok=True)
             crypto_manager.encrypt_json(self.users, USERS_DB_FILE)
         except Exception as e:
-            print(f"Error saving encrypted auth db: {e}")
+            print(f"Error saving auth db: {e}")
 
-    # ── User management ───────────────────────────────────────────────────
-
-    def has_users(self):
-        """Check if any users exist."""
-        return len(self.users) > 0
+    def has_users(self): return len(self.users) > 0
 
     def register_user(self, username, email, password, role="admin", auth_method="manual"):
-        """
-        Register a new user.
-        auth_method: "manual" for username/password, "google" for Google SSO.
-        """
-        if username in self.users:
-            return False, "Username already exists."
-
+        if username in self.users: return False, "Username already exists."
         h, s = self._hash_password(password)
         self.users[username] = {
-            "hash":             h,
-            "salt":             s,
-            "role":             role,
+            "hash": h, "salt": s, "role": role,
             "registered_email": email.strip().lower(),
-            "license_key":      "",
-            "auth_method":      auth_method,   # NEW
-            "sso_pin_hash":     "",            # NEW — set during first Google login
-            "sso_pin_salt":     "",            # NEW
+            "license_key": "", "auth_method": auth_method,
+            "sso_pin_hash": "", "sso_pin_salt": "",
         }
         self._save_db()
         return True, "Registration successful."
 
     def login(self, username, password):
-        """
-        Verify credentials.
-        Returns: (success: bool, role: str, message: str)
-        """
-        if username not in self.users:
-            return False, None, "User not found"
-
-        user_data   = self.users[username]
-        stored_hash = user_data.get("hash")
-        salt        = user_data.get("salt")
-
-        check_hash, _ = self._hash_password(password, salt)
-
-        if check_hash == stored_hash:
-            return True, user_data.get("role", "user"), "Login Successful"
-        else:
-            return False, None, "Invalid Password"
-
-    # ── Google SSO helpers ────────────────────────────────────────────────
+        if username not in self.users: return False, None, "User not found"
+        user = self.users[username]
+        check, _ = self._hash_password(password, user.get("salt"))
+        if check == user.get("hash"):
+            return True, user.get("role", "user"), "Login Successful"
+        return False, None, "Invalid Password"
 
     def get_auth_method(self, username):
-        """Return 'google' or 'manual' for the given user."""
         return self.users.get(username, {}).get("auth_method", "manual")
 
     def is_google_email_registered(self, email):
-        """
-        ALLOWLIST CHECK — Phase A Part 4, Gap 2 fix.
-        Returns (True, username) if the email belongs to a registered user,
-        (False, None) otherwise.
-        Only registered emails may log in via Google.
-        """
-        email_lower = email.strip().lower()
+        el = email.strip().lower()
         for username, data in self.users.items():
-            if data.get("registered_email", "").lower() == email_lower:
+            if data.get("registered_email", "").lower() == el:
                 return True, username
         return False, None
 
     def has_sso_pin(self, username):
-        """Return True if this user has set an SSO PIN."""
-        user = self.users.get(username, {})
-        return bool(user.get("sso_pin_hash"))
+        return bool(self.users.get(username, {}).get("sso_pin_hash"))
 
     def set_sso_pin(self, username, pin):
-        """
-        Store a hashed SSO PIN for the user.
-        Called after Google verifies the user for the first time.
-        Returns (True, msg) or (False, msg).
-        """
-        if username not in self.users:
-            return False, "User not found."
-        if not pin or len(pin) < 4:
-            return False, "PIN must be at least 4 digits."
-        if not pin.isdigit():
-            return False, "PIN must contain digits only."
-
+        if username not in self.users: return False, "User not found."
+        if not pin or len(pin) < 4: return False, "PIN must be at least 4 digits."
+        if not pin.isdigit(): return False, "PIN must be digits only."
         h, s = self._hash_password(pin)
         self.users[username]["sso_pin_hash"] = h
         self.users[username]["sso_pin_salt"] = s
@@ -152,91 +82,78 @@ class AuthManager:
         return True, "PIN set successfully."
 
     def verify_sso_pin(self, username, pin):
-        """
-        Verify an SSO PIN for the given user.
-        Returns True/False.
-        """
         user = self.users.get(username, {})
-        stored_hash = user.get("sso_pin_hash", "")
-        salt        = user.get("sso_pin_salt", "")
-
-        if not stored_hash or not salt:
-            return False
-
-        check_hash, _ = self._hash_password(pin, salt)
-        return check_hash == stored_hash
-
-    # ── Tier / License ────────────────────────────────────────────────────
+        sh = user.get("sso_pin_hash", ""); ss = user.get("sso_pin_salt", "")
+        if not sh or not ss: return False
+        check, _ = self._hash_password(pin, ss)
+        return check == sh
 
     def get_user_tier(self, username: str) -> str:
         """
-        Return the user's active tier by validating their license key
-        against the subscription server (or local cache).
- 
-        Returns: "free" | "pro_monthly" | "pro_annual" | "PRO" (legacy)
+        Returns the user's tier.
+        Possible values: "free", "pro_monthly", "pro_annual"
+        Legacy "PRO" is also handled for backward compatibility.
         """
         user = self.users.get(username, {})
- 
-        # ── 1. Check for a hard-coded override (legacy activation path) ────────
-        # Users who activated via the old static-key system have tier="PRO"
-        # stored directly in users.dat. Honour this so existing customers
-        # are not broken when you deploy the new system.
-        if user.get("tier") == "PRO":
-            return "PRO"
- 
-        # ── 2. No license key stored → definitely free ─────────────────────────
-        key   = user.get("license_key", "")
-        email = user.get("registered_email", "")
- 
-        if not key or not email:
-            return "free"
- 
-        # ── 3. Validate against server (uses 24h encrypted local cache) ─────────
+
+        # Legacy override: old activations stored tier="PRO" directly
+        if user.get("tier") in ("PRO", "pro_monthly", "pro_annual", "premium", "pro"):
+            stored = user.get("tier", "free")
+            # Map legacy "PRO" and "premium" to pro_monthly for consistency
+            if stored in ("PRO", "premium", "pro"): return "pro_monthly"
+            return stored
+
+        key = user.get("license_key", "")
+        if not key: return "free"
+
+        # Call verifier — email is not needed anymore (device-based)
         try:
             from core.license_verifier import license_verifier
-            is_valid, tier = license_verifier.verify_license(email, key)
-            if is_valid:
-                return tier
-            else:
-                return "free"
+            is_valid, tier = license_verifier.verify_license(key)
+            return tier if is_valid else "free"
         except Exception as e:
             print(f"[AUTH] License check error for {username}: {e}")
             return "free"
 
     def activate_license(self, username, key):
-        """Attempt to activate a license key using the already registered email."""
+        """
+        Activate a license key.
+        No email check — device-based validation only.
+        """
         if username not in self.users:
             return False, "User not found"
 
-        email = self.users[username].get("registered_email", "")
-        if not email:
-            return False, "No email registered for this account."
-
-        is_valid, tier = license_verifier.verify_license(email, key)
-
-        if is_valid:
-            self.users[username]["license_key"] = key
-            self.users[username]["tier"]         = "PRO"
-            self._save_db()
-            return True, f"Success! Upgraded to {tier.upper()} Plan."
-        else:
-            return False, "Invalid License Key."
-
-    def update_password(self, username, new_password):
-        """Update the password for a specific user."""
-        if username not in self.users:
-            return False, "User not found"
-
-        h, s = self._hash_password(new_password)
-        self.users[username]["hash"] = h
-        self.users[username]["salt"] = s
+        clean_key = key.strip()
+        if not clean_key:
+            return False, "Please enter a license key."
 
         try:
-            self._save_db()
-            return True, "Password updated successfully"
+            from core.license_verifier import license_verifier
+            is_valid, tier = license_verifier.verify_license(clean_key)
         except Exception as e:
-            return False, f"Failed to save database: {e}"
+            return False, f"Could not reach license server: {e}"
 
+        if is_valid:
+            self.users[username]["license_key"] = clean_key
+            self.users[username]["tier"] = tier
+            self._save_db()
+            tier_label = "PRO Monthly" if "monthly" in tier else "PRO Annual" if "annual" in tier else tier.upper()
+            return True, f"Success! Upgraded to {tier_label}."
+        else:
+            try:
+                from core.license_verifier import license_verifier, REASON_MESSAGES
+                resp_reason = license_verifier.get_activation_error(clean_key)
+                return False, resp_reason
+            except Exception:
+                return False, "Invalid license key. Please check and try again."
 
-# Singleton instance
+    def update_password(self, username, new_password):
+        if username not in self.users: return False, "User not found"
+        h, s = self._hash_password(new_password)
+        self.users[username]["hash"] = h; self.users[username]["salt"] = s
+        try:
+            self._save_db(); return True, "Password updated successfully"
+        except Exception as e:
+            return False, f"Failed to save: {e}"
+
 auth = AuthManager()

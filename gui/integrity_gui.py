@@ -22,7 +22,7 @@ import pystray
 from PIL import Image as PILImage
 from pystray import MenuItem as item
 from core.utils import get_app_data_dir, get_base_path
-from core.subscription_manager import subscription_manager
+from core.subscription_manager import subscription_manager  
 from core.integrity_core import get_decrypted_logs
 import socket
 import uuid
@@ -618,7 +618,7 @@ class ProIntegrityGUI:
         self.top_btn_frame = tk.Frame(right_hdr, bg=C['header_bg'])
         self.top_btn_frame.pack(side=tk.LEFT, pady=12)
 
-        if current_tier == 'free':
+        if not subscription_manager.is_pro(current_tier):
             self.upgrade_btn = ctk.CTkButton(
                 self.top_btn_frame, text='⭐  Upgrade to PRO',
                 command=self._show_activation_dialog,
@@ -1853,14 +1853,14 @@ class ProIntegrityGUI:
 
     def _toggle_active_defense(self):
         """Toggle active defense with PRO check and Pre-Popup Snap-back"""
-        tier = "FREE"
+        tier = "free"
         if auth:
-            tier = auth.get_user_tier(self.username).upper()
-            
-        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
-            tier = "PRO"
+            tier = auth.get_user_tier(self.username)
         
-        if tier != "PRO":
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "pro_monthly"
+        
+        if not subscription_manager.is_pro(tier):   # <-- CHANGED
             # 🚨 FIX: Force the switch back to OFF and redraw BEFORE the popup freezes the app
             self._ad_var.set(False)
             self.ad_btn_text.set('OFF')
@@ -1897,14 +1897,14 @@ class ProIntegrityGUI:
 
     def _toggle_killswitch(self):
         """Toggle ransomware killswitch with PRO check and Pre-Popup Snap-back"""
-        tier = "FREE"
+        tier = "free"
         if auth:
-            tier = auth.get_user_tier(self.username).upper()
-            
-        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
-            tier = "PRO"
+            tier = auth.get_user_tier(self.username)
         
-        if tier != "PRO":
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "pro_monthly"
+        
+        if not subscription_manager.is_pro(tier):   # <-- CHANGED
             # 🚨 FIX: Force the switch back to OFF and redraw BEFORE the popup freezes the app
             self._ks_var.set(False)
             self.ks_btn_text.set('OFF')
@@ -1945,14 +1945,14 @@ class ProIntegrityGUI:
 
     def _toggle_usb_control(self):
         """Toggle USB device control with PRO check and Pre-Popup Snap-back"""
-        tier = "FREE"
+        tier = "free"
         if auth:
-            tier = auth.get_user_tier(self.username).upper()
-            
-        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
-            tier = "PRO"
+            tier = auth.get_user_tier(self.username)
         
-        if tier != "PRO":
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "pro_monthly"
+        
+        if not subscription_manager.is_pro(tier):   # <-- CHANGED
             # 🚨 FIX: Force the switch back to OFF and redraw BEFORE the popup freezes the app
             self._usb_var.set(False)
             self.usb_btn_text.set('ALLOWED')
@@ -2659,19 +2659,17 @@ class ProIntegrityGUI:
         current_count = self.folder_listbox.size()
         
         # 1. FOOLPROOF TIER CHECK
-        tier = "FREE"
+        tier = "free"
         if auth:
-            tier = auth.get_user_tier(self.username).upper()
+            tier = auth.get_user_tier(self.username)
             
-        # GUI OVERRIDE: If the PRO badge is on screen, force unlock!
         if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
-            tier = "PRO"
+            tier = "pro_monthly"
             
-        limit = 5 if tier == "PRO" else 1
-
-        # 2. ENFORCE GATING
+        limit = subscription_manager.get_folder_limit(tier)
+ 
         if current_count >= limit:
-            if tier != "PRO":
+            if not subscription_manager.is_pro(tier):
                 from tkinter import messagebox
                 messagebox.showwarning("⭐ Premium Feature", "The Free Plan is limited to 1 folder.\n\nPlease upgrade to a PRO License to monitor up to 5 directories!")
             else:
@@ -2730,7 +2728,7 @@ class ProIntegrityGUI:
         # 2. Ask for the License Key ONLY
         key = simpledialog.askstring(
             "Activate FMSecure PRO", 
-            f"Account: {registered_email}\n\nEnter your PRO License Key:\n(Purchased from FMSecure website)",
+            "Enter your PRO License Key:\n(from your purchase confirmation email)\n\nNote: The key works regardless of which email you used to log in.",
             parent=self.root
         )
         
