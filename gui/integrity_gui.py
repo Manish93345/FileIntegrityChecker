@@ -480,9 +480,29 @@ class ProIntegrityGUI:
         }
 
         # Toggle state vars
-        self._ad_var  = tk.BooleanVar(value=CONFIG.get('active_defense', False))
-        self._ks_var  = tk.BooleanVar(value=CONFIG.get('ransomware_killswitch', False))
-        self._usb_var = tk.BooleanVar(value=CONFIG.get('usb_readonly', False))
+        # --- 🚨 TIER ENFORCEMENT FIX ---
+        # Get the tier right away to prevent Free users from inheriting Pro settings from config.json
+        current_tier = 'FREE'
+        if auth:
+            current_tier = auth.get_user_tier(self.username)
+            
+        is_pro = subscription_manager.is_pro(current_tier)
+
+        # Force toggle states to False if the user is not Pro, overriding config.json
+        ad_value = CONFIG.get('active_defense', False) if is_pro else False
+        ks_value = CONFIG.get('ransomware_killswitch', False) if is_pro else False
+        usb_value = CONFIG.get('usb_readonly', False) if is_pro else False
+
+        self._ad_var  = tk.BooleanVar(value=ad_value)
+        self._ks_var  = tk.BooleanVar(value=ks_value)
+        self._usb_var = tk.BooleanVar(value=usb_value)
+
+        # Also sanitize the live backend CONFIG so the engine doesn't silently run Pro features
+        if not is_pro:
+            CONFIG['active_defense'] = False
+            CONFIG['ransomware_killswitch'] = False
+            CONFIG['usb_readonly'] = False
+        # -------------------------------
 
         self._configure_styles()
         self._build_widgets()
@@ -4226,14 +4246,31 @@ class ProIntegrityGUI:
         dlg.geometry('420x260')
         dlg.resizable(False, False)
         dlg.configure(bg=C['card_bg'])
-        dlg.transient(self.root)
+        
+        # 🚨 FIX 1: Only make it transient if the root window is visible.
+        # If root is withdrawn (in the tray), making it transient makes it invisible!
+        is_hidden = self.root.state() in ('withdrawn', 'iconic')
+        if not is_hidden:
+            dlg.transient(self.root)
+            
         dlg.grab_set()
  
-        # Centre on parent
+        # 🚨 FIX 2: Center on parent if visible, otherwise center on the computer screen.
         dlg.update_idletasks()
-        px = self.root.winfo_x() + (self.root.winfo_width()  // 2) - 210
-        py = self.root.winfo_y() + (self.root.winfo_height() // 2) - 130
+        if not is_hidden:
+            px = self.root.winfo_x() + (self.root.winfo_width()  // 2) - 210
+            py = self.root.winfo_y() + (self.root.winfo_height() // 2) - 130
+        else:
+            px = (self.root.winfo_screenwidth() // 2) - 210
+            py = (self.root.winfo_screenheight() // 2) - 130
+            
         dlg.geometry(f'+{px}+{py}')
+
+        # 🚨 FIX 3: Force the popup to the front so it doesn't get lost behind your browser
+        dlg.lift()
+        dlg.focus_force()
+        dlg.attributes('-topmost', True)
+        self.root.after(100, lambda: dlg.attributes('-topmost', False))
  
         # Header strip
         hdr = tk.Frame(dlg, bg=C['accent_danger'], height=4)
