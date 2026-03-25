@@ -1803,6 +1803,20 @@ class ProIntegrityGUI:
 
     def _sync_to_cloud(self):
         """Upload all encrypted vault files to Google Drive."""
+        # --- 🚨 FIX: STRICT PRO TIER ENFORCEMENT ---
+        tier = "free"
+        if auth:
+            tier = auth.get_user_tier(self.username)
+            
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "pro_monthly"
+            
+        if not subscription_manager.is_pro(tier):
+            from tkinter import messagebox
+            messagebox.showwarning("⭐ Premium Feature", "☁️ Cloud Disaster Recovery is a PRO feature.\n\nPlease activate a License Key to unlock Cloud Sync.")
+            return
+        # --------------------------------------------
+
         self._append_log('Starting cloud sync...')
         try:
             from core.cloud_sync import cloud_sync
@@ -1860,6 +1874,21 @@ class ProIntegrityGUI:
             self._append_log(f'Cloud sync failed: {e}')
 
     def _restore_from_cloud(self):
+        """Restore encrypted vault files from Google Drive."""
+        # --- 🚨 FIX: STRICT PRO TIER ENFORCEMENT ---
+        tier = "free"
+        if auth:
+            tier = auth.get_user_tier(self.username)
+            
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "pro_monthly"
+            
+        if not subscription_manager.is_pro(tier):
+            from tkinter import messagebox
+            messagebox.showwarning("⭐ Premium Feature", "☁️ Cloud Disaster Recovery is a PRO feature.\n\nPlease activate a License Key to unlock Cloud Restore.")
+            return
+        # --------------------------------------------
+
         self._append_log('Restoring from cloud…')
         try:
             from core.cloud_sync import cloud_sync
