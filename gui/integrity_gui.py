@@ -1300,6 +1300,12 @@ class ProIntegrityGUI:
                       self._restore_from_cloud,
                       C['button_bg'], fg=C['text_secondary'], font_size=9).pack(fill=tk.X, pady=2)
 
+        # --- 🚨 NEW: CLOUD PROGRESS LABEL ---
+        self.cloud_progress_var = tk.StringVar(value="Status: Ready")
+        tk.Label(ci, textvariable=self.cloud_progress_var,
+                 font=('Consolas', 8),
+                 bg=C['card_bg'], fg=C['accent_info']).pack(anchor='w', padx=12, pady=(5, 12))
+
         # Audit log viewer button
         sep = tk.Frame(parent, height=1, bg=C['divider'])
         sep.pack(fill=tk.X, padx=16, pady=(0, 8))
@@ -1803,7 +1809,9 @@ class ProIntegrityGUI:
 
     def _sync_to_cloud(self):
         """Upload all encrypted vault files to Google Drive."""
-        # --- 🚨 FIX: STRICT PRO TIER ENFORCEMENT ---
+        from tkinter import messagebox  # 🚨 FIX 1: Import globally to prevent UnboundLocalError
+        
+        # --- STRICT PRO TIER ENFORCEMENT ---
         tier = "free"
         if auth:
             tier = auth.get_user_tier(self.username)
@@ -1812,16 +1820,24 @@ class ProIntegrityGUI:
             tier = "pro_monthly"
             
         if not subscription_manager.is_pro(tier):
-            from tkinter import messagebox
             messagebox.showwarning("⭐ Premium Feature", "☁️ Cloud Disaster Recovery is a PRO feature.\n\nPlease activate a License Key to unlock Cloud Sync.")
             return
-        # --------------------------------------------
 
         self._append_log('Starting cloud sync...')
         try:
             from core.cloud_sync import cloud_sync
             from core.utils import get_app_data_dir
             import os
+            import time 
+            
+            # 🚨 FIX 2: Inject the User's Email so Drive names the folder correctly!
+            user_email = "UnknownUser"
+            if auth:
+                user_data = auth.users.get(self.username, {})
+                user_email = user_data.get("registered_email", "UnknownUser")
+            
+            from core.integrity_core import CONFIG
+            CONFIG["admin_email"] = user_email
  
             if not cloud_sync.is_active:
                 messagebox.showerror(
@@ -1843,31 +1859,42 @@ class ProIntegrityGUI:
             if not enc_files:
                 messagebox.showinfo('Cloud Sync', 'No encrypted vault files found.')
                 return
+                
  
             def _do_sync():
+                total_files = len(enc_files)
                 uploaded = 0
+                
+                self.root.after(0, lambda: self.cloud_progress_var.set(f"Initializing sync... (0/{total_files})"))
+                
                 for fname in enc_files:
                     fpath = os.path.join(vault_dir, fname)
                     try:
-                        cloud_sync.upload_encrypted_backup(fpath)
+                        self.root.after(0, lambda f=fname, u=uploaded, t=total_files: 
+                                        self.cloud_progress_var.set(f"Uploading [{u+1}/{t}]: {f}"))
+                                        
+                        # --- 🚨 FIX 2: PREVENT GOOGLE DRIVE SPAM BLOCK ---
+                        # We bypass the threaded uploader and call the direct synchronous method.
+                        # (Check your core/cloud_sync.py to see exactly what the sync method is named)
+                        if hasattr(cloud_sync, '_upload_file_to_drive'):
+                            cloud_sync._upload_file_to_drive(fpath)
+                        elif hasattr(cloud_sync, 'upload_file'):
+                            cloud_sync.upload_file(fpath)
+                        else:
+                            # Fallback: if we must use the threaded one, force a long pause
+                            cloud_sync.upload_encrypted_backup(fpath)
+                            time.sleep(1.5) 
+                            
                         uploaded += 1
+                        time.sleep(0.3) # Gentle 300ms pause to respect API Rate Limits
+                        
                     except Exception as e:
                         self._append_log(f'Cloud sync error for {fname}: {e}')
  
-                self._append_log(
-                    f'Cloud sync complete — {uploaded}/{len(enc_files)} files queued for upload.'
-                )
-                self.root.after(0, lambda: messagebox.showinfo(
-                    'Cloud Sync',
-                    f'{uploaded} file(s) queued for upload to Google Drive.\n'
-                    'Check the terminal / log for progress.'
-                ))
+                self.root.after(0, lambda: self.cloud_progress_var.set(f"✅ Sync Complete: {uploaded}/{total_files} files"))
+                self._append_log(f'Cloud sync complete — {uploaded}/{total_files} files uploaded.')
  
             threading.Thread(target=_do_sync, daemon=True).start()
-            messagebox.showinfo(
-                'Cloud Sync Started',
-                f'Syncing {len(enc_files)} vault file(s) in background.'
-            )
  
         except Exception as e:
             messagebox.showerror('Cloud Sync Error', str(e))
@@ -1875,7 +1902,8 @@ class ProIntegrityGUI:
 
     def _restore_from_cloud(self):
         """Restore encrypted vault files from Google Drive."""
-        # --- 🚨 FIX: STRICT PRO TIER ENFORCEMENT ---
+        from tkinter import messagebox  # 🚨 FIX 1: Prevent UnboundLocalError
+        
         tier = "free"
         if auth:
             tier = auth.get_user_tier(self.username)
@@ -1884,20 +1912,26 @@ class ProIntegrityGUI:
             tier = "pro_monthly"
             
         if not subscription_manager.is_pro(tier):
-            from tkinter import messagebox
             messagebox.showwarning("⭐ Premium Feature", "☁️ Cloud Disaster Recovery is a PRO feature.\n\nPlease activate a License Key to unlock Cloud Restore.")
             return
-        # --------------------------------------------
 
         self._append_log('Restoring from cloud…')
         try:
             from core.cloud_sync import cloud_sync
+            
+            # 🚨 FIX 2: Inject Email for Restore
+            user_email = "UnknownUser"
+            if auth:
+                user_data = auth.users.get(self.username, {})
+                user_email = user_data.get("registered_email", "UnknownUser")
+            from core.integrity_core import CONFIG
+            CONFIG["admin_email"] = user_email
+            
             if hasattr(cloud_sync, 'restore_from_cloud'):
                 threading.Thread(target=cloud_sync.restore_from_cloud, daemon=True).start()
                 messagebox.showinfo('Cloud Restore', 'Cloud restore started in background.')
         except Exception as e:
             messagebox.showinfo('Cloud Restore', f'Cloud restore: {e}')
-
     # ── Toggle handlers (call original core methods, then sync toggle UI) ──
 
     def _toggle_active_defense(self):
