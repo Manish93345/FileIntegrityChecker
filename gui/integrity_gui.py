@@ -485,8 +485,12 @@ class ProIntegrityGUI:
         current_tier = 'FREE'
         if auth:
             current_tier = auth.get_user_tier(self.username)
+            # --- NEW FIX: Inject email into CONFIG so cloud sync knows the folder name ---
+            user_data = auth.users.get(self.username, {})
+            CONFIG["admin_email"] = user_data.get("registered_email", "UnknownUser")
             
         is_pro = subscription_manager.is_pro(current_tier)
+        CONFIG["is_pro_user"] = is_pro  # <-- NEW: Let backend know if user is pro
 
         # Force toggle states to False if the user is not Pro, overriding config.json
         ad_value = CONFIG.get('active_defense', False) if is_pro else False
@@ -1849,51 +1853,54 @@ class ProIntegrityGUI:
                 return
  
             vault_dir = os.path.join(get_app_data_dir(), 'system32_vault')
- 
-            if not os.path.exists(vault_dir):
-                messagebox.showinfo('Cloud Sync', 'Vault is empty — nothing to sync.')
-                return
- 
-            enc_files = [f for f in os.listdir(vault_dir) if f.endswith('.enc')]
- 
-            if not enc_files:
-                messagebox.showinfo('Cloud Sync', 'No encrypted vault files found.')
+            
+            # 1. Start with an empty list
+            files_to_sync = []
+            
+            # 2. Add all encrypted logs (FULL paths)
+            if os.path.exists(vault_dir):
+                files_to_sync = [os.path.join(vault_dir, f) for f in os.listdir(vault_dir) if f.endswith('.enc')]
+            
+            # 3. Add the Encryption Key! (Change 'sys.key' if your key is named differently)
+            key_file_path = os.path.join(get_app_data_dir(), 'sys.key') 
+            if os.path.exists(key_file_path):
+                files_to_sync.append(key_file_path)
+
+            if not files_to_sync:
+                messagebox.showinfo('Cloud Sync', 'Vault and Key are empty — nothing to sync.')
                 return
                 
- 
             def _do_sync():
-                total_files = len(enc_files)
+                total_files = len(files_to_sync)
                 uploaded = 0
                 
                 self.root.after(0, lambda: self.cloud_progress_var.set(f"Initializing sync... (0/{total_files})"))
                 
-                for fname in enc_files:
-                    fpath = os.path.join(vault_dir, fname)
+                # 4. Loop over the full paths!
+                for fpath in files_to_sync:
+                    fname = os.path.basename(fpath) # Extract just the name for the UI label
                     try:
                         self.root.after(0, lambda f=fname, u=uploaded, t=total_files: 
                                         self.cloud_progress_var.set(f"Uploading [{u+1}/{t}]: {f}"))
                                         
-                        # --- 🚨 FIX 2: PREVENT GOOGLE DRIVE SPAM BLOCK ---
-                        # We bypass the threaded uploader and call the direct synchronous method.
-                        # (Check your core/cloud_sync.py to see exactly what the sync method is named)
+                        # Call synchronous upload method
                         if hasattr(cloud_sync, '_upload_file_to_drive'):
                             cloud_sync._upload_file_to_drive(fpath)
                         elif hasattr(cloud_sync, 'upload_file'):
                             cloud_sync.upload_file(fpath)
                         else:
-                            # Fallback: if we must use the threaded one, force a long pause
                             cloud_sync.upload_encrypted_backup(fpath)
                             time.sleep(1.5) 
                             
                         uploaded += 1
-                        time.sleep(0.3) # Gentle 300ms pause to respect API Rate Limits
+                        time.sleep(0.3) 
                         
                     except Exception as e:
                         self._append_log(f'Cloud sync error for {fname}: {e}')
- 
+
                 self.root.after(0, lambda: self.cloud_progress_var.set(f"✅ Sync Complete: {uploaded}/{total_files} files"))
                 self._append_log(f'Cloud sync complete — {uploaded}/{total_files} files uploaded.')
- 
+
             threading.Thread(target=_do_sync, daemon=True).start()
  
         except Exception as e:
@@ -2824,6 +2831,18 @@ class ProIntegrityGUI:
         if success:
             messagebox.showinfo("Activation Successful! 🎉", msg)
             self.status_var.set("⭐ Premium Active")
+
+            # --- NEW FIX: Set email, update PRO status, and instantly backup key to cloud! ---
+            from core.integrity_core import CONFIG
+            CONFIG["admin_email"] = registered_email
+            CONFIG["is_pro_user"] = True
+            
+            try:
+                from core.encryption_manager import crypto_manager
+                threading.Thread(target=crypto_manager.force_key_backup, daemon=True).start()
+            except Exception as e:
+                print(f"Failed to force key backup: {e}")
+            # ---------------------------------------------------------------------------------
             
             # Hide the upgrade button instantly
             if hasattr(self, 'upgrade_btn') and self.upgrade_btn.winfo_exists():

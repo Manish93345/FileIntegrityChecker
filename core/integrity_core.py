@@ -17,7 +17,6 @@ import shutil
 from datetime import datetime
 import concurrent.futures
 from core.encryption_manager import crypto_manager
-from core.encryption_manager import crypto_manager
 from core.vault_manager import vault  # <-- NEW: Import the Vault
 from core.lockdown_manager import lockdown  # <-- NEW: Import the Killswitch
 import requests
@@ -929,9 +928,10 @@ class IntegrityHandler(FileSystemEventHandler):
 
                             # --- NEW: BACKUP THE SAFE BASELINE ---
                             if CONFIG.get("active_defense", False):
-                                vault.backup_file(path, 
-                                                  CONFIG.get("vault_max_size_mb", 10), 
-                                                  CONFIG.get("vault_allowed_exts", None))
+                                _allowed = CONFIG.get("vault_allowed_exts") or None   # [] → None (allow all)
+                                vault.backup_file(path,
+                                                  CONFIG.get("vault_max_size_mb", 10),
+                                                  _allowed)
                     except Exception as exc:
                         print(f"File {path} generated an exception: {exc}")
                     
@@ -1116,9 +1116,10 @@ class IntegrityHandler(FileSystemEventHandler):
             
             if CONFIG.get("active_defense", False):
                 from core.vault_manager import vault
+                _allowed = CONFIG.get("vault_allowed_exts") or None   # [] → None (allow all)
                 vault.backup_file(path, 
                                   CONFIG.get("vault_max_size_mb", 10), 
-                                  CONFIG.get("vault_allowed_exts", None))
+                                  _allowed)
                                   
             append_log_line(f"CREATED: {path}", event_type="CREATED", severity="INFO")
             send_webhook_safe("CREATED", "New file created", path)

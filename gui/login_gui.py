@@ -602,10 +602,11 @@ class LoginWindow:
             logo_path = resource_path("assets/icons/app_icon.png")
 
             img = Image.open(logo_path)
-            img = img.resize((120, 120))  # size adjust kar sakte ho
-
-            self.register_logo = ImageTk.PhotoImage(img)
-
+            self.register_logo = ctk.CTkImage(
+                light_image=img,
+                dark_image=img,
+                size=(120, 120)
+            )
             logo_label = ctk.CTkLabel(main_card, image=self.register_logo, text="")
             logo_label.pack(pady=(30, 10))
 

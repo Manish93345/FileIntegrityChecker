@@ -1,115 +1,243 @@
+"""
+vault_manager.py — FMSecure v2.0
+Auto-Heal Vault with THREE-TIER protection:
+
+  BUG FIXES vs. original:
+    1. backup_file() no longer lets a cloud-sync failure abort the local backup.
+       Cloud upload is always fire-and-forget in a background thread.
+    2. Key files (sys.key + .sys_backup.key) are included in every cloud sync.
+    3. restore_file() correctly falls back to cloud when the local vault is missing.
+"""
+
 import os
+import threading
+import hashlib
 import shutil
 from core.utils import get_app_data_dir
-from core.encryption_manager import crypto_manager
+
+
 
 class VaultManager:
     def __init__(self):
         self.vault_dir = os.path.join(get_app_data_dir(), "system32_vault")
-        
-        # Ensure the hidden vault directory exists
-        if not os.path.exists(self.vault_dir):
-            os.makedirs(self.vault_dir)
-            # Make the vault folder hidden on Windows
-            try:
-                import ctypes
-                ctypes.windll.kernel32.SetFileAttributesW(self.vault_dir, 2)
-            except:
-                pass
+        os.makedirs(self.vault_dir, exist_ok=True)
+        self._hide_dir(self.vault_dir)
+
+    # ──────────────────────────────────────────────────────────────────────────
+    #  HELPERS
+    # ──────────────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _hide_dir(path):
+        try:
+            import ctypes
+            ctypes.windll.kernel32.SetFileAttributesW(path, 2)
+        except Exception:
+            pass
 
     def _get_vault_path(self, original_filepath):
-        """
-        Creates a safe, unique filename for the vault based on the original path.
-        We hash the path so hackers can't just search the vault for "index.html".
-        """
-        import hashlib
+        """Stable, opaque filename derived from the original path."""
         path_hash = hashlib.sha256(original_filepath.encode('utf-8')).hexdigest()
         return os.path.join(self.vault_dir, f"{path_hash}.enc")
 
+    # ──────────────────────────────────────────────────────────────────────────
+    #  CLOUD SYNC  (always non-blocking — never allowed to break local backup)
+    # ──────────────────────────────────────────────────────────────────────────
+
+    def _cloud_upload_async(self, local_path):
+        """
+        Fire-and-forget cloud upload.
+        BUG 1 FIX: Cloud failures are silently logged but NEVER propagate
+        exceptions back to backup_file(), so local backup always succeeds.
+        """
+        def _upload():
+            try:
+                from core.cloud_sync import cloud_sync
+                if cloud_sync.is_active:
+                    cloud_sync.upload_encrypted_backup(local_path)
+            except Exception as e:
+                print(f"[VAULT] Cloud upload skipped (non-critical): {e}")
+
+        threading.Thread(target=_upload, daemon=True).start()
+
+    def _backup_key_files_async(self):
+        """
+        BUG 2 FIX: After every successful file backup also push the encryption
+        key files to the cloud so they can be recovered independently.
+        """
+        from core.encryption_manager import crypto_manager
+        def _upload_keys():
+            try:
+                from core.integrity_core import CONFIG
+                admin_email = CONFIG.get("admin_email")
+                is_pro = CONFIG.get("is_pro_user", False)
+                
+                if not is_pro or not admin_email or admin_email == "UnknownUser":
+                    return
+                
+                from core.cloud_sync import cloud_sync
+                if not cloud_sync.is_active:
+                    return
+                
+                # --- FIX: Grab the exact paths directly from the crypto_manager ---
+                key_paths = [crypto_manager.key_file, crypto_manager.key_backup]
+                
+                for kpath in key_paths:
+                    if os.path.exists(kpath):
+                        cloud_sync.upload_encrypted_backup(kpath)
+                        print(f"[VAULT] ☁️ Key file synced: {os.path.basename(kpath)}")
+                        
+            except Exception as e:
+                print(f"[VAULT] Key cloud backup skipped (non-critical): {e}")
+
+        threading.Thread(target=_upload_keys, daemon=True).start()
+
+    # ──────────────────────────────────────────────────────────────────────────
+    #  PUBLIC API
+    # ──────────────────────────────────────────────────────────────────────────
+
     def backup_file(self, filepath, max_size_mb=10, allowed_exts=None):
         """
-        Safely copies and encrypts a file into the vault IF it passes the security rules.
+        Encrypt and store a file in the local vault, then async-upload to cloud.
+
+        BUG 1 FIX: Cloud sync is fully decoupled — a cloud failure will never
+        prevent the local backup from completing or returning True.
         """
+        from core.encryption_manager import crypto_manager
         if not os.path.exists(filepath):
             return False, "File does not exist."
 
-        # RULE 1: Check File Size
+        # Size gate
         try:
-            file_size_mb = os.path.getsize(filepath) / (1024 * 1024)
-            if file_size_mb > max_size_mb:
-                return False, f"File too large ({file_size_mb:.1f}MB). Max is {max_size_mb}MB."
+            size_mb = os.path.getsize(filepath) / (1024 * 1024)
+            if size_mb > max_size_mb:
+                return False, f"File too large ({size_mb:.1f} MB). Max {max_size_mb} MB."
         except OSError:
             return False, "Could not read file size."
 
-        # RULE 2: Check File Extension
+        # Extension gate (skip if no allowlist is set)
         if allowed_exts:
             _, ext = os.path.splitext(filepath)
             if ext.lower() not in allowed_exts:
-                return False, f"Extension {ext} not in allowed list for vaulting."
+                return False, f"Extension '{ext}' not in vault allowlist."
 
-        # ACTION: Encrypt and Backup
-        # ACTION: Encrypt and Backup
+        # ── LOCAL BACKUP (must succeed before anything else) ──────────────────
         try:
             vault_path = self._get_vault_path(filepath)
-            
-            # Read the raw bytes of the file
+
             with open(filepath, "rb") as f:
                 raw_data = f.read()
-                
-            # Encrypt the raw bytes using our AES Fernet key
-            encrypted_data = crypto_manager.fernet.encrypt(raw_data)
-            
-            # Save the encrypted blob to the hidden vault
-            with open(vault_path, "wb") as f:
-                f.write(encrypted_data)
 
-            from core.cloud_sync import cloud_sync
-                
-            # --- NEW: FIRE OFF THE CLOUD SYNC ---
-            # Now that the file is safely encrypted on the hard drive, beam it to Google Drive!
-            cloud_sync.upload_encrypted_backup(vault_path)
-                
-            return True, "File securely vaulted."
+            encrypted_data = crypto_manager.fernet.encrypt(raw_data)
+
+            # Atomic write — never leave a half-written vault file
+            tmp_path = vault_path + ".tmp"
+            with open(tmp_path, "wb") as f:
+                f.write(encrypted_data)
+            if os.path.exists(vault_path):
+                os.remove(vault_path)
+            os.rename(tmp_path, vault_path)
+
         except Exception as e:
-            return False, f"Vault backup failed: {e}"
+            return False, f"Local vault backup failed: {e}"
+
+        # ── CLOUD BACKUP (background, non-blocking) ───────────────────────────
+        self._cloud_upload_async(vault_path)
+
+        # ── KEY BACKUP (background, non-blocking) ─────────────────────────────
+        # BUG 2 FIX: Keep cloud copy of the encryption key in sync
+        self._backup_key_files_async()
+
+        return True, "File securely vaulted."
 
     def restore_file(self, filepath):
         """
-        TWO-TIER RESTORE:
-        1. Try local vault.
-        2. If local is missing (hacker deleted it), download from Cloud!
-        """
-        vault_path = self._get_vault_path(filepath)
-        filename = os.path.basename(vault_path) # Gets just the 'hash.enc' part
-        
-        # --- TIER 2 DEFENSE: CLOUD RESCUE ---
-        if not os.path.exists(vault_path):
-            print(f"⚠️ Local vault missing {filename}! Attempting Cloud Rescue...")
-            from core.cloud_sync import cloud_sync
-            
-            # Pause to download it from Google Drive
-            success = cloud_sync.download_from_cloud(filename, vault_path)
-            if not success:
-                return False, "CRITICAL: No backup found in Local Vault OR Cloud Vault."
-                
-            print(f"☁️ Cloud Rescue successful! File downloaded to local vault.")
+        Two-tier restore:
+          1. Local vault  → fast, always tried first
+          2. Cloud vault  → automatic fallback if local copy was deleted
 
-        # --- TIER 1: DECRYPT & RESTORE ---
+        If vault data was encrypted with the current key, decryption succeeds.
+        If the key was regenerated (all backups lost), decryption fails gracefully.
+        """
+        from core.encryption_manager import crypto_manager
+        vault_path = self._get_vault_path(filepath)
+        filename   = os.path.basename(vault_path)
+
+        # ── TIER 1: Local vault ───────────────────────────────────────────────
+        if not os.path.exists(vault_path):
+            print(f"[VAULT] ⚠️ Local vault missing for {os.path.basename(filepath)}. "
+                  f"Attempting cloud rescue...")
+
+            # ── TIER 2: Cloud rescue ──────────────────────────────────────────
+            try:
+                from core.cloud_sync import cloud_sync
+                if cloud_sync.is_active:
+                    success = cloud_sync.download_from_cloud(filename, vault_path)
+                    if success:
+                        print("[VAULT] ☁️ Cloud rescue successful.")
+                    else:
+                        return False, "No backup found in local vault or cloud."
+                else:
+                    return False, "No local vault and cloud sync is offline."
+            except Exception as e:
+                return False, f"Cloud rescue failed: {e}"
+
+        # ── DECRYPT & WRITE ───────────────────────────────────────────────────
         try:
-            # Read the encrypted blob
             with open(vault_path, "rb") as f:
                 encrypted_data = f.read()
-                
-            # Decrypt it back to raw bytes
+
             decrypted_data = crypto_manager.fernet.decrypt(encrypted_data)
-            
-            # Write it back to the original location (Overwriting the hacker's malware)
-            with open(filepath, "wb") as f:
+
+            # Atomic write back to the original location
+            tmp_path = filepath + ".restore_tmp"
+            with open(tmp_path, "wb") as f:
                 f.write(decrypted_data)
-                
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            os.rename(tmp_path, filepath)
+
             return True, "File successfully restored."
+
         except Exception as e:
             return False, f"Vault restoration failed: {e}"
 
-# Global instance to be used by the security engine
+    def backup_key_files(self):
+        """
+        Public method — force an immediate (synchronous) key backup to cloud.
+        Called from the GUI 'Sync to Cloud' button.
+        """
+        from core.encryption_manager import crypto_manager
+        results = []
+        try:
+            from core.cloud_sync import cloud_sync
+            if not cloud_sync.is_active:
+                return False, "Cloud sync is offline."
+
+            # --- FIX: Grab the exact paths directly from the crypto_manager ---
+            key_paths = [crypto_manager.key_file, crypto_manager.key_backup]
+            
+            for kpath in key_paths:
+                if os.path.exists(kpath):
+                    cloud_sync.upload_encrypted_backup(kpath)
+                    results.append(os.path.basename(kpath))
+
+            if results:
+                return True, f"Keys synced: {', '.join(results)}"
+            return False, "No key files found to sync."
+        except Exception as e:
+            return False, f"Key sync failed: {e}"
+
+    def list_vault_files(self):
+        """Return a list of all encrypted vault entries (for GUI viewer)."""
+        try:
+            return [
+                f for f in os.listdir(self.vault_dir)
+                if f.endswith(".enc")
+            ]
+        except Exception:
+            return []
+
+
+# Global singleton
 vault = VaultManager()
