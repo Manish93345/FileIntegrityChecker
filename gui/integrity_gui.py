@@ -1843,12 +1843,16 @@ class ProIntegrityGUI:
             from core.integrity_core import CONFIG
             CONFIG["admin_email"] = user_email
  
+            # 🚨 FIX 3: Force the browser to open ONLY when the user clicks this button
+            if not cloud_sync.is_active:
+                cloud_sync.force_authenticate()
+
+            # If it is STILL not active (e.g., they closed the browser window)
             if not cloud_sync.is_active:
                 messagebox.showerror(
                     'Cloud Sync Offline',
-                    'Google Drive is not authenticated.\n\n'
-                    'Make sure credentials.json is present and re-launch the app\n'
-                    'to complete the one-time OAuth login.'
+                    'Google Drive authentication was canceled or failed.\n\n'
+                    'Please try again.'
                 )
                 return
  
@@ -1933,6 +1937,18 @@ class ProIntegrityGUI:
                 user_email = user_data.get("registered_email", "UnknownUser")
             from core.integrity_core import CONFIG
             CONFIG["admin_email"] = user_email
+            # 🚨 FIX 3: Force the browser to open ONLY when the user clicks this button
+            if not cloud_sync.is_active:
+                cloud_sync.force_authenticate()
+
+            # If it is STILL not active (e.g., they closed the browser window)
+            if not cloud_sync.is_active:
+                messagebox.showerror(
+                    'Cloud Sync Offline',
+                    'Google Drive authentication was canceled or failed.\n\n'
+                    'Please try again.'
+                )
+                return
             
             if hasattr(cloud_sync, 'restore_from_cloud'):
                 threading.Thread(target=cloud_sync.restore_from_cloud, daemon=True).start()

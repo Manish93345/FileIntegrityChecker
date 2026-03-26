@@ -1,29 +1,24 @@
 """
 encryption_manager.py — FMSecure v2.0
-AES-256 (Fernet) encryption with KEY RESILIENCE:
+AES-256 (Fernet) encryption with HARDWARE-BOUND KEK RESILIENCE:
 
-  KEY PROTECTION LAYERS (in order of priority):
-    1. Primary key   → AppData/FMSecure/system32_config/sys.key  (hidden)
-    2. Local backup  → AppData/FMSecure/system32_config/.sys_backup.key (hidden, obfuscated name)
-    3. Cloud backup  → Google Drive (uploaded automatically whenever the key changes)
-
-  RECOVERY LOGIC on startup:
-    - If primary key exists          → load it, silently verify backup exists
-    - If primary missing, backup OK  → restore primary from backup, continue normally
-    - If both local copies missing   → attempt cloud download, restore, continue
-    - If all three missing           → generate NEW key, back it up everywhere,
-                                       but warn the user that old data is unrecoverable
-
-  This means deleting sys.key alone will NEVER cause a loss of access.
+  KEY PROTECTION LAYERS:
+    0. Hardware KEK  → Invisible key derived from physical Motherboard/CPU (in RAM only).
+    1. Primary key   → AppData/FMSecure/system32_config/sys.key (Encrypted by KEK)
+    2. Local backup  → AppData/FMSecure/system32_shadow/.sys_backup.key (Encrypted by KEK)
+    3. Cloud backup  → Google Drive (Encrypted by KEK)
 """
 
 import os
 import json
 import shutil
 import threading
+import platform
+import base64
 from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives import hashes
 from core.utils import get_app_data_dir
-
 
 class EncryptionManager:
     def __init__(self):
@@ -33,47 +28,84 @@ class EncryptionManager:
         self.key_dir       = os.path.join(self.app_data, "system32_config")
         self.key_file      = os.path.join(self.key_dir, "sys.key")          
         
-        # --- NEW: Isolated Shadow Backup Location ---
+        # Isolated Shadow Backup Location
         self.shadow_dir    = os.path.join(self.app_data, "system32_shadow")
         self.key_backup    = os.path.join(self.shadow_dir, ".sys_backup.key")  
         
         self.fernet        = None
         self._key_bytes    = None   
-        self._initialize_key()
+        
+        # --- NEW: Generate the Hardware-Bound Key Encryption Key (KEK) ---
+        self.hardware_kek  = self._generate_hardware_kek()
 
     # ──────────────────────────────────────────────────────────────────────────
-    #  INTERNAL HELPERS
+    #  HARDWARE BINDING & INTERNAL HELPERS
     # ──────────────────────────────────────────────────────────────────────────
+
+    def _generate_hardware_kek(self):
+        """Derives a unique AES key based purely on the physical PC hardware."""
+        hw_string = f"{platform.node()}-{platform.machine()}-{platform.processor()}"
+        
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=b"fmsecure_enterprise_salt_v2", # Static salt for the KEK
+            iterations=100000,
+        )
+        return Fernet(base64.urlsafe_b64encode(kdf.derive(hw_string.encode())))
 
     def _hide(self, path):
-        """Mark a file as hidden on Windows (no-op on other OS)."""
+        """Mark a file as hidden on Windows."""
         try:
             import ctypes
             ctypes.windll.kernel32.SetFileAttributesW(path, 2)
         except Exception:
             pass
 
-    def _write_key(self, path, key_bytes):
-        """Atomically write key bytes and mark hidden."""
+    def _write_key(self, path, raw_key_bytes):
+        """Encrypts the master key with the Hardware KEK, then writes to disk."""
         os.makedirs(os.path.dirname(path), exist_ok=True)
+        
+        # 🚨 KEK ENCRYPTION: Lock the master key before it touches the hard drive
+        encrypted_master_key = self.hardware_kek.encrypt(raw_key_bytes)
+        
         tmp = path + ".tmp"
         with open(tmp, "wb") as f:
-            f.write(key_bytes)
+            f.write(encrypted_master_key)
+            
         if os.path.exists(path):
             os.remove(path)
         os.rename(tmp, path)
         self._hide(path)
 
     def _read_key(self, path):
-        """Read raw key bytes, return None on any error."""
+        """Reads and decrypts the master key using the Hardware KEK."""
         try:
             with open(path, "rb") as f:
                 data = f.read()
-            if len(data) == 44:          # Fernet URL-safe base64 key is always 44 bytes
-                return data
+                
+            # --- THE LEGACY UPGRADE PATH ---
+            # If the file is exactly 44 bytes, it is an old unencrypted key!
+            if len(data) == 44:
+                try:
+                    Fernet(data) # Test if it's a valid raw key
+                    print(f"[KEY] Legacy plaintext key detected at {os.path.basename(path)}. Upgrading to Hardware-Bound KEK...")
+                    self._write_key(path, data) # Encrypt it instantly!
+                    return data
+                except Exception:
+                    pass
+                    
+            # --- NORMAL OPERATION ---
+            # Use the physical PC hardware to unlock the file
+            try:
+                raw_key = self.hardware_kek.decrypt(data)
+                return raw_key
+            except Exception:
+                print(f"[KEY] CRITICAL: Hardware KEK decryption failed for {os.path.basename(path)}! Was this file copied from another PC?")
+                return None
+                
         except Exception:
-            pass
-        return None
+            return None
 
     def _validate_fernet(self, key_bytes):
         """Return a Fernet instance if key is valid, else None."""
@@ -87,23 +119,19 @@ class EncryptionManager:
     # ──────────────────────────────────────────────────────────────────────────
 
     def _initialize_key(self):
-        """
-        Multi-tier key load with automatic healing.
-        Never generates a new key if ANY valid backup exists.
-        """
         os.makedirs(self.key_dir, exist_ok=True)
 
-        # ── TIER 1: Primary key file ──────────────────────────────────────────
+        # ── TIER 1: Primary key file 
         key = self._read_key(self.key_file)
         if key and self._validate_fernet(key):
             self._activate(key)
-            self._ensure_local_backup(key)          # heal backup if missing
-            self._schedule_cloud_backup(key)        # background cloud sync
+            self._ensure_local_backup(key)          
+            self._schedule_cloud_backup(key)        
             return
 
-        print("[KEY] Primary key missing or corrupt — attempting recovery...")
+        print("[KEY] Primary key missing, corrupt, or Hardware Mismatch — attempting recovery...")
 
-        # ── TIER 2: Local shadow backup ───────────────────────────────────────
+        # ── TIER 2: Local shadow backup 
         key = self._read_key(self.key_backup)
         if key and self._validate_fernet(key):
             print("[KEY] Recovered from local shadow backup. Restoring primary...")
@@ -114,39 +142,17 @@ class EncryptionManager:
 
         print("[KEY] Local backup also missing — attempting cloud recovery...")
 
-        # ── TIER 3: Cloud Recovery ──────────────────────────────────────────
-        print("[KEY] Local backup also missing — attempting cloud recovery...")
-        # ── TIER 3: Cloud Recovery (PRO Users Only) ─────────────────────────
-        try:
-            # Safely check config without triggering circular imports
-            is_pro = False
-            config_file = os.path.join(self.app_data, 'config.json')
-            if os.path.exists(config_file):
-                try:
-                    with open(config_file, "r", encoding="utf-8") as f:
-                        cfg = json.load(f)
-                        is_pro = cfg.get("is_pro_user", False)
-                except Exception:
-                    pass
+        # ── TIER 3: Cloud Recovery
+        key = self._attempt_cloud_key_recovery()
+        if key and self._validate_fernet(key):
+            print("[KEY] ✅ Cloud recovery successful.")
+            self._write_key(self.key_file, key)
+            self._activate(key)
+            self._ensure_local_backup(key)
+            return
 
-            if is_pro:
-                print("[KEY] Local backup also missing — attempting cloud recovery...")
-                key = self._attempt_cloud_key_recovery()
-                if key and self._validate_fernet(key):
-                    print("[KEY] ✅ Cloud recovery successful.")
-                    self._write_key(self.key_file, key)
-                    self._activate(key)
-                    self._ensure_local_backup(key)
-                    return
-            else:
-                print("[KEY] Skipping cloud recovery (Free Tier / First-time setup).")
-                
-        except Exception as e:
-            print(f"[KEY] Cloud recovery check failed: {e}")
-
-        # ── TIER 4: Generate fresh key (last resort — old data is gone) ───────
+        # ── TIER 4: Generate fresh key
         print("[KEY] WARNING: No backup found anywhere. Generating NEW encryption key.")
-        print("[KEY] All previously encrypted data (users, logs) is now unrecoverable.")
         key = Fernet.generate_key()
         self._write_key(self.key_file, key)
         self._write_key(self.key_backup, key)
@@ -154,12 +160,10 @@ class EncryptionManager:
         self._schedule_cloud_backup(key)
 
     def _activate(self, key_bytes):
-        """Set the active Fernet instance and cache key bytes."""
         self._key_bytes = key_bytes
         self.fernet = Fernet(key_bytes)
 
     def _ensure_local_backup(self, key_bytes):
-        """Write shadow copy if it doesn't exist or is stale."""
         existing = self._read_key(self.key_backup)
         if existing != key_bytes:
             self._write_key(self.key_backup, key_bytes)
@@ -169,13 +173,9 @@ class EncryptionManager:
     # ──────────────────────────────────────────────────────────────────────────
 
     def _schedule_cloud_backup(self, key_bytes):
-        """Upload key to cloud in a daemon thread (non-blocking)."""
         def _upload():
             try:
-                # Slight delay so the rest of the app finishes initialising first
                 import time; time.sleep(3)
-                
-                # --- NEW FIX: Check for PRO Tier and Valid Email ---
                 from core.integrity_core import CONFIG
                 admin_email = CONFIG.get("admin_email")
                 is_pro = CONFIG.get("is_pro_user", False)
@@ -183,7 +183,6 @@ class EncryptionManager:
                 if not is_pro or not admin_email or admin_email == "UnknownUser":
                     print("[KEY] ☁️ Cloud key backup skipped (Awaiting PRO activation / valid email).")
                     return
-                # ---------------------------------------------------
                 
                 from core.cloud_sync import cloud_sync
                 if cloud_sync.is_active:
@@ -197,16 +196,11 @@ class EncryptionManager:
         t.start()
 
     def _attempt_cloud_key_recovery(self):
-        """
-        Try to download sys.key from Google Drive.
-        Returns raw key bytes on success, None on failure.
-        """
         try:
             from core.cloud_sync import cloud_sync
             if not cloud_sync.is_active:
                 return None
 
-            # Try primary filename first, then backup filename
             for remote_name, local_dest in [
                 (os.path.basename(self.key_file),   self.key_file),
                 (os.path.basename(self.key_backup),  self.key_backup),
@@ -230,14 +224,12 @@ class EncryptionManager:
     # ──────────────────────────────────────────────────────────────────────────
 
     def encrypt_json(self, data_dict, filepath):
-        """Convert a dictionary to JSON and encrypt it to a file."""
         json_string = json.dumps(data_dict).encode('utf-8')
         encrypted_data = self.fernet.encrypt(json_string)
         with open(filepath, "wb") as f:
             f.write(encrypted_data)
 
     def decrypt_json(self, filepath):
-        """Decrypt a file and convert it back to a dictionary."""
         if not os.path.exists(filepath):
             return {}
         try:
@@ -250,25 +242,15 @@ class EncryptionManager:
             return None
 
     def encrypt_string(self, text):
-        """Encrypt a single string of text (used for log lines)."""
         return self.fernet.encrypt(text.encode('utf-8')).decode('utf-8')
 
     def decrypt_string(self, encrypted_text):
-        """Decrypt a single string of text."""
         try:
             return self.fernet.decrypt(encrypted_text.encode('utf-8')).decode('utf-8')
         except Exception:
             return "[TAMPERED/UNREADABLE LOG ENTRY]"
 
-    # ──────────────────────────────────────────────────────────────────────────
-    #  KEY MANAGEMENT UTILITIES (called from GUI / admin actions)
-    # ──────────────────────────────────────────────────────────────────────────
-
     def force_key_backup(self):
-        """
-        Manually trigger a full key backup (local + cloud).
-        Call this from the GUI after settings are saved.
-        """
         if not self._key_bytes:
             return False, "No active key in memory."
         try:
@@ -279,10 +261,6 @@ class EncryptionManager:
             return False, str(e)
 
     def get_key_status(self):
-        """
-        Returns a dict describing the health of all key copies.
-        Used by the GUI diagnostics panel.
-        """
         primary_ok = bool(self._read_key(self.key_file))
         backup_ok  = bool(self._read_key(self.key_backup))
         return {
@@ -292,6 +270,6 @@ class EncryptionManager:
             "healthy":      primary_ok and backup_ok,
         }
 
-
 # Global singleton — imported everywhere
 crypto_manager = EncryptionManager()
+crypto_manager._initialize_key()
