@@ -38,11 +38,21 @@ class AuthManager:
             self.users = data
 
     def _save_db(self):
+        # 🚨 FIX 1: PREVENT CRASH & WIPE 
+        # Do not attempt to save an empty database if the key isn't downloaded yet!
+        if crypto_manager.fernet is None:
+            return 
+            
         try:
             os.makedirs(os.path.dirname(USERS_DB_FILE), exist_ok=True)
             crypto_manager.encrypt_json(self.users, USERS_DB_FILE)
         except Exception as e:
             print(f"Error saving auth db: {e}")
+
+    # 🚨 FIX 2: Add this method so we can force it to refresh after cloud recovery!
+    def reload(self):
+        """Forces AuthManager to read users.dat again."""
+        self._load_users()
 
     def has_users(self): return len(self.users) > 0
 
@@ -123,52 +133,71 @@ class AuthManager:
             print(f"[AUTH] License check error for {username}: {e}")
             return "free"
 
-    def activate_license(self, username, key):
+    def activate_license(self, username: str, key: str):
         """
-        Activate a license key.
-        No email check — device-based validation only.
+        Activate a license key against the cloud validation server.
+        Device-based — no email match required for validation.
+        On success: persists key + tier, injects email into CONFIG,
+        triggers async key backup to cloud keys/ subfolder.
         """
         if username not in self.users:
-            return False, "User not found"
-
+            return False, "User not found."
+ 
         clean_key = key.strip()
         if not clean_key:
             return False, "Please enter a license key."
-
+ 
         try:
             from core.license_verifier import license_verifier
             is_valid, tier = license_verifier.verify_license(clean_key)
         except Exception as e:
             return False, f"Could not reach license server: {e}"
-
-        if is_valid:
-            self.users[username]["license_key"] = clean_key
-            self.users[username]["tier"] = tier
-            self._save_db()
-            # --- 🚨 STEP 4: THE INSTANT UPLOAD TRIGGER ---
+ 
+        if not is_valid:
             try:
-                from core.integrity_core import CONFIG, save_config
-                from core.encryption_manager import crypto_manager
-                
-                # 1. Permanently save PRO status to disk so it survives restarts
-                CONFIG["is_pro_user"] = True
-                save_config()
-                
-                # 2. Blast the key to the Master Keyring on Google Drive instantly!
-                crypto_manager.force_key_backup()
-            except Exception as e:
-                print(f"[AUTH] Non-critical warning: Instant key backup failed: {e}")
-            # -------------------------------------------------------------
-
-            tier_label = "PRO Monthly" if "monthly" in tier else "PRO Annual" if "annual" in tier else tier.upper()
-            return True, f"Success! Upgraded to {tier_label}."
-        else:
-            try:
-                from core.license_verifier import license_verifier, REASON_MESSAGES
-                resp_reason = license_verifier.get_activation_error(clean_key)
-                return False, resp_reason
+                from core.license_verifier import license_verifier
+                return False, license_verifier.get_activation_error(clean_key)
             except Exception:
                 return False, "Invalid license key. Please check and try again."
+ 
+        # Persist activation
+        self.users[username]["license_key"] = clean_key
+        self.users[username]["tier"]        = tier
+        self._save_db()
+ 
+        # Inject email and PRO flag into runtime CONFIG so cloud operations
+        # can write the manifest correctly (email as metadata, never as folder key).
+        try:
+            from core.integrity_core import CONFIG, save_config
+ 
+            user_email = self.users[username].get("registered_email", "")
+            CONFIG["is_pro_user"]  = True
+            CONFIG["admin_email"]  = user_email   # ← was `email` (NameError)
+            save_config()
+ 
+        except Exception as e:
+            print(f"[AUTH] CONFIG update warning: {e}")
+ 
+        # Async key backup — don't block the UI
+        def _async_key_backup():
+            import time
+            time.sleep(2)   # let the GUI finish rendering the PRO badge first
+            try:
+                from core.encryption_manager import crypto_manager
+                crypto_manager.force_key_backup()
+                print("[AUTH] ✅ Post-activation key backup complete.")
+            except Exception as e:
+                print(f"[AUTH] Non-critical: Key backup failed: {e}")
+ 
+        import threading
+        threading.Thread(target=_async_key_backup, daemon=True).start()
+ 
+        tier_label = {
+            "pro_monthly": "PRO Monthly",
+            "pro_annual":  "PRO Annual",
+        }.get(tier, tier.upper())
+ 
+        return True, f"Success! Upgraded to {tier_label}."
 
     def update_password(self, username, new_password):
         if username not in self.users: return False, "User not found"

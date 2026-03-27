@@ -1,6 +1,6 @@
 {
-    "watch_folder": "C:/path/to/your/monitored/folder",
-    "verify_interval": 1800,
+    "watch_folder": "C:\\Users\\kumar\\Documents",
+    "verify_interval": 6000,
     "webhook_url": null,
     "secret_key": "Lisacutie",
     "max_log_size_mb": 10,
@@ -10,13 +10,13 @@
     "hash_retries": 3,
     "hash_retry_delay": 0.5,
     "ignore_filenames": [
-        "hash_records.json",
-        "integrity_log.txt",
+        "hash_records.dat",
+        "integrity_log.dat",
         "integrity_log.sig",
         "hash_records.sig",
         "report_summary.txt"
     ],
-    "active_defense": false,
+    "active_defense": true,
     "vault_max_size_mb": 10,
     "vault_allowed_exts": [
         ".txt",
@@ -30,15 +30,12 @@
         ".conf",
         ".jsx"
     ],
-    "ransomware_killswitch": false,
-    "paths": {
-        "logs": "logs/",
-        "reports": "reports/",
-        "incidents": "reports/incidents/",
-        "config": "config/"
-    },
+    "ransomware_killswitch": true,
     "watch_folders": [
+        "D:/Temp_assignment/trading_bot",
         "D:/TEST"
     ],
-    "admin_email": "kumarmanish85211@gmail.com"
+    "usb_readonly": false,
+    "admin_email": "kumarmanish85211@gmail.com",
+    "is_pro_user": true
 }

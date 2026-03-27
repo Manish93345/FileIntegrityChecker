@@ -522,6 +522,9 @@ class ProIntegrityGUI:
         self._setup_tray_icon()
         self._check_for_updates()
 
+        from core.cloud_backup_scheduler import start_auto_backup
+        start_auto_backup(username=self.username)
+
         self.root.protocol('WM_DELETE_WINDOW', self.on_closing)
 
         if '--recovery' in sys.argv:
@@ -1303,6 +1306,9 @@ class ProIntegrityGUI:
         _ActionButton(cloud_btns, 'Restore from Cloud',
                       self._restore_from_cloud,
                       C['button_bg'], fg=C['text_secondary'], font_size=9).pack(fill=tk.X, pady=2)
+        _ActionButton(cloud_btns, '🔄  Full Disaster Recovery',
+                  self._disaster_recovery_restore,
+                  C['accent_danger'], font_size=9).pack(fill=tk.X, pady=2)
 
         # --- 🚨 NEW: CLOUD PROGRESS LABEL ---
         self.cloud_progress_var = tk.StringVar(value="Status: Ready")
@@ -1812,149 +1818,276 @@ class ProIntegrityGUI:
             messagebox.showerror('Vault Restore Error', str(e))
 
     def _sync_to_cloud(self):
-        """Upload all encrypted vault files to Google Drive."""
-        from tkinter import messagebox  # 🚨 FIX 1: Import globally to prevent UnboundLocalError
-        
-        # --- STRICT PRO TIER ENFORCEMENT ---
+        """
+        Full cloud sync: vault files + logs + forensics + AppData + keys.
+        All cloud folders are keyed on machine_id, not email.
+        PRO gate is enforced inside cloud_sync — no local check needed beyond
+        the UI-level warning below.
+        """
+        from tkinter import messagebox
+ 
+        # ── UI-level PRO gate (shows a friendly upgrade dialog) ───────────────
         tier = "free"
         if auth:
             tier = auth.get_user_tier(self.username)
-            
         if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
             tier = "pro_monthly"
-            
         if not subscription_manager.is_pro(tier):
-            messagebox.showwarning("⭐ Premium Feature", "☁️ Cloud Disaster Recovery is a PRO feature.\n\nPlease activate a License Key to unlock Cloud Sync.")
+            messagebox.showwarning(
+                "⭐ Premium Feature",
+                "☁️  Cloud Disaster Recovery is a PRO feature.\n\n"
+                "Activate a License Key to unlock Cloud Sync.")
             return
-
-        self._append_log('Starting cloud sync...')
-        try:
-            from core.cloud_sync import cloud_sync
-            from core.utils import get_app_data_dir
-            import os
-            import time 
-            
-            # 🚨 FIX 2: Inject the User's Email so Drive names the folder correctly!
-            user_email = "UnknownUser"
-            if auth:
-                user_data = auth.users.get(self.username, {})
-                user_email = user_data.get("registered_email", "UnknownUser")
-            
-            from core.integrity_core import CONFIG
-            CONFIG["admin_email"] = user_email
  
-            # 🚨 FIX 3: Force the browser to open ONLY when the user clicks this button
-            if not cloud_sync.is_active:
-                cloud_sync.force_authenticate()
-
-            # If it is STILL not active (e.g., they closed the browser window)
-            if not cloud_sync.is_active:
-                messagebox.showerror(
-                    'Cloud Sync Offline',
-                    'Google Drive authentication was canceled or failed.\n\n'
-                    'Please try again.'
-                )
-                return
+        from core.cloud_sync import cloud_sync
+        from core.encryption_manager import crypto_manager
+        from core.utils import get_app_data_dir
  
-            vault_dir = os.path.join(get_app_data_dir(), 'system32_vault')
-            
-            # 1. Start with an empty list
-            files_to_sync = []
-            
-            # 2. Add all encrypted logs (FULL paths)
-            if os.path.exists(vault_dir):
-                files_to_sync = [os.path.join(vault_dir, f) for f in os.listdir(vault_dir) if f.endswith('.enc')]
-            
-            # 3. Add the Encryption Key! (Change 'sys.key' if your key is named differently)
-            key_file_path = os.path.join(get_app_data_dir(), 'sys.key') 
-            if os.path.exists(key_file_path):
-                files_to_sync.append(key_file_path)
-
-            if not files_to_sync:
-                messagebox.showinfo('Cloud Sync', 'Vault and Key are empty — nothing to sync.')
-                return
-                
-            def _do_sync():
-                total_files = len(files_to_sync)
-                uploaded = 0
-                
-                self.root.after(0, lambda: self.cloud_progress_var.set(f"Initializing sync... (0/{total_files})"))
-                
-                # 4. Loop over the full paths!
-                for fpath in files_to_sync:
-                    fname = os.path.basename(fpath) # Extract just the name for the UI label
-                    try:
-                        self.root.after(0, lambda f=fname, u=uploaded, t=total_files: 
-                                        self.cloud_progress_var.set(f"Uploading [{u+1}/{t}]: {f}"))
-                                        
-                        # Call synchronous upload method
-                        if hasattr(cloud_sync, '_upload_file_to_drive'):
-                            cloud_sync._upload_file_to_drive(fpath)
-                        elif hasattr(cloud_sync, 'upload_file'):
-                            cloud_sync.upload_file(fpath)
-                        else:
-                            cloud_sync.upload_encrypted_backup(fpath)
-                            time.sleep(1.5) 
-                            
-                        uploaded += 1
-                        time.sleep(0.3) 
-                        
-                    except Exception as e:
-                        self._append_log(f'Cloud sync error for {fname}: {e}')
-
-                self.root.after(0, lambda: self.cloud_progress_var.set(f"✅ Sync Complete: {uploaded}/{total_files} files"))
-                self._append_log(f'Cloud sync complete — {uploaded}/{total_files} files uploaded.')
-
-            threading.Thread(target=_do_sync, daemon=True).start()
+        if not cloud_sync.is_active:
+            messagebox.showerror(
+                'Cloud Sync Offline',
+                'Google Drive is not authenticated.\n\n'
+                'Make sure credentials.json is present and re-launch the app.')
+            return
  
-        except Exception as e:
-            messagebox.showerror('Cloud Sync Error', str(e))
-            self._append_log(f'Cloud sync failed: {e}')
+        machine_id = crypto_manager.get_machine_id()
+ 
+        # Collect all files to sync
+        app_data      = get_app_data_dir()
+        vault_dir     = os.path.join(app_data, "system32_vault")
+        logs_dir      = os.path.join(app_data, "logs")
+        forensics_dir = os.path.join(app_data, "forensics")
+ 
+        vault_files = ([os.path.join(vault_dir, f)
+                        for f in os.listdir(vault_dir) if f.endswith('.enc')]
+                       if os.path.exists(vault_dir) else [])
+ 
+        log_files = []
+        for fname in ("integrity_log.dat", "integrity_log.sig",
+                      "severity_counters.json"):
+            p = os.path.join(logs_dir, fname)
+            if os.path.exists(p):
+                log_files.append(p)
+        if os.path.exists(forensics_dir):
+            for fname in os.listdir(forensics_dir):
+                if (fname.startswith("forensic_") and fname.endswith(".dat")
+                        or fname == "forensics_index.json"):
+                    log_files.append(os.path.join(forensics_dir, fname))
+ 
+        key_dir   = os.path.join(app_data, "system32_config")
+        logs_only = os.path.join(app_data, "logs")
+        appdata_files = []
+        for fname in ("users.dat", "hash_records.dat", "hash_records.sig",
+                      "severity_counters.json"):
+            p = os.path.join(logs_only, fname)
+            if os.path.exists(p):
+                appdata_files.append(p)
+        cfg = os.path.join(app_data, "config.json")
+        mid_file = os.path.join(key_dir, "machine_id.txt")
+        for p in (cfg, mid_file):
+            if os.path.exists(p):
+                appdata_files.append(p)
+ 
+        grand_total = (len(vault_files) + len(log_files)
+                       + len(appdata_files) + 2)  # +2 for key files
+        grand_done  = [0]
+ 
+        self.root.after(0, lambda: self.cloud_progress_var.set(
+            f"Starting sync… 0 / {grand_total} files"))
+        self._append_log(
+            f"Cloud sync started — {grand_total} files "
+            f"(machine: {machine_id[:16]}…)")
+ 
+        def _on_file_done(ok=True, fname=""):
+            grand_done[0] += 1
+            icon  = "✅" if ok else "❌"
+            label = f"{icon} [{grand_done[0]}/{grand_total}] {fname}"
+            self.root.after(0, lambda l=label: self.cloud_progress_var.set(l))
+ 
+        def _progress_cb(uploaded, total, filename):
+            _on_file_done(ok=True, fname=filename)
+ 
+        def _do_sync():
+            # 1. Vault files → vault/
+            if vault_files:
+                vault_folder = cloud_sync._get_subfolder("vault", machine_id)
+                if vault_folder:
+                    cloud_sync.batch_upload(vault_files, vault_folder,
+                                            progress_cb=_progress_cb,
+                                            max_workers=4)
+ 
+            # 2. Logs + forensics → logs/
+            if log_files:
+                logs_folder = cloud_sync._get_subfolder("logs", machine_id)
+                if logs_folder:
+                    cloud_sync.batch_upload(log_files, logs_folder,
+                                            progress_cb=_progress_cb,
+                                            max_workers=4)
+ 
+            # 3. AppData → appdata/
+            if appdata_files:
+                appdata_folder = cloud_sync._get_subfolder("appdata", machine_id)
+                if appdata_folder:
+                    cloud_sync.batch_upload(appdata_files, appdata_folder,
+                                            progress_cb=_progress_cb,
+                                            max_workers=2)
+ 
+            # 4. Encryption keys → keys/
+            try:
+                ok, msg = crypto_manager.force_key_backup()
+                _on_file_done(ok=ok, fname="sys.key")
+                _on_file_done(ok=ok, fname=".sys_backup.key")
+            except Exception as e:
+                print(f"[SYNC] Key backup error: {e}")
+ 
+            # 5. Update manifest with current email/tier metadata
+            try:
+                cloud_sync._update_manifest(machine_id)
+            except Exception:
+                pass
+ 
+            summary = (f"✅ Sync complete: {grand_done[0]}/{grand_total} files "
+                       f"— machine {machine_id[:16]}…")
+            self.root.after(0, lambda s=summary:
+                            self.cloud_progress_var.set(s))
+            self.root.after(0, lambda s=summary: self._append_log(s))
+ 
+        threading.Thread(target=_do_sync, daemon=True).start()
+    
 
     def _restore_from_cloud(self):
-        """Restore encrypted vault files from Google Drive."""
-        from tkinter import messagebox  # 🚨 FIX 1: Prevent UnboundLocalError
-        
+        """Restore encrypted vault .enc files from the user's Drive folder."""
+        from tkinter import messagebox
+    
         tier = "free"
         if auth:
             tier = auth.get_user_tier(self.username)
-            
         if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
             tier = "pro_monthly"
-            
         if not subscription_manager.is_pro(tier):
-            messagebox.showwarning("⭐ Premium Feature", "☁️ Cloud Disaster Recovery is a PRO feature.\n\nPlease activate a License Key to unlock Cloud Restore.")
+            messagebox.showwarning(
+                "⭐ Premium Feature",
+                "☁️ Cloud Disaster Recovery is a PRO feature.")
             return
-
-        self._append_log('Restoring from cloud…')
+    
+        self._append_log('Restoring vault from cloud…')
         try:
             from core.cloud_sync import cloud_sync
-            
-            # 🚨 FIX 2: Inject Email for Restore
-            user_email = "UnknownUser"
-            if auth:
-                user_data = auth.users.get(self.username, {})
-                user_email = user_data.get("registered_email", "UnknownUser")
             from core.integrity_core import CONFIG
-            CONFIG["admin_email"] = user_email
-            # 🚨 FIX 3: Force the browser to open ONLY when the user clicks this button
-            if not cloud_sync.is_active:
-                cloud_sync.force_authenticate()
-
-            # If it is STILL not active (e.g., they closed the browser window)
-            if not cloud_sync.is_active:
-                messagebox.showerror(
-                    'Cloud Sync Offline',
-                    'Google Drive authentication was canceled or failed.\n\n'
-                    'Please try again.'
-                )
-                return
-            
+            if auth:
+                user_data  = auth.users.get(self.username, {})
+                CONFIG["admin_email"] = user_data.get("registered_email", "UnknownUser")
             if hasattr(cloud_sync, 'restore_from_cloud'):
                 threading.Thread(target=cloud_sync.restore_from_cloud, daemon=True).start()
-                messagebox.showinfo('Cloud Restore', 'Cloud restore started in background.')
+                messagebox.showinfo('Cloud Restore', 'Vault restore started in background.')
         except Exception as e:
-            messagebox.showinfo('Cloud Restore', f'Cloud restore: {e}')
+            messagebox.showinfo('Cloud Restore', f'Error: {e}')
+
+
+    def _disaster_recovery_restore(self):
+        """
+        Full disaster recovery: restore EVERYTHING from cloud after the user
+        deleted the entire AppData/FMSecure folder.
+    
+        Recovery sequence (matches what login_gui.py does on startup):
+        1. Restore AppData files (users.dat, config.json, etc.)
+        2. Restore encryption key  (via crypto_manager Phase 2)
+        3. Restore audit logs + forensics
+        4. Reload auth database
+        5. Show summary to user
+        """
+        from tkinter import messagebox
+    
+        tier = "free"
+        if auth:
+            tier = auth.get_user_tier(self.username)
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "pro_monthly"
+        if not subscription_manager.is_pro(tier):
+            messagebox.showwarning(
+                "⭐ Premium Feature",
+                "Full Disaster Recovery is a PRO feature.")
+            return
+    
+        if not messagebox.askyesno(
+            "Full Disaster Recovery",
+            "This will download your complete FMSecure backup from Google Drive "
+            "and restore:\n\n"
+            "  • Encryption key\n"
+            "  • User accounts (users.dat)\n"
+            "  • Audit logs\n"
+            "  • Forensic snapshots\n"
+            "  • App configuration\n\n"
+            "Existing local files may be overwritten.\n\n"
+            "Continue?"
+        ):
+            return
+    
+        from core.cloud_sync import cloud_sync
+        from core.encryption_manager import crypto_manager
+    
+        if not cloud_sync.is_active:
+            messagebox.showerror(
+                'Cloud Offline',
+                'Google Drive is not connected. Cannot perform disaster recovery.')
+            return
+    
+        machine_id = crypto_manager.get_machine_id()
+    
+        self.cloud_progress_var.set("🔄 Disaster recovery in progress…")
+        self._append_log("DISASTER RECOVERY: Starting full cloud restore…")
+    
+        def _do_recovery():
+            steps   = []
+            success = True
+    
+            # Step 1 — AppData (users.dat, config, etc.)
+            self.root.after(0, lambda: self.cloud_progress_var.set("Step 1/4: Restoring AppData…"))
+            r1 = cloud_sync.restore_full_appdata(machine_id)
+            steps.append(f"AppData: {r1['restored']} files restored")
+            if r1['errors']:
+                steps.append(f"  Errors: {', '.join(r1['errors'][:3])}")
+    
+            # Step 2 — Encryption key
+            self.root.after(0, lambda: self.cloud_progress_var.set("Step 2/4: Recovering encryption key…"))
+            key_ok = crypto_manager.attempt_cloud_recovery_if_needed()
+            steps.append(f"Encryption key: {'✅ Recovered' if key_ok else '❌ Failed — new key generated'}")
+            if not key_ok:
+                success = False
+    
+            # Step 3 — Logs + forensics
+            self.root.after(0, lambda: self.cloud_progress_var.set("Step 3/4: Restoring logs & forensics…"))
+            r3 = cloud_sync.restore_logs_and_forensics(machine_id)
+            steps.append(f"Logs/Forensics: {r3['restored']} files restored")
+    
+            # Step 4 — Reload auth database
+            self.root.after(0, lambda: self.cloud_progress_var.set("Step 4/4: Reloading account database…"))
+            try:
+                if auth:
+                    auth._load_users()
+                steps.append("Account database: ✅ Reloaded")
+            except Exception as e:
+                steps.append(f"Account database: ❌ {e}")
+    
+            # ── Report ────────────────────────────────────────────────────────
+            summary = "\n".join(steps)
+            if success:
+                final_msg = f"✅ Disaster recovery complete.\n\n{summary}\n\nPlease restart FMSecure."
+                self.root.after(0, lambda: self.cloud_progress_var.set("✅ Recovery complete — restart FMSecure"))
+            else:
+                final_msg = (f"⚠️ Partial recovery.\n\n{summary}\n\n"
+                            "Encryption key could not be recovered — a new key was generated.\n"
+                            "Old encrypted data is unrecoverable.\n"
+                            "Please create a new admin account.")
+                self.root.after(0, lambda: self.cloud_progress_var.set("⚠️ Partial recovery — see details"))
+    
+            self.root.after(0, lambda: messagebox.showinfo("Disaster Recovery", final_msg))
+            self.root.after(0, lambda: self._append_log(f"DISASTER RECOVERY COMPLETE:\n{summary}"))
+    
+        threading.Thread(target=_do_recovery, daemon=True).start()
+    
+        
+    
     # ── Toggle handlers (call original core methods, then sync toggle UI) ──
 
     def _toggle_active_defense(self):
@@ -5622,6 +5755,7 @@ def main():
         # --- NEW: Initialize CustomTkinter Engine ---
         ctk.set_appearance_mode("dark")  # Modes: "System" (standard), "Dark", "Light"
         ctk.set_default_color_theme("blue")  # Themes: "blue" (standard), "green", "dark-blue"
+        
         
         root = ctk.CTk() # Replaces tk.Tk()
         app = ProIntegrityGUI(root, user_role='admin', username='Admin')

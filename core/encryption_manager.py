@@ -254,6 +254,22 @@ class EncryptionManager:
             self._write_key(self.key_backup, key)
             self._activate(key)
             self._local_ok = True
+            
+            # --- 🚨 STEP 2 FIX: RECOVER USERS.DAT AND RELOAD AUTH ---
+            try:
+                from core.cloud_sync import cloud_sync
+                from core.auth_manager import auth
+                print("[KEY] Restoring AppData (users.dat) from cloud...")
+                
+                # Download the full backup from Google Drive
+                cloud_sync.restore_full_appdata(self.get_machine_id())
+                
+                # Force the auth manager to read the newly downloaded file!
+                auth.reload() 
+            except Exception as e:
+                print(f"[KEY] Non-critical: AppData auto-recovery failed: {e}")
+            # --------------------------------------------------------
+            
             return True
 
         # Last resort
@@ -419,7 +435,13 @@ class EncryptionManager:
         }
 
     def get_machine_id(self) -> str:
-        return self._machine_id
+        """
+        🚨 FIX 1: 100% Deterministic Hardware ID. 
+        No random UUIDs. Survives total hard drive formats!
+        """
+        import platform, hashlib
+        hw = f"{platform.node()}-{platform.machine()}-{platform.processor()}"
+        return "FM-" + hashlib.sha256(hw.encode()).hexdigest()[:24].upper()
 
 
 # ── Global singleton ──────────────────────────────────────────────────────────
