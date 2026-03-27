@@ -21,11 +21,19 @@ class AuthManager:
 
     def _load_users(self):
         if not os.path.exists(USERS_DB_FILE):
-            self._save_db(); return
+            self._save_db()
+            return
         data = crypto_manager.decrypt_json(USERS_DB_FILE)
         if data is None:
-            print("SECURITY ALERT: users.dat tampered. Starting fresh.")
-            self.users = {}; self._save_db()
+            # Decryption failed — key mismatch.
+            # DO NOT silently start fresh here.
+            # The startup patch above will handle this case properly
+            # by showing a warning and clearing data only when a new
+            # key was genuinely generated (not just temporarily missing).
+            print("[AUTH] SECURITY: users.dat could not be decrypted.")
+            print("[AUTH] If this is unexpected, check key recovery status.")
+            self.users = {}
+            # Do NOT call _save_db() here — that would overwrite with empty!
         else:
             self.users = data
 
@@ -137,6 +145,21 @@ class AuthManager:
             self.users[username]["license_key"] = clean_key
             self.users[username]["tier"] = tier
             self._save_db()
+            # --- 🚨 STEP 4: THE INSTANT UPLOAD TRIGGER ---
+            try:
+                from core.integrity_core import CONFIG, save_config
+                from core.encryption_manager import crypto_manager
+                
+                # 1. Permanently save PRO status to disk so it survives restarts
+                CONFIG["is_pro_user"] = True
+                save_config()
+                
+                # 2. Blast the key to the Master Keyring on Google Drive instantly!
+                crypto_manager.force_key_backup()
+            except Exception as e:
+                print(f"[AUTH] Non-critical warning: Instant key backup failed: {e}")
+            # -------------------------------------------------------------
+
             tier_label = "PRO Monthly" if "monthly" in tier else "PRO Annual" if "annual" in tier else tier.upper()
             return True, f"Success! Upgraded to {tier_label}."
         else:

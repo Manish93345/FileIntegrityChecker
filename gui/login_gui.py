@@ -35,7 +35,28 @@ from core.email_service import email_service
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
-
+def _clear_unreadable_data():
+    """
+    Remove data files that were encrypted with the old (lost) key.
+    Called only when a brand-new encryption key was generated.
+    """
+    import os
+    from core.utils import get_app_data_dir
+    log_dir = os.path.join(get_app_data_dir(), "logs")
+    files_to_clear = [
+        os.path.join(log_dir, "users.dat"),
+        os.path.join(log_dir, "integrity_log.dat"),
+        os.path.join(log_dir, "hash_records.dat"),
+        os.path.join(log_dir, "integrity_log.sig"),
+        os.path.join(log_dir, "hash_records.sig"),
+    ]
+    for f in files_to_clear:
+        try:
+            if os.path.exists(f):
+                os.remove(f)
+                print(f"[STARTUP] Cleared unreadable file: {f}")
+        except Exception as e:
+            print(f"[STARTUP] Could not clear {f}: {e}")
 # ----------------------------------------------------------------------
 # BruteForceGuard (unchanged)
 # ----------------------------------------------------------------------
@@ -238,6 +259,29 @@ class LoginWindow:
         # self.root = tk.Tk()
         self.root = ctk.CTk()
         self.root.title("FMSecure v2.0 - Security Portal")
+
+        # ── KEY RESILIENCE: Phase 2 cloud recovery ──────────────────
+        # Must run AFTER cloud_sync is imported (which happens on the
+        # line above via `from core.auth_manager import auth` which
+        # triggers encryption_manager → cloud_sync import chain).
+        # token.pickle is NOT encrypted, so cloud auth works here
+        # even if the user database is currently unreadable.
+        from core.encryption_manager import crypto_manager
+        key_recovered = crypto_manager.attempt_cloud_recovery_if_needed()
+        if not key_recovered:
+            # A brand-new key was generated — all old data is gone.
+            # Force the registration screen regardless of what's on disk.
+            import tkinter.messagebox as mb
+            mb.showwarning(
+                "Encryption Key Lost",
+                "Your encryption key could not be recovered from any backup.\n\n"
+                "A new key has been generated. For security, all previous data\n"
+                "(accounts, logs) has been cleared.\n\n"
+                "Please create a new admin account to continue."
+            )
+            # Clear the corrupt/unreadable data files so the app starts clean
+            _clear_unreadable_data()
+        # ────────────────────────────────────────────────────────────
         
         # --- 🚨 INJECT THE WINDOWS TASKBAR ICON ---
         try:

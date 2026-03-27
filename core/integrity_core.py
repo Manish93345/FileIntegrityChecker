@@ -44,6 +44,15 @@ else:
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(CONFIG, f, indent=4)
 
+# --- 🚨 FIX 2: ADD THIS FUNCTION TO SAVE CONFIG TO DISK ---
+def save_config():
+    """Persist the global CONFIG to disk so it survives restarts."""
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(CONFIG, f, indent=4)
+    except Exception as e:
+        print(f"Failed to save config: {e}")
+
 
 SEVERITY_COUNTER_FILE = os.path.join("logs", "severity_counters.json")
 
