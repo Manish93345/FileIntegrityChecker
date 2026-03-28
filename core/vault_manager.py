@@ -101,8 +101,8 @@ class VaultManager:
         try:
             from core.integrity_core import CONFIG
             
-            # 1. Obey the Active Defense GUI toggle
-            if not CONFIG.get("active_defense_enabled", False):
+            # 1. Obey the Active Defense GUI toggle (FIXED KEY NAME)
+            if not CONFIG.get("active_defense", False):
                 return False, "Active Defense is disabled."
                 
             # 2. Obey the PRO Tier requirement
@@ -110,6 +110,7 @@ class VaultManager:
                 return False, "Forensic Vault requires PRO Tier."
         except Exception:
             pass
+        # ---------------------------------------------------------
             
         from core.encryption_manager import crypto_manager
 
@@ -150,8 +151,8 @@ class VaultManager:
             return False, f"Local vault backup failed: {e}"
 
         # ── Cloud backup (background, non-blocking) ───────────────────────────
-        self._cloud_upload_async(vault_path)
-        self._backup_key_files_async()
+        # self._cloud_upload_async(vault_path)
+        # self._backup_key_files_async()
 
         return True, "File securely vaulted."
 
@@ -196,9 +197,23 @@ class VaultManager:
 
             with open(tmp_path, "wb") as f:
                 f.write(decrypted_data)
-            if os.path.exists(filepath):
-                os.remove(filepath)
-            os.rename(tmp_path, filepath)
+                
+            # --- 🚨 THE FIX: Windows File Lock Bypass ---
+            import time
+            success = False
+            for attempt in range(10):  # Try 10 times (up to 3 seconds)
+                try:
+                    if os.path.exists(filepath):
+                        os.remove(filepath)
+                    os.rename(tmp_path, filepath)
+                    success = True
+                    break
+                except (PermissionError, OSError):
+                    time.sleep(0.3)  # Wait 300ms for the other program to let go
+                    
+            if not success:
+                return False, "File is permanently locked by another program."
+            # --------------------------------------------
 
             return True, "File successfully restored."
 

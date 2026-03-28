@@ -1189,6 +1189,7 @@ class ProIntegrityGUI:
         for sev, clr in [('ALL',      C['text_muted']),
                           ('CRITICAL', SEVERITY_COLORS['CRITICAL']),
                           ('HIGH',     SEVERITY_COLORS['HIGH']),
+                          ('MEDIUM',   SEVERITY_COLORS['MEDIUM']), # 🚨 FIX 1: Added missing MEDIUM pill
                           ('INFO',     SEVERITY_COLORS['INFO'])]:
             pill = tk.Label(filter_frame, text=sev,
                             font=('Segoe UI', 8, 'bold'),
@@ -1327,11 +1328,17 @@ class ProIntegrityGUI:
 
         # --- 🚨 NEW: CLOUD PROGRESS LABEL ---
         self.cloud_progress_var = tk.StringVar(value="Status: Ready")
-        # Added wraplength=320 and justify='left' to prevent UI stretching
-        tk.Label(ci, textvariable=self.cloud_progress_var,
+        
+        # 🚨 FIX 1: Lock the label to fill the X axis, but dynamically wrap based on actual width
+        self.cloud_progress_lbl = tk.Label(ci, textvariable=self.cloud_progress_var,
                  font=('Consolas', 8),
                  bg=C['card_bg'], fg=C['accent_info'],
-                 wraplength=320, justify='left').pack(anchor='w', padx=12, pady=(5, 12))
+                 anchor='w', justify='left')
+        self.cloud_progress_lbl.pack(fill=tk.X, padx=12, pady=(5, 12))
+        
+        # This absolutely prevents Tkinter from resizing the parent frame
+        self.cloud_progress_lbl.bind('<Configure>', 
+            lambda e: self.cloud_progress_lbl.configure(wraplength=max(150, e.width - 10)))
 
         # Audit log viewer button
         sep = tk.Frame(parent, height=1, bg=C['divider'])
@@ -1918,7 +1925,13 @@ class ProIntegrityGUI:
         def _on_file_done(ok=True, fname=""):
             grand_done[0] += 1
             icon  = "✅" if ok else "❌"
-            label = f"{icon} [{grand_done[0]}/{grand_total}] {fname}"
+            
+            # 🚨 FIX 2: Smart Truncation for massive filenames (like SHA256 hashes)
+            display_name = fname
+            if len(fname) > 30:
+                display_name = fname[:13] + "..." + fname[-13:]
+                
+            label = f"{icon} [{grand_done[0]}/{grand_total}] {display_name}"
             self.root.after(0, lambda l=label: self.cloud_progress_var.set(l))
  
         def _progress_cb(uploaded, total, filename):

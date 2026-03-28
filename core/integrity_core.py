@@ -330,8 +330,12 @@ def load_config(path=None):
 def append_log_line(message, event_type="INFO", severity="INFO"):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
+    # --- 🚨 FIX 2: INJECT SEVERITY EMOJI SO GUI CAN FILTER IT ---
+    color = SEVERITY_LEVELS.get(severity, {}).get("color", "")
+    sev_badge = f"[{color} {severity}]" if color else f"[{severity}]"
+    
     # 1. Format the plain text message
-    plain_text_log = f"{timestamp} - [ {event_type} ] {message}\n"
+    plain_text_log = f"{timestamp} - {sev_badge} [ {event_type} ] {message}\n"
     
     # 2. Encrypt the string
     encrypted_log = crypto_manager.encrypt_string(plain_text_log)
@@ -341,7 +345,10 @@ def append_log_line(message, event_type="INFO", severity="INFO"):
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(encrypted_log + "\n")
             
-        # --- THE FIX: Update the math counters so the GUI dashboard refreshes ---
+        # 🚨 FIX 3: Write the HMAC signature immediately so the Auto-Healer doesn't have to!
+        append_log_signature(f"{encrypted_log}|UNKNOWN|{severity}")
+        
+        # Update the math counters so the GUI dashboard refreshes
         update_severity_counter(severity)
         
         # Optional: Print plain text to terminal for your own debugging
@@ -553,11 +560,15 @@ def verify_log_signatures():
         
         if stored_sig == sig1: continue
 
-        # Strategy 2: Parse Severity from Text
+        # Strategy 2: Parse Severity from Decrypted Text
         parsed_sev = "INFO"
-        if "[🔴 CRITICAL]" in line: parsed_sev = "CRITICAL"
-        elif "[🟠 HIGH]" in line: parsed_sev = "HIGH"
-        elif "[🟡 MEDIUM]" in line: parsed_sev = "MEDIUM"
+        
+        # 🚨 FIX 4: You must DECRYPT the line before looking for the Emoji!
+        decrypted = crypto_manager.decrypt_string(line)
+        
+        if "[🔴 CRITICAL]" in decrypted: parsed_sev = "CRITICAL"
+        elif "[🟠 HIGH]" in decrypted: parsed_sev = "HIGH"
+        elif "[🟡 MEDIUM]" in decrypted: parsed_sev = "MEDIUM"
         
         check2 = f"{line}|UNKNOWN|{parsed_sev}"
         sig2 = hmac.new(key, check2.encode("utf-8"), h_factory).hexdigest()
