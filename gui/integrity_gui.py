@@ -1312,9 +1312,11 @@ class ProIntegrityGUI:
 
         # --- 🚨 NEW: CLOUD PROGRESS LABEL ---
         self.cloud_progress_var = tk.StringVar(value="Status: Ready")
+        # Added wraplength=320 and justify='left' to prevent UI stretching
         tk.Label(ci, textvariable=self.cloud_progress_var,
                  font=('Consolas', 8),
-                 bg=C['card_bg'], fg=C['accent_info']).pack(anchor='w', padx=12, pady=(5, 12))
+                 bg=C['card_bg'], fg=C['accent_info'],
+                 wraplength=320, justify='left').pack(anchor='w', padx=12, pady=(5, 12))
 
         # Audit log viewer button
         sep = tk.Frame(parent, height=1, bg=C['divider'])

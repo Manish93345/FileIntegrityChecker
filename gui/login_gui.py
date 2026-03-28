@@ -261,24 +261,23 @@ class LoginWindow:
         self.root.title("FMSecure v2.0 - Security Portal")
 
         # ── KEY RESILIENCE: Phase 2 cloud recovery ──────────────────
-        # Must run AFTER cloud_sync is imported (which happens on the
-        # line above via `from core.auth_manager import auth` which
-        # triggers encryption_manager → cloud_sync import chain).
-        # token.pickle is NOT encrypted, so cloud auth works here
-        # even if the user database is currently unreadable.
         from core.encryption_manager import crypto_manager
         key_recovered = crypto_manager.attempt_cloud_recovery_if_needed()
         if not key_recovered:
-            # A brand-new key was generated — all old data is gone.
-            # Force the registration screen regardless of what's on disk.
-            import tkinter.messagebox as mb
-            mb.showwarning(
-                "Encryption Key Lost",
-                "Your encryption key could not be recovered from any backup.\n\n"
-                "A new key has been generated. For security, all previous data\n"
-                "(accounts, logs) has been cleared.\n\n"
-                "Please create a new admin account to continue."
-            )
+            # Check if this is a brand new install by looking for existing users
+            is_fresh_install = not auth.has_users()
+            
+            # Only show the scary warning if an EXISTING user just lost their key
+            if not is_fresh_install:
+                import tkinter.messagebox as mb
+                mb.showwarning(
+                    "Encryption Key Lost",
+                    "Your encryption key could not be recovered from any backup.\n\n"
+                    "A new key has been generated. For security, all previous data\n"
+                    "(accounts, logs) has been cleared.\n\n"
+                    "Please create a new admin account to continue."
+                )
+                
             # Clear the corrupt/unreadable data files so the app starts clean
             _clear_unreadable_data()
         # ────────────────────────────────────────────────────────────

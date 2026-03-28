@@ -1321,32 +1321,37 @@ class IntegrityHandler(FileSystemEventHandler):
 
             # 2. GENERATE FORENSIC SNAPSHOT
             snapshot_path = None
+            snapshot_result = None
             try:
-                from core.incident_snapshot import IncidentSnapshot
-                snapshot_path = IncidentSnapshot().generate_incident_snapshot(
+                from core.incident_snapshot import generate_incident_snapshot
+                snapshot_result = generate_incident_snapshot(
                     event_type="MASS_DELETION_BURST",
                     severity=severity,
                     message=message,
-                    additional_data={"deleted_files": casualties}
+                    affected_files=casualties
                 )
-                if snapshot_path:
+                if snapshot_result:
+                    snapshot_path = snapshot_result["filepath"]
                     message += f"\n[FORENSICS] System Snapshot securely captured."
             except Exception as e:
                 print(f"Snapshot generation error: {e}")
 
             # 3. BUILD AND SEND THE MASTER INCIDENT EMAIL
-            # Format a clean list of the first 15 files so the email is readable
-            file_list = "\n".join([f" - {os.path.basename(p)}" for p in casualties[:15]])
-            if count > 15:
-                file_list += f"\n ... and {count - 15} more files."
-
-            full_alert_msg = f"{message}\n\nCASUALTY LIST:\n{file_list}"
+            # If snapshot succeeded, it provides a perfectly formatted email block
+            if snapshot_result:
+                full_alert_msg = f"{message}\n\n{snapshot_result['email_summary']}"
+            else:
+                # Fallback text format if snapshot fails
+                file_list = "\n".join([f" - {os.path.basename(p)}" for p in casualties[:15]])
+                if count > 15:
+                    file_list += f"\n ... and {count - 15} more files."
+                full_alert_msg = f"{message}\n\nCASUALTY LIST:\n{file_list}"
 
             # Write to encrypted log, notify GUI, and send EXACTLY ONE email/webhook
             append_log_line(f"BURST DELETE DETECTED: {count} files", event_type="BURST_OPERATION", severity=severity)
             self._notify_gui("BURST_OPERATION", f"{count} Files Deleted", severity)
             
-            # Passing snapshot_path preps us for the email attachment upgrade!
+            # Send webhook (with the snapshot_path so email_service attaches it properly)
             send_webhook_safe("RANSOMWARE_BURST", full_alert_msg, filepath=snapshot_path, severity=severity)
 
         # --- BRANCH B: NORMAL FILE DELETION ---

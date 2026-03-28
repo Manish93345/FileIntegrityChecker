@@ -125,13 +125,8 @@ class AutoResponseEngine:
             
             # Generate incident snapshot - FIXED
             try:
-                # Check if incident_snapshot is available
-                if 'incident_snapshot' in sys.modules:
-                    from .incident_snapshot import generate_incident_snapshot
-            except ImportError:
                 from core.incident_snapshot import generate_incident_snapshot
                 
-                # Prepare snapshot data
                 snapshot_data = {
                     "event_type": event_type,
                     "severity": "HIGH",
@@ -143,15 +138,16 @@ class AutoResponseEngine:
                 }
                 
                 # Generate snapshot
-                snapshot_file = generate_incident_snapshot(
+                snapshot_result = generate_incident_snapshot(
                     event_type=event_type,
                     severity="HIGH",
                     message=message,
-                    affected_file=file_path,
+                    affected_files=[file_path] if file_path else [],
                     additional_data=snapshot_data
                 )
                 
-                if snapshot_file:
+                if snapshot_result:
+                    snapshot_file = snapshot_result["filepath"]
                     append_log_line(f"Incident snapshot created: {os.path.basename(snapshot_file)}", 
                                 event_type="INCIDENT_SNAPSHOT_CREATED",
                                 severity="INFO")
@@ -159,10 +155,6 @@ class AutoResponseEngine:
                     append_log_line(f"Failed to create snapshot for {event_type}", 
                                 event_type="SNAPSHOT_FAILED",
                                 severity="MEDIUM")
-            except ImportError as e:
-                append_log_line(f"Cannot generate snapshot: {e}", 
-                            event_type="SNAPSHOT_MODULE_MISSING",
-                            severity="MEDIUM")
             except Exception as e:
                 append_log_line(f"Snapshot error: {e}", 
                             event_type="SNAPSHOT_ERROR",
