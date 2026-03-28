@@ -503,12 +503,19 @@ class ProIntegrityGUI:
 
         # Also sanitize the live backend CONFIG so the engine doesn't silently run Pro features
         if not is_pro:
+            # 🚨 FIX: Remove Ghost Locks for downgraded users before stripping their config
+            if CONFIG.get('usb_readonly', False):
+                try:
+                    from core.usb_policy import set_usb_read_only
+                    set_usb_read_only(enable=False)
+                except Exception as e:
+                    print(f"Failed to revert USB OS lock: {e}")
+
             CONFIG['active_defense'] = False
             CONFIG['ransomware_killswitch'] = False
             CONFIG['usb_readonly'] = False
             
             # 🚨 FIX: Save this disabled state to the hard drive immediately!
-            # This prevents load_config() from undoing our work when the monitor starts.
             try:
                 from core.integrity_core import save_config
                 save_config()
@@ -2141,6 +2148,28 @@ class ProIntegrityGUI:
                 
             load_config(CONFIG_FILE)
             self._append_log(f'Active Defense {"ENABLED" if new_state else "DISABLED"} by {self.username}')
+            
+            # 🚨 FIX: Retroactively backup files if turned ON mid-session
+            if new_state and getattr(self, 'monitor_running', False) and self.monitor and hasattr(self.monitor, 'handler'):
+                def _sync_vault():
+                    try:
+                        self._append_log("Syncing existing files to Secure Vault...")
+                        from core.vault_manager import vault
+                        _allowed = CONFIG.get("vault_allowed_exts") or None
+                        records = self.monitor.handler.records
+                        count = 0
+                        for path in list(records.keys()):
+                            vault.backup_file(path, CONFIG.get("vault_max_size_mb", 10), _allowed)
+                            count += 1
+                        
+                        # Use .after() to safely update the GUI from the background thread
+                        self.root.after(0, lambda: self._append_log(f"Vault sync complete. {count} files protected."))
+                    except Exception as e:
+                        print(f"Vault sync error: {e}")
+                
+                import threading
+                threading.Thread(target=_sync_vault, daemon=True).start()
+
         except Exception as e:
             print(f'Active defense toggle error: {e}')
 

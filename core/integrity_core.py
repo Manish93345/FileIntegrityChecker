@@ -1200,11 +1200,9 @@ class IntegrityHandler(FileSystemEventHandler):
             new_attrs = details["attrs"]
             
             # --- THE INFINITE LOOP FIX: ACTIVE DEFENSE INTERCEPT ---
-            # ONLY trigger Active Defense if the actual file CONTENT changed.
-            # (If just the 'mtime' metadata changed, we ignore it to prevent loops!)
-            # --- THE INFINITE LOOP FIX: ACTIVE DEFENSE INTERCEPT ---
             if old_content and old_content != new_content:
-                if CONFIG.get("active_defense", False):
+                # 🚨 FIX: Double-check PRO status here as well
+                if CONFIG.get("active_defense", False) and CONFIG.get("is_pro_user", False):
                     from core.vault_manager import vault
                     success, msg = vault.restore_file(path)
                     if success:
@@ -1222,11 +1220,12 @@ class IntegrityHandler(FileSystemEventHandler):
                             }
                             self.save_records()
                             
-                        # --- FIX: KILLSWITCH BYPASS ---
-                        # Report this attack to the burst tracker BEFORE we return!
                         self._check_burst_operations("MODIFY", path)
-                        
-                        return # Stop here! Do not log a normal modification.
+                        return 
+                    else:
+                        # 🚨 FIX: Log modification restore failures
+                        append_log_line(f"ACTIVE DEFENSE FAILED: Could not restore {path} ({msg})", severity="HIGH")
+
             # ... (Existing log_detail logic for metadata or normal modifications)
             log_detail = ""
             if old_content and old_content == new_content:
@@ -1261,15 +1260,18 @@ class IntegrityHandler(FileSystemEventHandler):
         
         # 1. ACTIVE DEFENSE INTERCEPT (Heals the file instantly)
         if path in self.records:
-            if CONFIG.get("active_defense", False):
+            # 🚨 FIX: Force backend to verify PRO status, preventing config tampering
+            if CONFIG.get("active_defense", False) and CONFIG.get("is_pro_user", False):
                 from core.vault_manager import vault
                 success, msg = vault.restore_file(path)
                 if success:
                     append_log_line(f"RESTORED: {path} (Malicious deletion reverted!)", event_type="RESTORED", severity="INFO")
                     self._notify_gui("RESTORED", path, "INFO")
-                    # Send to generic burst tracker since we aren't queuing restored files
                     self._check_burst_operations("DELETE", path)
                     return 
+                else:
+                    # 🚨 FIX: Log failures instead of silently allowing the deletion
+                    append_log_line(f"ACTIVE DEFENSE FAILED: Vault empty for {path}", severity="HIGH") 
             
             # 2. NORMAL DELETION (Remove from database)
             self.records.pop(path, None)
