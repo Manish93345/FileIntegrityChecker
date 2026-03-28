@@ -1308,51 +1308,62 @@ class IntegrityHandler(FileSystemEventHandler):
 
         # --- BRANCH A: RANSOMWARE BURST DETECTED ---
         if count >= self.burst_threshold:
-            severity = "CRITICAL"
-            message = f"🚨 RANSOMWARE BEHAVIOR DETECTED! ({count} files rapidly deleted)"
             
-            # 1. TRIGGER OS KILLSWITCH
+            # 🚨 FIX: Ensure ALL premium features only run if Killswitch is ON
             if CONFIG.get("ransomware_killswitch", False):
+                severity = "CRITICAL"
+                message = f"🚨 RANSOMWARE BEHAVIOR DETECTED! ({count} files rapidly deleted)"
+                
+                # 1. TRIGGER OS KILLSWITCH
                 from core.lockdown_manager import lockdown
                 for folder in self.watch_folders:
                     success, msg = lockdown.trigger_killswitch(folder)
                     if success:
                         message += f"\n[KILLSWITCH ENGAGED] Write access revoked for: {folder}"
 
-            # 2. GENERATE FORENSIC SNAPSHOT
-            snapshot_path = None
-            snapshot_result = None
-            try:
-                from core.incident_snapshot import generate_incident_snapshot
-                snapshot_result = generate_incident_snapshot(
-                    event_type="MASS_DELETION_BURST",
-                    severity=severity,
-                    message=message,
-                    affected_files=casualties
-                )
-                if snapshot_result:
-                    snapshot_path = snapshot_result["filepath"]
-                    message += f"\n[FORENSICS] System Snapshot securely captured."
-            except Exception as e:
-                print(f"Snapshot generation error: {e}")
+                # 2. GENERATE FORENSIC SNAPSHOT
+                snapshot_path = None
+                snapshot_result = None
+                try:
+                    from core.incident_snapshot import generate_incident_snapshot
+                    snapshot_result = generate_incident_snapshot(
+                        event_type="MASS_DELETION_BURST",
+                        severity=severity,
+                        message=message,
+                        affected_files=casualties
+                    )
+                    if snapshot_result:
+                        snapshot_path = snapshot_result["filepath"]
+                        message += f"\n[FORENSICS] System Snapshot securely captured."
+                except Exception as e:
+                    print(f"Snapshot generation error: {e}")
 
-            # 3. BUILD AND SEND THE MASTER INCIDENT EMAIL
-            # If snapshot succeeded, it provides a perfectly formatted email block
-            if snapshot_result:
-                full_alert_msg = f"{message}\n\n{snapshot_result['email_summary']}"
+                # 3. BUILD AND SEND THE MASTER INCIDENT EMAIL
+                if snapshot_result:
+                    full_alert_msg = f"{message}\n\n{snapshot_result['email_summary']}"
+                else:
+                    file_list = "\n".join([f" - {os.path.basename(p)}" for p in casualties[:15]])
+                    if count > 15:
+                        file_list += f"\n ... and {count - 15} more files."
+                    full_alert_msg = f"{message}\n\nCASUALTY LIST:\n{file_list}"
+
+                # Write to encrypted log, notify GUI, and send email
+                append_log_line(f"BURST DELETE DETECTED: {count} files", event_type="BURST_OPERATION", severity=severity)
+                self._notify_gui("BURST_OPERATION", f"{count} Files Deleted", severity)
+                send_webhook_safe("RANSOMWARE_BURST", full_alert_msg, filepath=snapshot_path, severity=severity)
+
             else:
-                # Fallback text format if snapshot fails
+                # 🆓 FREE USER BEHAVIOR: Standard logging without lockdown or forensics
+                severity = "HIGH"
+                message = f"Multiple deletions detected ({count} files)."
                 file_list = "\n".join([f" - {os.path.basename(p)}" for p in casualties[:15]])
                 if count > 15:
                     file_list += f"\n ... and {count - 15} more files."
-                full_alert_msg = f"{message}\n\nCASUALTY LIST:\n{file_list}"
+                full_alert_msg = f"{message}\n\nDELETED FILES:\n{file_list}"
 
-            # Write to encrypted log, notify GUI, and send EXACTLY ONE email/webhook
-            append_log_line(f"BURST DELETE DETECTED: {count} files", event_type="BURST_OPERATION", severity=severity)
-            self._notify_gui("BURST_OPERATION", f"{count} Files Deleted", severity)
-            
-            # Send webhook (with the snapshot_path so email_service attaches it properly)
-            send_webhook_safe("RANSOMWARE_BURST", full_alert_msg, filepath=snapshot_path, severity=severity)
+                append_log_line(f"MULTIPLE DELETES: {count} files", event_type="MULTIPLE_DELETES", severity=severity)
+                self._notify_gui("MULTIPLE_DELETES", f"{count} Files Deleted", severity)
+                send_webhook_safe("MULTIPLE_DELETES", full_alert_msg, filepath=None, severity=severity)
 
         # --- BRANCH B: NORMAL FILE DELETION ---
         else:

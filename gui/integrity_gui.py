@@ -506,6 +506,14 @@ class ProIntegrityGUI:
             CONFIG['active_defense'] = False
             CONFIG['ransomware_killswitch'] = False
             CONFIG['usb_readonly'] = False
+            
+            # 🚨 FIX: Save this disabled state to the hard drive immediately!
+            # This prevents load_config() from undoing our work when the monitor starts.
+            try:
+                from core.integrity_core import save_config
+                save_config()
+            except Exception as e:
+                print(f"Failed to save sanitized config: {e}")
         # -------------------------------
 
         self._configure_styles()
