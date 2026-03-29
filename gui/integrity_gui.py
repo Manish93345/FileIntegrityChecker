@@ -1325,6 +1325,10 @@ class ProIntegrityGUI:
         _ActionButton(cloud_btns, '🔄  Full Disaster Recovery',
                   self._disaster_recovery_restore,
                   C['accent_danger'], font_size=9).pack(fill=tk.X, pady=2)
+ 
+        _ActionButton(cloud_btns, '📁  Restore Folder Structure',
+                  self._open_folder_structure_restore,
+                  C['accent_secondary'], font_size=9).pack(fill=tk.X, pady=2)
 
         # --- 🚨 NEW: CLOUD PROGRESS LABEL ---
         self.cloud_progress_var = tk.StringVar(value="Status: Ready")
@@ -1970,7 +1974,10 @@ class ProIntegrityGUI:
             except Exception as e:
                 print(f"[SYNC] Key backup error: {e}")
  
-            # 5. Update manifest with current email/tier metadata
+            # 5. Folder structure backup (per watched folder, PRO only)
+            self._backup_folder_structures(on_file_done_cb=_on_file_done)
+ 
+            # 6. Update manifest with current email/tier metadata
             try:
                 cloud_sync._update_manifest(machine_id)
             except Exception:
@@ -2012,6 +2019,408 @@ class ProIntegrityGUI:
                 messagebox.showinfo('Cloud Restore', 'Vault restore started in background.')
         except Exception as e:
             messagebox.showinfo('Cloud Restore', f'Error: {e}')
+
+        
+    def _open_folder_structure_restore(self):
+        """
+        Opens the Folder Structure Restore wizard (PRO only).
+        Lets the user pick a backed-up folder and restore it to the
+        original location or a new location.
+        Shows a warning list of files that could not be restored due to
+        size / extension limits.
+        """
+        from tkinter import messagebox, filedialog
+        import threading
+ 
+        # ── PRO gate ──────────────────────────────────────────────────────────
+        tier = "free"
+        if auth:
+            tier = auth.get_user_tier(self.username)
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "pro_monthly"
+        if not subscription_manager.is_pro(tier):
+            messagebox.showwarning(
+                "⭐ Premium Feature",
+                "📁  Folder Structure Restore is a PRO feature.\\n\\n"
+                "Activate a License Key to unlock it.")
+            return
+ 
+        from core.cloud_sync import cloud_sync
+        if not cloud_sync.is_active:
+            messagebox.showerror(
+                "Cloud Offline",
+                "Google Drive is not connected.\\n\\n"
+                "Please ensure credentials.json is present and re-launch.")
+            return
+ 
+        C   = self.colors
+        win = tk.Toplevel(self.root)
+        win.title("Folder Structure Restore — FMSecure PRO")
+        win.geometry("880x660")
+        win.configure(bg=C['bg'])
+        win.transient(self.root)
+        win.resizable(True, True)
+ 
+        # ── Header ────────────────────────────────────────────────────────────
+        hdr = tk.Frame(win, bg=C['header_bg'], height=54)
+        hdr.pack(fill=tk.X)
+        hdr.pack_propagate(False)
+        tk.Label(hdr, text="📁  Folder Structure Restore",
+                 font=('Segoe UI', 15, 'bold'),
+                 bg=C['header_bg'], fg=C['accent_secondary']).pack(
+            side=tk.LEFT, padx=20, pady=14)
+        tk.Label(hdr,
+                 text="Recover your complete folder hierarchy from Google Drive  ·  PRO",
+                 font=('Segoe UI', 9),
+                 bg=C['header_bg'], fg=C['text_muted']).pack(
+            side=tk.LEFT, padx=8, pady=14)
+        tk.Frame(win, height=1, bg=C['divider']).pack(fill=tk.X)
+ 
+        # ── Body: left list + right detail ────────────────────────────────────
+        body = tk.Frame(win, bg=C['bg'])
+        body.pack(fill=tk.BOTH, expand=True, padx=16, pady=16)
+ 
+        # Left pane
+        left = tk.Frame(body, bg=C['card_bg'],
+                        highlightbackground=C['card_border'],
+                        highlightthickness=1, width=300)
+        left.pack(side=tk.LEFT, fill=tk.Y)
+        left.pack_propagate(False)
+ 
+        tk.Label(left, text="Cloud Backups",
+                 font=('Segoe UI', 10, 'bold'),
+                 bg=C['card_bg'], fg=C['text_primary']).pack(
+            anchor='w', padx=14, pady=(12, 2))
+        tk.Label(left,
+                 text="Each entry = one monitored folder snapshot",
+                 font=('Segoe UI', 8),
+                 bg=C['card_bg'], fg=C['text_muted']).pack(anchor='w', padx=14)
+        tk.Frame(left, height=1, bg=C['divider']).pack(fill=tk.X, pady=6)
+ 
+        backup_list = tk.Listbox(
+            left,
+            bg=C['input_bg'], fg=C['text_primary'],
+            selectbackground=C['accent_secondary'],
+            selectforeground='#ffffff',
+            font=('Segoe UI', 9), relief='flat',
+            activestyle='none', highlightthickness=0)
+        backup_list.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+ 
+        # Right pane
+        right = tk.Frame(body, bg=C['card_bg'],
+                         highlightbackground=C['card_border'],
+                         highlightthickness=1)
+        right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(12, 0))
+ 
+        detail_hdr = tk.Frame(right, bg=C['card_bg'])
+        detail_hdr.pack(fill=tk.X, padx=14, pady=(12, 4))
+        detail_title = tk.Label(
+            detail_hdr, text="Select a backup to see details",
+            font=('Segoe UI', 11, 'bold'),
+            bg=C['card_bg'], fg=C['text_primary'])
+        detail_title.pack(side=tk.LEFT)
+        tk.Frame(right, height=1, bg=C['divider']).pack(fill=tk.X)
+ 
+        # Stats row
+        stats_frame = tk.Frame(right, bg=C['card_bg'])
+        stats_frame.pack(fill=tk.X, padx=14, pady=10)
+        stat_vars = {
+            "Source Folder": tk.StringVar(value="—"),
+            "Files Backed Up": tk.StringVar(value="—"),
+            "Files Skipped":   tk.StringVar(value="—"),
+            "Snapshot Date":   tk.StringVar(value="—"),
+        }
+        for col_idx, (lbl, var) in enumerate(stat_vars.items()):
+            cell = tk.Frame(stats_frame, bg=C['card_bg'])
+            cell.grid(row=0, column=col_idx, padx=10, sticky='w')
+            stats_frame.columnconfigure(col_idx, weight=1)
+            tk.Label(cell, text=lbl, font=('Segoe UI', 8),
+                     bg=C['card_bg'], fg=C['text_muted']).pack(anchor='w')
+            tk.Label(cell, textvariable=var,
+                     font=('Segoe UI', 10, 'bold'),
+                     bg=C['card_bg'], fg=C['text_primary']).pack(anchor='w')
+ 
+        tk.Frame(right, height=1, bg=C['divider']).pack(fill=tk.X)
+ 
+        # ── Skipped-files warning ─────────────────────────────────────────────
+        warn_outer = tk.Frame(right, bg=C['card_bg'])
+        warn_outer.pack(fill=tk.X, padx=14, pady=(8, 0))
+ 
+        warn_title = tk.Label(
+            warn_outer,
+            text="⚠  Files that CANNOT be restored "
+                 "(skipped during backup — too large or wrong extension):",
+            font=('Segoe UI', 9, 'bold'),
+            bg=C['card_bg'], fg=C['accent_warning'])
+ 
+        import tkinter.scrolledtext as _st
+        skip_box = _st.ScrolledText(
+            warn_outer, height=4,
+            bg=C['input_bg'], fg=C['accent_warning'],
+            font=('Consolas', 8), relief='flat',
+            state='disabled', wrap=tk.WORD)
+ 
+        # hidden until a backup is selected
+        warn_title.pack_forget()
+        skip_box.pack_forget()
+ 
+        # ── Restore destination ───────────────────────────────────────────────
+        dest_outer = tk.Frame(right, bg=C['card_bg'])
+        dest_outer.pack(fill=tk.X, padx=14, pady=10)
+ 
+        tk.Label(dest_outer, text="Restore Destination:",
+                 font=('Segoe UI', 10, 'bold'),
+                 bg=C['card_bg'], fg=C['text_primary']).pack(anchor='w')
+ 
+        dest_mode = tk.StringVar(value="original")
+        rb_row = tk.Frame(dest_outer, bg=C['card_bg'])
+        rb_row.pack(fill=tk.X, pady=4)
+        for txt, val in [("Original location (recreate in-place)",  "original"),
+                         ("Choose a new location",                   "new")]:
+            tk.Radiobutton(rb_row, text=txt,
+                           variable=dest_mode, value=val,
+                           bg=C['card_bg'], fg=C['text_primary'],
+                           selectcolor=C['input_bg'],
+                           activebackground=C['card_bg'],
+                           font=('Segoe UI', 9)).pack(
+                side=tk.LEFT, padx=(0, 20))
+ 
+        new_loc_row = tk.Frame(dest_outer, bg=C['card_bg'])
+        new_loc_row.pack(fill=tk.X, pady=(2, 0))
+        new_loc_var = tk.StringVar(value="")
+        new_loc_entry = tk.Entry(
+            new_loc_row, textvariable=new_loc_var,
+            font=('Segoe UI', 9),
+            bg=C['input_bg'], fg=C['text_primary'],
+            relief='flat', highlightthickness=1,
+            highlightbackground=C['input_border'])
+        new_loc_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+ 
+        def _browse():
+            d = filedialog.askdirectory(title="Select Restore Destination")
+            if d:
+                new_loc_var.set(d)
+ 
+        tk.Button(new_loc_row, text="Browse…", command=_browse,
+                  font=('Segoe UI', 8),
+                  bg=C['button_bg'], fg=C['text_secondary'],
+                  bd=0, padx=8, pady=4, cursor='hand2').pack(
+            side=tk.LEFT, padx=(6, 0))
+ 
+        # ── Progress label ────────────────────────────────────────────────────
+        tk.Frame(right, height=1, bg=C['divider']).pack(fill=tk.X, pady=(8, 0))
+        progress_var = tk.StringVar(value="Loading backups from Google Drive…")
+        tk.Label(right, textvariable=progress_var,
+                 font=('Consolas', 8),
+                 bg=C['card_bg'], fg=C['accent_info'],
+                 anchor='w', wraplength=520, justify='left').pack(
+            fill=tk.X, padx=14, pady=6)
+        tk.Frame(right, height=1, bg=C['divider']).pack(fill=tk.X)
+ 
+        # ── Action buttons ────────────────────────────────────────────────────
+        btn_row = tk.Frame(right, bg=C['card_bg'])
+        btn_row.pack(fill=tk.X, padx=14, pady=12)
+ 
+        # ── State ─────────────────────────────────────────────────────────────
+        _backups        = []
+        _selected       = [None]
+ 
+        def _on_select(event):
+            sel = backup_list.curselection()
+            if not sel:
+                return
+            b = _backups[sel[0]]
+            _selected[0] = b
+ 
+            stat_vars["Source Folder"].set(b.get("watch_root", "?"))
+            stat_vars["Files Backed Up"].set(f"{b.get('file_count', 0)} files")
+            stat_vars["Files Skipped"].set(f"{b.get('skipped_count', 0)} files")
+            raw = b.get("created_at", "?")
+            try:
+                from datetime import datetime as _dt
+                dt = _dt.fromisoformat(raw.replace("Z", "+00:00"))
+                stat_vars["Snapshot Date"].set(dt.strftime("%Y-%m-%d  %H:%M UTC"))
+            except Exception:
+                stat_vars["Snapshot Date"].set(raw[:16])
+            detail_title.configure(text=b.get("bucket_name", "?"))
+ 
+            skipped = b.get("manifest", {}).get("skipped", [])
+            if skipped:
+                warn_title.pack(anchor='w')
+                skip_box.pack(fill=tk.X, pady=(4, 0))
+                skip_box.configure(state='normal')
+                skip_box.delete('1.0', tk.END)
+                for s in skipped:
+                    skip_box.insert(
+                        tk.END,
+                        f"  ✗  {s.get('path','?')}  —  {s.get('reason','?')}\\n")
+                skip_box.configure(state='disabled')
+            else:
+                warn_title.pack_forget()
+                skip_box.pack_forget()
+ 
+        backup_list.bind("<<ListboxSelect>>", _on_select)
+ 
+        # ── Load backups ──────────────────────────────────────────────────────
+        def _load():
+            try:
+                from core.folder_structure_vault import folder_vault as fv
+                items = fv.list_available_backups()
+                def _populate():
+                    backup_list.delete(0, tk.END)
+                    _backups.clear()
+                    if not items:
+                        backup_list.insert(tk.END, "  No folder backups found in Drive")
+                        progress_var.set("No backups found. Use 'Sync to Cloud' first.")
+                        return
+                    _backups.extend(items)
+                    for item in items:
+                        root_lbl = os.path.basename(
+                            item.get("watch_root","?").rstrip("/\\\\")) or "?"
+                        date_lbl = item.get("created_at","?")[:10]
+                        progress_var.set(
+                            f"{len(items)} backup(s) found. Select one to restore.")
+                        backup_list.insert(
+                            tk.END, f"  📁 {root_lbl}   [{date_lbl}]")
+                win.after(0, _populate)
+            except Exception as exc:
+                win.after(0, lambda: progress_var.set(f"Error: {exc}"))
+ 
+        threading.Thread(target=_load, daemon=True).start()
+ 
+        # ── Restore handler ───────────────────────────────────────────────────
+        def _do_restore():
+            b = _selected[0]
+            if not b:
+                messagebox.showwarning(
+                    "Nothing Selected",
+                    "Please select a backup from the list first.")
+                return
+ 
+            mode = dest_mode.get()
+            if mode == "new":
+                dest = new_loc_var.get().strip()
+                if not dest:
+                    messagebox.showwarning(
+                        "Destination Required",
+                        "Please choose a destination folder or switch to "
+                        "'Original location'.")
+                    return
+                dest_label = dest
+            else:
+                dest       = ""
+                dest_label = b.get("watch_root", "original location")
+ 
+            if not messagebox.askyesno(
+                "Confirm Restore",
+                f"Restore  {b.get('file_count', 0)}  file(s) to:\\n\\n"
+                f"  {dest_label}\\n\\n"
+                f"Files that were skipped during backup (wrong extension or "
+                f"too large) cannot be recovered and are listed in the warning "
+                f"box above.\\n\\nContinue?"
+            ):
+                return
+ 
+            restore_btn.configure(state='disabled', text="Restoring…")
+            progress_var.set("Starting restore, please wait…")
+ 
+            def _run():
+                from core.folder_structure_vault import folder_vault as fv
+                total = b.get("file_count", 0)
+ 
+                def _cb(done, _total, fname):
+                    label = f"✅ [{done}/{total}] {fname[:50]}"
+                    win.after(0, lambda l=label: progress_var.set(l))
+ 
+                res = fv.restore_folder_structure(
+                    bucket_id   = b["bucket_id"],
+                    manifest    = b["manifest"],
+                    destination = dest,
+                    progress_cb = _cb,
+                )
+ 
+                def _finish():
+                    restore_btn.configure(state='normal',
+                                          text="🔄  Restore Files")
+                    skipped = res.get("skipped", [])
+                    failed  = res.get("failed",  [])
+ 
+                    progress_var.set(
+                        f"Done — {res['restored']} restored  ·  "
+                        f"{len(skipped)} skipped  ·  {len(failed)} failed")
+ 
+                    summary = (
+                        f"Restore complete!\\n\\n"
+                        f"  ✅  Restored : {res['restored']} files\\n"
+                        f"  ⚠   Skipped  : {len(skipped)} files "
+                        f"(not backed up — see warning list)\\n"
+                        f"  ❌  Failed   : {len(failed)} files\\n"
+                    )
+                    if failed:
+                        summary += "\\nFailed files:\\n"
+                        for f in failed[:8]:
+                            summary += f"  • {f['path']}  —  {f['error']}\\n"
+                        if len(failed) > 8:
+                            summary += f"  … and {len(failed)-8} more.\\n"
+ 
+                    messagebox.showinfo("Folder Restore Complete", summary)
+                    self._append_log(
+                        f"FOLDER STRUCTURE RESTORE: {res['restored']} files "
+                        f"→ {dest_label}  (bucket: {b.get('bucket_name','?')})")
+ 
+                win.after(0, _finish)
+ 
+            threading.Thread(target=_run, daemon=True).start()
+ 
+        restore_btn = tk.Button(
+            btn_row, text="🔄  Restore Files",
+            command=_do_restore,
+            font=('Segoe UI', 10, 'bold'),
+            bg=C['accent_secondary'], fg='#ffffff',
+            bd=0, padx=20, pady=8, cursor='hand2',
+            activebackground=C['accent_secondary'])
+        restore_btn.pack(side=tk.LEFT)
+ 
+        tk.Button(btn_row, text="Close",
+                  command=win.destroy,
+                  font=('Segoe UI', 10),
+                  bg=C['button_bg'], fg=C['text_secondary'],
+                  bd=0, padx=20, pady=8, cursor='hand2').pack(side=tk.RIGHT)
+ 
+    def _backup_folder_structures(self, on_file_done_cb=None):
+        """
+        Called inside _sync_to_cloud()'s background _do_sync() thread.
+        Iterates every watched folder and uploads its complete file structure.
+        on_file_done_cb(ok, fname) feeds the shared grand_done counter.
+        """
+        try:
+            from core.folder_structure_vault import folder_vault as fv
+            folders = list(self.folder_listbox.get(0, tk.END))
+            for wf in folders:
+                if not os.path.isdir(wf):
+                    continue
+                self.root.after(
+                    0, lambda f=wf: self.cloud_progress_var.set(
+                        f"📁 Backing up folder structure: "
+                        f"{os.path.basename(f)}…"))
+ 
+                def _cb(uploaded, total, fname,
+                        _cb_ref=on_file_done_cb):
+                    if _cb_ref:
+                        _cb_ref(ok=True, fname=fname)
+ 
+                result = fv.backup_folder_structure(wf, progress_cb=_cb)
+ 
+                for err in result.get("errors", []):
+                    print(f"[GUI][FSV] {wf}: {err}")
+ 
+                self._append_log(
+                    f"FOLDER STRUCTURE BACKUP: "
+                    f"{result['uploaded']} uploaded, "
+                    f"{len(result['skipped'])} skipped "
+                    f"from '{os.path.basename(wf)}'")
+        except Exception as exc:
+            print(f"[GUI] _backup_folder_structures error: {exc}")
 
 
     def _disaster_recovery_restore(self):

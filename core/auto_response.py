@@ -187,15 +187,21 @@ class AutoResponseEngine:
             )
             
             # 3. GENERATE SNAPSHOT (Guaranteed)
-            from core.incident_snapshot import generate_incident_snapshot
-            generate_incident_snapshot(
-                event_type=event_type,
-                severity="CRITICAL",
-                message=message,
-                affected_file=file_path
-            )
+            try:
+                from core.incident_snapshot import generate_incident_snapshot
+                generate_incident_snapshot(
+                    event_type=event_type,
+                    severity="CRITICAL",  # 🚨 FIX 2: Hardcoded to CRITICAL to prevent NameError
+                    message=message,
+                    affected_files=[file_path] # 🚨 FIX 3: Wrapped in brackets as expected
+                )
+            except Exception as snap_e:
+                print(f"Auto-Response Critical Snapshot Failed: {snap_e}")
             
-            return True
+            # 🚨 FIX 4: Correctly placed inside the main try block
+            return True 
+
+        # 🚨 FIX 1: This now properly closes the MAIN outer try block
         except Exception as e:
             print(f"Auto-Response Critical Failed: {e}")
             import traceback

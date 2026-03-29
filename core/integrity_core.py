@@ -899,10 +899,10 @@ class IntegrityHandler(FileSystemEventHandler):
         ok_logs, detail = verify_log_signatures()
         append_log_line("Startup: log signature OK" if ok_logs else f"Startup: log signature FAILED ({detail})")
         
-        if not os.path.exists(LOG_FILE):
-            atomic_write_text(LOG_FILE, f"{now_pretty()} - Log started\n")
-        if not os.path.exists(LOG_SIG_FILE):
-            atomic_write_text(LOG_SIG_FILE, "")
+        # if not os.path.exists(LOG_FILE):
+        #     atomic_write_text(LOG_FILE, f"{now_pretty()} - Log started\n")
+        # if not os.path.exists(LOG_SIG_FILE):
+        #     atomic_write_text(LOG_SIG_FILE, "")
 
         # Initial scan to populate missing files for ALL folders
         # Initial scan to populate missing files for ALL folders
@@ -1455,10 +1455,10 @@ class FileIntegrityMonitor:
 
         self.current_watch_folders = valid_folders 
 
-        if not os.path.exists(LOG_FILE):
-            atomic_write_text(LOG_FILE, f"{now_pretty()} - Log started\n")
-        if not os.path.exists(LOG_SIG_FILE):
-            atomic_write_text(LOG_SIG_FILE, "")
+        # if not os.path.exists(LOG_FILE):
+        #     atomic_write_text(LOG_FILE, f"{now_pretty()} - Log started\n")
+        # if not os.path.exists(LOG_SIG_FILE):
+        #     atomic_write_text(LOG_SIG_FILE, "")
 
         self.observer = Observer()
         self.handler = IntegrityHandler(watch_folders=valid_folders, callback=event_callback)
