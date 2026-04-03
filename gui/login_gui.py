@@ -332,15 +332,19 @@ class LoginWindow:
         # self._configure_styles()
 
         # --- THE SMART ROUTER (Builds UI invisibly in the background) ---
+        # At the end of __init__, replace the smart router block:
         if not auth.has_users():
-            self._build_register_ui()  
+            # Don't go straight to register — check for cloud backup first
+            # (runs after splash screen completes, so after root.deiconify())
+            self._show_splash_screen(on_complete=self._check_for_reinstall_backup)
         else:
-            self._build_login_ui()     
+            self._build_login_ui()
+            self._show_splash_screen()   
             
         # --- LAUNCH THE SPLASH SCREEN ---
         self._show_splash_screen()
 
-    def _show_splash_screen(self):
+    def _show_splash_screen(self, on_complete=None):
         """Displays a professional full-screen branding splash before the app loads"""
         splash = tk.Toplevel(self.root)
         splash.overrideredirect(True)  # Removes Windows borders and title bar
@@ -432,9 +436,13 @@ class LoginWindow:
                 
                 animate_chunk()
             else:
-                # Destroy splash and smoothly reveal the login window
-                splash.destroy()
-                self.root.deiconify()
+                def _finish():
+                    splash.destroy()
+                    self.root.deiconify()
+                    if on_complete:
+                        on_complete()
+
+                _finish()
                 
         # Kick off the dynamic animation
         process_next_step()
@@ -1306,6 +1314,182 @@ class LoginWindow:
         ).pack(pady=(0, 20))
  
         self.root.bind('<Return>', lambda e: _verify_pin())
+
+
+    def _check_for_reinstall_backup(self):
+        """
+        Called on fresh install (no local users.dat) AFTER the splash screen.
+        Silently probes Drive if an OAuth token exists.
+        If a backup is found, shows the "Previous Installation Detected" dialog.
+        If not, shows the registration page normally.
+        """
+        from core.utils import get_app_data_dir
+        import os
+        # Only trigger on a genuine fresh install
+        if auth.has_users():
+            return
+
+        # Can we even reach Drive without user interaction?
+        token_path = os.path.join(get_app_data_dir(), "token.pickle")
+        if not os.path.exists(token_path):
+            # No cached OAuth — show registration with a "Restore from cloud" button
+            self._build_register_ui()
+            return
+
+        # Silently probe
+        try:
+            from core.cloud_sync import cloud_sync
+            from core.encryption_manager import crypto_manager
+            if not cloud_sync.is_active:
+                self._build_register_ui()
+                return
+
+            machine_id  = crypto_manager.get_machine_id()
+            backup_info = cloud_sync.check_backup_exists(machine_id)
+            if not backup_info:
+                self._build_register_ui()
+                return
+
+            self._build_reinstall_detection_ui(backup_info, machine_id)
+        except Exception as e:
+            print(f"[LOGIN] Reinstall check error (non-critical): {e}")
+            self._build_register_ui()
+
+
+    def _build_reinstall_detection_ui(self, backup_info: dict, machine_id: str):
+        """
+        The "Previous Installation Detected" screen — the WhatsApp moment.
+        Shows backup metadata and offers two choices.
+        """
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
+        main_card.pack(expand=True, fill="both", padx=30, pady=30)
+
+        # Header
+        ctk.CTkLabel(main_card, text="☁",
+                    font=("Segoe UI", 42), text_color="#00a8ff").pack(pady=(24, 6))
+        ctk.CTkLabel(main_card, text="Previous Installation Found",
+                    font=("Segoe UI", 20, "bold"), text_color="#ffffff").pack()
+        ctk.CTkLabel(main_card,
+                    text="A cloud backup was found for this device.",
+                    font=("Segoe UI", 11), text_color="#a0a0a0").pack(pady=(4, 18))
+
+        # Metadata card
+        meta = ctk.CTkFrame(main_card, fg_color="#2b2b2b", corner_radius=10)
+        meta.pack(fill="x", padx=30, pady=(0, 18))
+
+        fc   = backup_info.get("file_counts", {})
+        rows = [
+            ("Last sync",  backup_info.get("last_sync",  "Unknown")),
+            ("Hostname",   backup_info.get("hostname",   "Unknown")),
+            ("Account",    backup_info.get("email",      "Unknown")),
+            ("Plan",       backup_info.get("tier",       "Unknown")),
+            ("Vault files",    f"{fc.get('vault',  0)} files"),
+            ("Log files",      f"{fc.get('logs',   0)} files"),
+        ]
+        for label, value in rows:
+            row = ctk.CTkFrame(meta, fg_color="transparent")
+            row.pack(fill="x", padx=16, pady=3)
+            ctk.CTkLabel(row, text=label + ":", font=("Segoe UI", 10),
+                        text_color="#888888", width=100, anchor="w").pack(side="left")
+            ctk.CTkLabel(row, text=value, font=("Segoe UI", 10, "bold"),
+                        text_color="#ffffff", anchor="w").pack(side="left")
+
+        # Action buttons
+        ctk.CTkButton(
+            main_card, text="Restore My Backup",
+            command=lambda: self._execute_restore(machine_id),
+            font=("Segoe UI", 13, "bold"),
+            fg_color="#00a8ff", hover_color="#0077cc",
+            corner_radius=8, height=44
+        ).pack(fill="x", padx=30, pady=(0, 10))
+
+        ctk.CTkButton(
+            main_card, text="Start Fresh  (archive old backup)",
+            command=lambda: self._execute_start_fresh(machine_id),
+            font=("Segoe UI", 12),
+            fg_color="#2b2b2b", hover_color="#3a3a3a",
+            text_color="#aaaaaa", corner_radius=8, height=40
+        ).pack(fill="x", padx=30, pady=(0, 6))
+
+        ctk.CTkLabel(
+            main_card,
+            text="Starting fresh archives your old data in Google Drive.\n"
+                "Your PRO license is preserved — re-enter your key after registering.",
+            font=("Segoe UI", 9), text_color="#666666", justify="center"
+        ).pack(pady=(0, 20))
+
+
+    def _execute_restore(self, machine_id: str):
+        """User chose to restore. Now we have explicit consent — run Phase 2."""
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        # Show progress
+        card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
+        card.pack(expand=True, fill="both", padx=40, pady=60)
+        ctk.CTkLabel(card, text="⏳ Restoring your data...",
+                    font=("Segoe UI", 14, "bold"), text_color="#00a8ff").pack(pady=30)
+        progress_var = ctk.StringVar(value="Connecting to Google Drive...")
+        ctk.CTkLabel(card, textvariable=progress_var,
+                    font=("Segoe UI", 10), text_color="#a0a0a0").pack()
+
+        def _do_restore():
+            from core.encryption_manager import crypto_manager
+
+            progress_var.set("Downloading encryption key...")
+            # Pass user_consented=True — this is the explicit consent gate
+            key_ok = crypto_manager.attempt_cloud_recovery_if_needed(user_consented=True)
+
+            progress_var.set("Restoring account database...")
+            # auth.reload() is called inside attempt_cloud_recovery_if_needed
+
+            if key_ok:
+                progress_var.set("✅ Restore complete — please log in.")
+                self.root.after(1200, self._build_login_ui)
+            else:
+                progress_var.set("⚠️  Key not recoverable — new key generated.\n"
+                                "Old encrypted data cannot be decrypted.\n"
+                                "Please create a new account.")
+                self.root.after(2000, self._build_register_ui)
+
+        import threading
+        threading.Thread(target=_do_restore, daemon=True).start()
+
+
+    def _execute_start_fresh(self, machine_id: str):
+        """User chose Start Fresh. Archive old data, then show registration."""
+        if not self.show_warning_confirm(
+            "Archive your cloud backup?\n\n"
+            "Your old data will be moved to an archive folder in Google Drive.\n"
+            "Your PRO license is NOT cancelled — re-enter your key after setup."
+        ):
+            return
+
+        def _do_archive():
+            from core.cloud_sync import cloud_sync
+            from core.encryption_manager import crypto_manager
+
+            ok, name = cloud_sync.archive_machine_folder(machine_id)
+            if ok:
+                print(f"[LOGIN] Archived as: {name}")
+            else:
+                print(f"[LOGIN] Archive warning (non-blocking): {name}")
+
+            # Generate a fresh local key now that the old cloud folder is archived
+            crypto_manager.attempt_cloud_recovery_if_needed(user_consented=False)
+            self.root.after(0, self._build_register_ui)
+
+        import threading
+        threading.Thread(target=_do_archive, daemon=True).start()
+
+
+    def show_warning_confirm(self, message: str) -> bool:
+        """Synchronous yes/no confirm dialog."""
+        import tkinter.messagebox as mb
+        return mb.askyesno("Confirm", message, parent=self.root)
 
     # ------------------------------------------------------------------
     # Launch main app (reusing the same root window)

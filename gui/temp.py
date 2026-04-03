@@ -28,6 +28,7 @@ import socket
 import uuid
 import requests
 
+
 APP_DATA = get_app_data_dir()
 LOGS_DIR = os.path.join(APP_DATA, "logs")
 
@@ -1330,10 +1331,6 @@ class ProIntegrityGUI:
                   self._open_folder_structure_restore,
                   C['accent_secondary'], font_size=9).pack(fill=tk.X, pady=2)
 
-        _ActionButton(cloud_btns, '🗄  Browse Old Archives',
-              self._open_archive_browser,
-              C['button_bg'], fg=C['text_secondary'], font_size=9).pack(fill=tk.X, pady=2)
-
         # --- 🚨 NEW: CLOUD PROGRESS LABEL ---
         self.cloud_progress_var = tk.StringVar(value="Status: Ready")
         
@@ -1853,12 +1850,18 @@ class ProIntegrityGUI:
         """
         Full cloud sync: vault files + logs + forensics + AppData + keys.
         All cloud folders are keyed on machine_id, not email.
-        PRO gate is enforced inside cloud_sync — no local check needed beyond
-        the UI-level warning below.
+
+        THREADING ARCHITECTURE:
+          - PRO gate check:  main thread  (instant, no I/O)
+          - OAuth auth:      background thread  ← CRITICAL: run_local_server()
+                             BLOCKS for up to 60s waiting for browser callback.
+                             Calling it on the main thread freezes Tkinter and
+                             causes Windows to mark the app as "Not Responding".
+          - File uploads:    background thread (always was, stays the same)
         """
         from tkinter import messagebox
- 
-        # ── UI-level PRO gate (shows a friendly upgrade dialog) ───────────────
+
+        # ── UI-level PRO gate ─────────────────────────────────────────────────
         tier = "free"
         if auth:
             tier = auth.get_user_tier(self.username)
@@ -1870,33 +1873,74 @@ class ProIntegrityGUI:
                 "☁️  Cloud Disaster Recovery is a PRO feature.\n\n"
                 "Activate a License Key to unlock Cloud Sync.")
             return
- 
+
         from core.cloud_sync import cloud_sync
         from core.encryption_manager import crypto_manager
         from core.utils import get_app_data_dir
- 
+
+        # ── If not authenticated, kick off auth in a background thread ────────
+        # NEVER call force_authenticate() directly here — it blocks the GUI.
         if not cloud_sync.is_active:
-            self._append_log("Cloud Sync: No cached token — launching Google OAuth...")
-            cloud_sync.force_authenticate()
-            if not cloud_sync.is_active:
-                messagebox.showerror(
-                    'Cloud Sync Offline',
-                    'Google Drive authentication failed or was cancelled.\n\n'
-                    'Please try clicking Sync to Cloud again.')
-                return
- 
+            self.cloud_progress_var.set("⏳ Opening Google sign-in in your browser…")
+            self._append_log("[CLOUD] Not authenticated — launching Google OAuth…")
+
+            auth_done = threading.Event()
+
+            def _run_auth():
+                cloud_sync.force_authenticate()   # blocks in background — safe
+                auth_done.set()
+
+            threading.Thread(target=_run_auth, daemon=True).start()
+
+            # Poll every 400 ms — keeps Tkinter alive while user signs in
+            def _poll_auth():
+                if not auth_done.is_set():
+                    self.root.after(400, _poll_auth)
+                    return
+                # Auth attempt finished — check result
+                if not cloud_sync.is_active:
+                    messagebox.showerror(
+                        'Google Authentication Failed',
+                        'Could not connect to Google Drive.\n\n'
+                        'Common causes:\n'
+                        '  • Browser sign-in was cancelled or denied\n'
+                        '  • Your Gmail is NOT in the OAuth test users list\n'
+                        '    → Fix: Google Cloud Console → OAuth consent screen\n'
+                        '           → Test users → Add your Gmail address\n'
+                        '  • No internet connection\n\n'
+                        'After fixing the above, click "Sync to Cloud" again.'
+                    )
+                    self.cloud_progress_var.set("Status: Authentication failed")
+                else:
+                    self._append_log("[CLOUD] ✅ Google Drive authenticated!")
+                    # Auth succeeded — now run the actual sync
+                    self._execute_cloud_sync(cloud_sync, crypto_manager,
+                                             get_app_data_dir)
+
+            self.root.after(400, _poll_auth)
+            return  # Exit here; _execute_cloud_sync() picks up after auth
+
+        # Already authenticated — run sync immediately
+        self._execute_cloud_sync(cloud_sync, crypto_manager, get_app_data_dir)
+
+    def _execute_cloud_sync(self, cloud_sync, crypto_manager, get_app_data_dir):
+        """
+        The actual sync work, always called AFTER authentication is confirmed.
+        Runs the file collection on the main thread (fast, no I/O), then
+        dispatches the upload work to a background thread.
+        """
         machine_id = crypto_manager.get_machine_id()
- 
-        # Collect all files to sync
+
+        # Collect all files to sync (fast path — just os.path checks)
         app_data      = get_app_data_dir()
         vault_dir     = os.path.join(app_data, "system32_vault")
         logs_dir      = os.path.join(app_data, "logs")
         forensics_dir = os.path.join(app_data, "forensics")
- 
+
         vault_files = ([os.path.join(vault_dir, f)
                         for f in os.listdir(vault_dir) if f.endswith('.enc')]
                        if os.path.exists(vault_dir) else [])
- 
+
         log_files = []
         for fname in ("integrity_log.dat", "integrity_log.sig",
                       "severity_counters.json"):
@@ -1908,94 +1952,87 @@ class ProIntegrityGUI:
                 if (fname.startswith("forensic_") and fname.endswith(".dat")
                         or fname == "forensics_index.json"):
                     log_files.append(os.path.join(forensics_dir, fname))
- 
-        key_dir   = os.path.join(app_data, "system32_config")
-        logs_only = os.path.join(app_data, "logs")
+
+        key_dir       = os.path.join(app_data, "system32_config")
         appdata_files = []
         for fname in ("users.dat", "hash_records.dat", "hash_records.sig",
                       "severity_counters.json"):
-            p = os.path.join(logs_only, fname)
+            p = os.path.join(logs_dir, fname)
             if os.path.exists(p):
                 appdata_files.append(p)
-        cfg = os.path.join(app_data, "config.json")
-        mid_file = os.path.join(key_dir, "machine_id.txt")
-        for p in (cfg, mid_file):
+        for p in (os.path.join(app_data, "config.json"),
+                  os.path.join(key_dir, "machine_id.txt")):
             if os.path.exists(p):
                 appdata_files.append(p)
- 
-        grand_total = (len(vault_files) + len(log_files)
-                       + len(appdata_files) + 2)  # +2 for key files
+
+        grand_total = len(vault_files) + len(log_files) + len(appdata_files) + 2
         grand_done  = [0]
- 
+
         self.root.after(0, lambda: self.cloud_progress_var.set(
             f"Starting sync… 0 / {grand_total} files"))
         self._append_log(
             f"Cloud sync started — {grand_total} files "
             f"(machine: {machine_id[:16]}…)")
- 
+
         def _on_file_done(ok=True, fname=""):
             grand_done[0] += 1
-            icon  = "✅" if ok else "❌"
-            
-            # 🚨 FIX 2: Smart Truncation for massive filenames (like SHA256 hashes)
+            icon         = "✅" if ok else "❌"
             display_name = fname
             if len(fname) > 30:
-                display_name = fname[:13] + "..." + fname[-13:]
-                
+                display_name = fname[:13] + "…" + fname[-13:]
             label = f"{icon} [{grand_done[0]}/{grand_total}] {display_name}"
             self.root.after(0, lambda l=label: self.cloud_progress_var.set(l))
- 
+
         def _progress_cb(uploaded, total, filename):
             _on_file_done(ok=True, fname=filename)
- 
+
         def _do_sync():
-            # 1. Vault files → vault/
+            # 1. Vault → vault/
             if vault_files:
-                vault_folder = cloud_sync._get_subfolder("vault", machine_id)
-                if vault_folder:
-                    cloud_sync.batch_upload(vault_files, vault_folder,
+                folder = cloud_sync._get_subfolder("vault", machine_id)
+                if folder:
+                    cloud_sync.batch_upload(vault_files, folder,
                                             progress_cb=_progress_cb,
                                             max_workers=4)
- 
+
             # 2. Logs + forensics → logs/
             if log_files:
-                logs_folder = cloud_sync._get_subfolder("logs", machine_id)
-                if logs_folder:
-                    cloud_sync.batch_upload(log_files, logs_folder,
+                folder = cloud_sync._get_subfolder("logs", machine_id)
+                if folder:
+                    cloud_sync.batch_upload(log_files, folder,
                                             progress_cb=_progress_cb,
                                             max_workers=4)
- 
+
             # 3. AppData → appdata/
             if appdata_files:
-                appdata_folder = cloud_sync._get_subfolder("appdata", machine_id)
-                if appdata_folder:
-                    cloud_sync.batch_upload(appdata_files, appdata_folder,
+                folder = cloud_sync._get_subfolder("appdata", machine_id)
+                if folder:
+                    cloud_sync.batch_upload(appdata_files, folder,
                                             progress_cb=_progress_cb,
                                             max_workers=2)
- 
+
             # 4. Encryption keys → keys/
             try:
-                ok, msg = crypto_manager.force_key_backup()
+                ok, _msg = crypto_manager.force_key_backup()
                 _on_file_done(ok=ok, fname="sys.key")
                 _on_file_done(ok=ok, fname=".sys_backup.key")
             except Exception as e:
                 print(f"[SYNC] Key backup error: {e}")
- 
-            # 5. Folder structure backup (per watched folder, PRO only)
+
+            # 5. Folder structure backup
             self._backup_folder_structures(on_file_done_cb=_on_file_done)
- 
-            # 6. Update manifest with current email/tier metadata
+
+            # 6. Manifest
             try:
                 cloud_sync._update_manifest(machine_id)
             except Exception:
                 pass
- 
+
             summary = (f"✅ Sync complete: {grand_done[0]}/{grand_total} files "
                        f"— machine {machine_id[:16]}…")
-            self.root.after(0, lambda s=summary:
-                            self.cloud_progress_var.set(s))
+            self.root.after(0, lambda s=summary: self.cloud_progress_var.set(s))
             self.root.after(0, lambda s=summary: self._append_log(s))
- 
+
         threading.Thread(target=_do_sync, daemon=True).start()
     
 
@@ -2054,13 +2091,11 @@ class ProIntegrityGUI:
  
         from core.cloud_sync import cloud_sync
         if not cloud_sync.is_active:
-            cloud_sync.force_authenticate()
-            if not cloud_sync.is_active:
-                messagebox.showerror(
-                    "Cloud Offline",
-                    "Google Drive authentication failed or was cancelled.\n\n"
-                    "Please try again.")
-                return
+            messagebox.showerror(
+                "Cloud Offline",
+                "Google Drive is not connected.\n\n"
+                "Please click 'Sync to Cloud' first to authenticate.")
+            return
  
         C   = self.colors
         win = tk.Toplevel(self.root)
@@ -2534,189 +2569,6 @@ class ProIntegrityGUI:
     
         threading.Thread(target=_do_recovery, daemon=True).start()
     
-
-    def _open_archive_browser(self):
-        from tkinter import messagebox
-        import threading
-
-        C   = self.colors
-        win = tk.Toplevel(self.root)
-        win.title("Archive Browser — FMSecure")
-        win.geometry("780x560")
-        win.configure(bg=C['bg'])
-        win.transient(self.root)
-
-        hdr = tk.Frame(win, bg=C['header_bg'], height=50)
-        hdr.pack(fill=tk.X)
-        hdr.pack_propagate(False)
-        tk.Label(hdr, text="🗄  Previous Installation Archives",
-                font=('Segoe UI', 14, 'bold'),
-                bg=C['header_bg'], fg=C['accent_secondary']).pack(side=tk.LEFT, padx=20, pady=12)
-        tk.Label(hdr, text="Old backups archived when you chose 'Start Fresh'",
-                font=('Segoe UI', 9),
-                bg=C['header_bg'], fg=C['text_muted']).pack(side=tk.LEFT, padx=8)
-        tk.Frame(win, height=1, bg=C['divider']).pack(fill=tk.X)
-
-        body = tk.Frame(win, bg=C['bg'])
-        body.pack(fill=tk.BOTH, expand=True, padx=16, pady=16)
-
-        # Left: archive list
-        left = tk.Frame(body, bg=C['card_bg'],
-                        highlightbackground=C['card_border'], highlightthickness=1, width=280)
-        left.pack(side=tk.LEFT, fill=tk.Y)
-        left.pack_propagate(False)
-
-        tk.Label(left, text="Archives", font=('Segoe UI', 10, 'bold'),
-                bg=C['card_bg'], fg=C['text_primary']).pack(anchor='w', padx=14, pady=(12, 4))
-
-        archive_list = tk.Listbox(
-            left, bg=C['input_bg'], fg=C['text_primary'],
-            selectbackground=C['accent_secondary'], selectforeground='#fff',
-            font=('Segoe UI', 9), relief='flat', activestyle='none', highlightthickness=0)
-        archive_list.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
-
-        # Right: detail + selective restore
-        right = tk.Frame(body, bg=C['card_bg'],
-                        highlightbackground=C['card_border'], highlightthickness=1)
-        right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(12, 0))
-
-        detail_title = tk.Label(right, text="Select an archive",
-                                font=('Segoe UI', 11, 'bold'),
-                                bg=C['card_bg'], fg=C['text_primary'])
-        detail_title.pack(anchor='w', padx=14, pady=(12, 6))
-        tk.Frame(right, height=1, bg=C['divider']).pack(fill=tk.X)
-
-        stats_frame = tk.Frame(right, bg=C['card_bg'])
-        stats_frame.pack(fill=tk.X, padx=14, pady=10)
-
-        stat_vars = {
-            "Archived at":  tk.StringVar(value="—"),
-            "Hostname":     tk.StringVar(value="—"),
-            "Account":      tk.StringVar(value="—"),
-            "Vault files":  tk.StringVar(value="—"),
-            "Log files":    tk.StringVar(value="—"),
-            "AppData files":tk.StringVar(value="—"),
-        }
-        for i, (lbl, var) in enumerate(stat_vars.items()):
-            col = i % 2
-            row = i // 2
-            cell = tk.Frame(stats_frame, bg=C['card_bg'])
-            cell.grid(row=row, column=col, padx=8, sticky='w')
-            stats_frame.columnconfigure(col, weight=1)
-            tk.Label(cell, text=lbl, font=('Segoe UI', 8),
-                    bg=C['card_bg'], fg=C['text_muted']).pack(anchor='w')
-            tk.Label(cell, textvariable=var, font=('Segoe UI', 10, 'bold'),
-                    bg=C['card_bg'], fg=C['text_primary']).pack(anchor='w')
-
-        tk.Frame(right, height=1, bg=C['divider']).pack(fill=tk.X, pady=(8, 0))
-
-        subfolder_var = tk.StringVar(value="appdata")
-        sub_row = tk.Frame(right, bg=C['card_bg'])
-        sub_row.pack(fill=tk.X, padx=14, pady=10)
-        tk.Label(sub_row, text="Restore from:", font=('Segoe UI', 9, 'bold'),
-                bg=C['card_bg'], fg=C['text_primary']).pack(anchor='w')
-        for val, txt in [("appdata", "AppData (users, config, records)"),
-                        ("logs",    "Logs & forensics"),
-                        ("vault",   "File vault (.enc backups)"),
-                        ("keys",    "Encryption keys only")]:
-            tk.Radiobutton(sub_row, text=txt, variable=subfolder_var, value=val,
-                        bg=C['card_bg'], fg=C['text_primary'],
-                        selectcolor=C['input_bg'],
-                        activebackground=C['card_bg'],
-                        font=('Segoe UI', 9)).pack(anchor='w')
-
-        progress_var = tk.StringVar(value="Loading archives...")
-        progress_lbl = tk.Label(right, textvariable=progress_var,
-                                font=('Consolas', 8),
-                                bg=C['card_bg'], fg=C['accent_info'],
-                                anchor='w', wraplength=440)
-        progress_lbl.pack(fill=tk.X, padx=14, pady=(4, 8))
-        tk.Frame(right, height=1, bg=C['divider']).pack(fill=tk.X)
-
-        btn_row = tk.Frame(right, bg=C['card_bg'])
-        btn_row.pack(fill=tk.X, padx=14, pady=12)
-
-        _archives   = []
-        _selected   = [None]
-
-        def _on_select(event):
-            sel = archive_list.curselection()
-            if not sel:
-                return
-            a = _archives[sel[0]]
-            _selected[0] = a
-            detail_title.configure(text=a.get("folder_name", "?")[-30:])
-            fc = a.get("file_counts", {})
-            stat_vars["Archived at"].set(a.get("archived_at", "—"))
-            stat_vars["Hostname"].set(a.get("hostname", "—"))
-            stat_vars["Account"].set(a.get("email", "—"))
-            stat_vars["Vault files"].set(f"{fc.get('vault', 0)} files")
-            stat_vars["Log files"].set(f"{fc.get('logs', 0)} files")
-            stat_vars["AppData files"].set(f"{fc.get('appdata', 0)} files")
-
-        archive_list.bind("<<ListboxSelect>>", _on_select)
-
-        def _load_archives():
-            try:
-                from core.cloud_sync import cloud_sync
-                from core.encryption_manager import crypto_manager
-                items = cloud_sync.list_archives(crypto_manager.get_machine_id())
-                def _populate():
-                    archive_list.delete(0, tk.END)
-                    _archives.clear()
-                    if not items:
-                        archive_list.insert(tk.END, "  No archives found")
-                        progress_var.set("No previous installation archives on Drive.")
-                        return
-                    _archives.extend(items)
-                    for a in items:
-                        archive_list.insert(tk.END, f"  {a.get('archived_at','?')[:10]}")
-                    progress_var.set(f"{len(items)} archive(s) found.")
-                win.after(0, _populate)
-            except Exception as exc:
-                win.after(0, lambda: progress_var.set(f"Error: {exc}"))
-
-        threading.Thread(target=_load_archives, daemon=True).start()
-
-        def _do_restore():
-            a = _selected[0]
-            if not a:
-                messagebox.showwarning("Nothing selected", "Select an archive first.")
-                return
-            sub = subfolder_var.get()
-            if not messagebox.askyesno(
-                "Confirm selective restore",
-                f"Restore '{sub}' data from:\n{a.get('archived_at','?')}\n\n"
-                "This will overwrite matching local files.\nContinue?"
-            ):
-                return
-            restore_btn.configure(state='disabled', text="Restoring...")
-            def _run():
-                from core.cloud_sync import cloud_sync
-                result = cloud_sync.restore_from_archive(a["folder_id"], subfolder=sub)
-                def _done():
-                    restore_btn.configure(state='normal', text="Restore Selected")
-                    progress_var.set(
-                        f"✅ Restored {result['restored']} files from archive "
-                        f"({sub}).  Errors: {len(result['errors'])}")
-                    self._append_log(
-                        f"ARCHIVE RESTORE: {result['restored']} files from "
-                        f"{a.get('archived_at','?')} ({sub})")
-                win.after(0, _done)
-            threading.Thread(target=_run, daemon=True).start()
-
-        restore_btn = tk.Button(
-            btn_row, text="Restore Selected",
-            command=_do_restore,
-            font=('Segoe UI', 10, 'bold'),
-            bg=C['accent_secondary'], fg='#fff',
-            bd=0, padx=20, pady=8, cursor='hand2')
-        restore_btn.pack(side=tk.LEFT)
-
-        tk.Button(btn_row, text="Close", command=win.destroy,
-                font=('Segoe UI', 10),
-                bg=C['button_bg'], fg=C['text_secondary'],
-                bd=0, padx=20, pady=8, cursor='hand2').pack(side=tk.RIGHT)
         
     
     # ── Toggle handlers (call original core methods, then sync toggle UI) ──

@@ -223,20 +223,36 @@ class EncryptionManager:
     #  PHASE 2 — CLOUD RECOVERY  (called from app startup, after cloud_sync ready)
     # ══════════════════════════════════════════════════════════════════════════
 
-    def attempt_cloud_recovery_if_needed(self) -> bool:
+    def has_cloud_backup(self) -> bool:
         """
-        Called explicitly from the application startup sequence AFTER
-        cloud_sync has been instantiated. This is the correct call site:
-
-            # In your main startup / login_gui.py, after imports:
-            from core.cloud_sync import cloud_sync   # ensures it's ready
-            crypto_manager.attempt_cloud_recovery_if_needed()
-
-        Returns:
-            True  — key is available (was local, or cloud recovery succeeded)
-            False — new key was generated (old data unrecoverable)
+        Lightweight check: does a cloud key exist for this machine?
+        Does NOT restore anything. Safe to call at startup before login.
         """
-        # Already healthy — just schedule a background cloud backup
+        if self._local_ok and self.fernet is not None:
+            return False   # no need to check — we're healthy
+        try:
+            from core.cloud_sync import cloud_sync
+            if not cloud_sync.is_active:
+                return False
+            backup_info = cloud_sync.check_backup_exists(self._machine_id)
+            return backup_info is not None and backup_info["file_counts"].get("keys", 0) > 0
+        except Exception:
+            return False
+
+
+    def attempt_cloud_recovery_if_needed(self, user_consented: bool = False) -> bool:
+        """
+        Phase 2 cloud recovery.
+        
+        IMPORTANT CHANGE: This method now requires explicit user consent.
+        Call with user_consented=True only after the user has clicked 
+        "Restore Backup" in the detection dialog.
+        
+        Silent/automatic invocation is no longer permitted — it bypasses
+        the user's right to start fresh.
+        
+        Returns True if key is available, False if a new key was generated.
+        """
         if self._local_ok and self.fernet is not None:
             self._schedule_cloud_backup_async()
             return True
@@ -244,8 +260,20 @@ class EncryptionManager:
         if self._cloud_recovery_attempted:
             return self.fernet is not None
 
+        # Block if user has not explicitly consented to restore
+        if not user_consented:
+            print("[KEY] Phase 2 skipped — awaiting user consent on reinstall dialog.")
+            # Generate a fresh key for new installs that don't want to restore
+            if self.fernet is None:
+                key = Fernet.generate_key()
+                self._write_key(self.key_file, key)
+                self._write_key(self.key_backup, key)
+                self._activate(key)
+                self._local_ok = True
+            return False
+
         self._cloud_recovery_attempted = True
-        print("[KEY] Phase 2: Attempting cloud key recovery via machine_id...")
+        print("[KEY] Phase 2: Attempting cloud key recovery (user consented)...")
 
         key = self._download_from_cloud()
         if key and self._valid(key):
@@ -254,27 +282,18 @@ class EncryptionManager:
             self._write_key(self.key_backup, key)
             self._activate(key)
             self._local_ok = True
-            
-            # --- 🚨 STEP 2 FIX: RECOVER USERS.DAT AND RELOAD AUTH ---
             try:
                 from core.cloud_sync import cloud_sync
                 from core.auth_manager import auth
-                print("[KEY] Restoring AppData (users.dat) from cloud...")
-                
-                # Download the full backup from Google Drive
                 cloud_sync.restore_full_appdata(self.get_machine_id())
-                
-                # Force the auth manager to read the newly downloaded file!
-                auth.reload() 
+                cloud_sync.restore_logs_and_forensics(self.get_machine_id())
+                auth.reload()
             except Exception as e:
                 print(f"[KEY] Non-critical: AppData auto-recovery failed: {e}")
-            # --------------------------------------------------------
-            
             return True
 
-        # Last resort
+        # Last resort — fresh key
         print("[KEY] ❌ All recovery tiers failed. Generating fresh key.")
-        print("[KEY]    Data encrypted with the previous key is now unrecoverable.")
         key = Fernet.generate_key()
         self._write_key(self.key_file,   key)
         self._write_key(self.key_backup, key)

@@ -174,3 +174,6 @@ pyinstaller --onedir --noconsole --name WinSysHost sys_watchdog.py
 
 
 pyinstaller run.py --onedir --noconsole --name SecureFIM --icon=assets/icons/app_icon.ico --clean --add-data "credentials.json;." --add-data "assets;assets"
+
+
+pyinstaller run.py --onedir --noconsole --name SecureFIM --icon=assets/icons/app_icon.ico --add-data "assets;assets" --clean
