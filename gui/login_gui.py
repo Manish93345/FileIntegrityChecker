@@ -331,120 +331,98 @@ class LoginWindow:
         self._center_window()
         # self._configure_styles()
 
-        # --- THE SMART ROUTER (Builds UI invisibly in the background) ---
-        # At the end of __init__, replace the smart router block:
         if not auth.has_users():
-            # Don't go straight to register — check for cloud backup first
-            # (runs after splash screen completes, so after root.deiconify())
             self._show_splash_screen(on_complete=self._check_for_reinstall_backup)
         else:
             self._build_login_ui()
-            self._show_splash_screen()   
-            
-        # --- LAUNCH THE SPLASH SCREEN ---
-        self._show_splash_screen()
+            self._show_splash_screen()
 
     def _show_splash_screen(self, on_complete=None):
-        """Displays a professional full-screen branding splash before the app loads"""
+        """Displays a professional full-screen branding splash before the app loads."""
         splash = tk.Toplevel(self.root)
-        splash.overrideredirect(True)  # Removes Windows borders and title bar
+        splash.overrideredirect(True)
         splash.configure(bg="#050505")
-        
-        # Splash dimensions and centering
+    
         width, height = 550, 320
-        x = (splash.winfo_screenwidth() // 2) - (width // 2)
+        x = (splash.winfo_screenwidth()  // 2) - (width  // 2)
         y = (splash.winfo_screenheight() // 2) - (height // 2)
         splash.geometry(f"{width}x{height}+{x}+{y}")
-        
-        # Main Canvas for drawing crisp vector graphics
-        canvas = tk.Canvas(splash, width=width, height=height, bg="#050505", highlightthickness=0)
+    
+        canvas = tk.Canvas(splash, width=width, height=height,
+                        bg="#050505", highlightthickness=0)
         canvas.pack(fill=tk.BOTH, expand=True)
-        
-        # Futuristic Top & Bottom Accent Lines
-        canvas.create_line(0, 0, width, 0, fill=self.accent_blue, width=6)
-        canvas.create_line(0, height-2, width, height-2, fill=self.accent_blue, width=6)
-        
+    
+        canvas.create_line(0,        0,        width, 0,        fill=self.accent_blue, width=6)
+        canvas.create_line(0,        height-2, width, height-2, fill=self.accent_blue, width=6)
+    
         from PIL import Image, ImageTk
         canvas.create_oval(
             width//2 - 100, height//2 - 100,
             width//2 + 100, height//2 + 100,
             fill="#0a0a0a", outline=self.accent_blue, width=2
         )
-                # Load logo
+    
+        # Load logo
         try:
             if getattr(sys, 'frozen', False):
                 base_path = sys._MEIPASS
             else:
                 base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
+    
             logo_path = os.path.join(base_path, "assets", "icons", "app_icon.png")
-
             img = Image.open(logo_path)
-            img = img.resize((260, 260))  # adjust size
-            self.logo_img = ImageTk.PhotoImage(img)
-
+            img = img.resize((260, 260))
+            self.logo_img  = ImageTk.PhotoImage(img)
+            canvas.logo_img = self.logo_img   # ← FIX: pin to canvas widget, prevents GC
             canvas.create_image(width//2, height//2 - 25, image=self.logo_img)
-
         except Exception as e:
             print("Logo load error:", e)
-        
-        # Dynamic Loading Text
-        load_label = tk.Label(splash, text="Initializing cryptographic vault...", 
-                              font=('Consolas', 9, 'italic'), bg="#050505", fg=self.accent_cyan)
+    
+        load_label = tk.Label(splash, text="Initializing cryptographic vault...",
+                            font=('Consolas', 9, 'italic'),
+                            bg="#050505", fg=self.accent_cyan)
         load_label.place(relx=0.5, rely=0.85, anchor="center")
-        
-        # Loading Bar Background
+    
         bar_y = height - 25
         canvas.create_rectangle(60, bar_y, width-60, bar_y+4, fill="#1a1a1a", outline="")
-        progress_bar = canvas.create_rectangle(60, bar_y, 60, bar_y+4, fill=self.accent_blue, outline="")
-        
+        progress_bar = canvas.create_rectangle(60, bar_y, 60, bar_y+4,
+                                            fill=self.accent_blue, outline="")
+    
         loading_steps = [
-            ("Loading FileIntegrityMonitor Engine...", random.randint(500, 1000)),
-            ("Booting Asynchronous Telemetry Server...", random.randint(200, 500)),
-            ("Verifying RSA/AES Encryption Keys...", random.randint(600, 1200)),
-            ("Injecting CustomTkinter UI Components...", random.randint(300, 700)),
-            ("Securing Local Environment...", random.randint(200, 500))
+            ("Loading FileIntegrityMonitor Engine...",  random.randint(500, 1000)),
+            ("Booting Asynchronous Telemetry Server...", random.randint(200,  500)),
+            ("Verifying RSA/AES Encryption Keys...",    random.randint(600, 1200)),
+            ("Injecting CustomTkinter UI Components...", random.randint(300,  700)),
+            ("Securing Local Environment...",           random.randint(200,  500)),
         ]
-
-        
-        total_steps = len(loading_steps)
-        current_step_idx = [0]
-        
+        total_steps       = len(loading_steps)
+        current_step_idx  = [0]
+    
         def process_next_step():
             if current_step_idx[0] < total_steps:
-                # Get the text and the randomized time for THIS specific step
                 text, duration = loading_steps[current_step_idx[0]]
                 load_label.config(text=text)
-                
-                # Calculate where the bar should start and end for this chunk
-                start_width = 60 + ((width - 120) * (current_step_idx[0] / total_steps))
-                end_width = 60 + ((width - 120) * ((current_step_idx[0] + 1) / total_steps))
-                
-                # Smooth micro-animation for the bar within this random duration
-                frames = 15
+                start_w = 60 + ((width - 120) * (current_step_idx[0]     / total_steps))
+                end_w   = 60 + ((width - 120) * ((current_step_idx[0]+1) / total_steps))
+                frames      = 15
                 frame_delay = duration // frames
-                
+    
                 def animate_chunk(frame=0):
                     if frame <= frames:
-                        current_w = start_width + ((end_width - start_width) * (frame / frames))
-                        canvas.coords(progress_bar, 60, bar_y, current_w, bar_y+4)
+                        cw = start_w + ((end_w - start_w) * (frame / frames))
+                        canvas.coords(progress_bar, 60, bar_y, cw, bar_y+4)
                         splash.after(frame_delay, lambda: animate_chunk(frame + 1))
                     else:
-                        # Move to the next text phase
                         current_step_idx[0] += 1
                         process_next_step()
-                
+    
                 animate_chunk()
             else:
-                def _finish():
-                    splash.destroy()
-                    self.root.deiconify()
-                    if on_complete:
-                        on_complete()
-
-                _finish()
-                
-        # Kick off the dynamic animation
+                splash.destroy()
+                self.root.deiconify()
+                if on_complete:
+                    on_complete()
+    
         process_next_step()
 
     def _center_window(self):
@@ -1318,42 +1296,108 @@ class LoginWindow:
 
     def _check_for_reinstall_backup(self):
         """
-        Called on fresh install (no local users.dat) AFTER the splash screen.
-        Silently probes Drive if an OAuth token exists.
-        If a backup is found, shows the "Previous Installation Detected" dialog.
-        If not, shows the registration page normally.
+        Called after splash on a fresh install (no local users.dat).
+    
+        PATTERN: show the loading screen synchronously (zero network calls),
+        then probe Google Drive in a daemon thread. Routes to detection UI
+        or registration UI when the probe completes.
         """
         from core.utils import get_app_data_dir
-        import os
-        # Only trigger on a genuine fresh install
+    
+        # Not a fresh install — nothing to detect
         if auth.has_users():
+            self._build_login_ui()
             return
-
-        # Can we even reach Drive without user interaction?
+    
+        # No cached OAuth token → can't reach Drive without user interaction
         token_path = os.path.join(get_app_data_dir(), "token.pickle")
         if not os.path.exists(token_path):
-            # No cached OAuth — show registration with a "Restore from cloud" button
             self._build_register_ui()
             return
+    
+        # Show the loading screen BEFORE touching the network
+        self._build_cloud_probe_ui()
+    
+        # Probe Drive in background — never block the main thread
+        def _probe():
+            try:
+                from core.cloud_sync import cloud_sync
+                from core.encryption_manager import crypto_manager
+    
+                if not cloud_sync.is_active:
+                    self.root.after(0, self._build_register_ui)
+                    return
+    
+                machine_id  = crypto_manager.get_machine_id()
+                backup_info = cloud_sync.check_backup_exists(machine_id)
+    
+                if backup_info:
+                    self.root.after(0, lambda: self._build_reinstall_detection_ui(
+                        backup_info, machine_id))
+                else:
+                    self.root.after(0, self._build_register_ui)
+    
+            except Exception as e:
+                print(f"[LOGIN] Reinstall check error (non-critical): {e}")
+                self.root.after(0, self._build_register_ui)
+    
+        import threading
+        threading.Thread(target=_probe, daemon=True).start()
 
-        # Silently probe
+    
+    def _build_cloud_probe_ui(self):
+        """
+        Shown while probing Google Drive on a fresh install.
+        Prevents the blank/frozen window the user was seeing.
+        """
+        for widget in self.root.winfo_children():
+            widget.destroy()
+    
+        card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
+        card.pack(expand=True, fill="both", padx=40, pady=60)
+    
+        ctk.CTkLabel(card, text="☁",
+                    font=("Segoe UI", 52), text_color="#00a8ff").pack(pady=(30, 8))
+    
+        ctk.CTkLabel(card, text="Checking for previous installation",
+                    font=("Segoe UI", 15, "bold"), text_color="#ffffff").pack()
+    
+        ctk.CTkLabel(card,
+                    text="Looking for a cloud backup on Google Drive...",
+                    font=("Segoe UI", 10), text_color="#a0a0a0").pack(pady=(6, 24))
+    
+        # Braille spinner — rendered as a CTkLabel so it's theme-safe
+        self._probe_spin_chars = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
+        self._probe_spin_idx   = [0]
+        self._probe_spin_lbl   = ctk.CTkLabel(
+            card, text="⠋",
+            font=("Segoe UI", 24), text_color="#00a8ff"
+        )
+        self._probe_spin_lbl.pack()
+    
+        self._animate_probe_spinner()
+
+    
+    # ══════════════════════════════════════════════════════════════════════════════
+    #  NEW — _animate_probe_spinner
+    # ══════════════════════════════════════════════════════════════════════════════
+    
+    def _animate_probe_spinner(self):
+        """Keeps the braille spinner spinning while Drive probe runs."""
+        lbl = getattr(self, '_probe_spin_lbl', None)
+        if not lbl:
+            return
         try:
-            from core.cloud_sync import cloud_sync
-            from core.encryption_manager import crypto_manager
-            if not cloud_sync.is_active:
-                self._build_register_ui()
+            if not lbl.winfo_exists():
                 return
-
-            machine_id  = crypto_manager.get_machine_id()
-            backup_info = cloud_sync.check_backup_exists(machine_id)
-            if not backup_info:
-                self._build_register_ui()
-                return
-
-            self._build_reinstall_detection_ui(backup_info, machine_id)
-        except Exception as e:
-            print(f"[LOGIN] Reinstall check error (non-critical): {e}")
-            self._build_register_ui()
+        except Exception:
+            return
+    
+        chars = self._probe_spin_chars
+        idx   = self._probe_spin_idx
+        lbl.configure(text=chars[idx[0] % len(chars)])
+        idx[0] += 1
+        self.root.after(80, self._animate_probe_spinner)
 
 
     def _build_reinstall_detection_ui(self, backup_info: dict, machine_id: str):

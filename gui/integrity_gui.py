@@ -2538,129 +2538,174 @@ class ProIntegrityGUI:
     def _open_archive_browser(self):
         from tkinter import messagebox
         import threading
-
+    
         C   = self.colors
         win = tk.Toplevel(self.root)
         win.title("Archive Browser — FMSecure")
-        win.geometry("780x560")
+        win.geometry("820x600")
         win.configure(bg=C['bg'])
         win.transient(self.root)
-
-        hdr = tk.Frame(win, bg=C['header_bg'], height=50)
+    
+        # ── Header ────────────────────────────────────────────────────────────────
+        hdr = tk.Frame(win, bg=C['header_bg'], height=52)
         hdr.pack(fill=tk.X)
         hdr.pack_propagate(False)
         tk.Label(hdr, text="🗄  Previous Installation Archives",
                 font=('Segoe UI', 14, 'bold'),
-                bg=C['header_bg'], fg=C['accent_secondary']).pack(side=tk.LEFT, padx=20, pady=12)
-        tk.Label(hdr, text="Old backups archived when you chose 'Start Fresh'",
+                bg=C['header_bg'], fg=C['accent_secondary']).pack(
+            side=tk.LEFT, padx=20, pady=14)
+        tk.Label(hdr, text="Cloud backups archived when you chose 'Start Fresh'",
                 font=('Segoe UI', 9),
-                bg=C['header_bg'], fg=C['text_muted']).pack(side=tk.LEFT, padx=8)
+                bg=C['header_bg'], fg=C['text_muted']).pack(
+            side=tk.LEFT, padx=8, pady=14)
         tk.Frame(win, height=1, bg=C['divider']).pack(fill=tk.X)
-
+    
+        # ── Body layout ───────────────────────────────────────────────────────────
         body = tk.Frame(win, bg=C['bg'])
         body.pack(fill=tk.BOTH, expand=True, padx=16, pady=16)
-
+    
         # Left: archive list
         left = tk.Frame(body, bg=C['card_bg'],
-                        highlightbackground=C['card_border'], highlightthickness=1, width=280)
+                        highlightbackground=C['card_border'], highlightthickness=1,
+                        width=260)
         left.pack(side=tk.LEFT, fill=tk.Y)
         left.pack_propagate(False)
-
-        tk.Label(left, text="Archives", font=('Segoe UI', 10, 'bold'),
-                bg=C['card_bg'], fg=C['text_primary']).pack(anchor='w', padx=14, pady=(12, 4))
-
+    
+        tk.Label(left, text="Archives",
+                font=('Segoe UI', 10, 'bold'),
+                bg=C['card_bg'], fg=C['text_primary']).pack(
+            anchor='w', padx=14, pady=(12, 4))
+        tk.Frame(left, height=1, bg=C['divider']).pack(fill=tk.X)
+    
         archive_list = tk.Listbox(
             left, bg=C['input_bg'], fg=C['text_primary'],
             selectbackground=C['accent_secondary'], selectforeground='#fff',
-            font=('Segoe UI', 9), relief='flat', activestyle='none', highlightthickness=0)
+            font=('Segoe UI', 9), relief='flat', activestyle='none',
+            highlightthickness=0)
         archive_list.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
-
-        # Right: detail + selective restore
+    
+        # Right pane
         right = tk.Frame(body, bg=C['card_bg'],
                         highlightbackground=C['card_border'], highlightthickness=1)
         right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(12, 0))
-
+    
         detail_title = tk.Label(right, text="Select an archive",
                                 font=('Segoe UI', 11, 'bold'),
                                 bg=C['card_bg'], fg=C['text_primary'])
         detail_title.pack(anchor='w', padx=14, pady=(12, 6))
         tk.Frame(right, height=1, bg=C['divider']).pack(fill=tk.X)
-
+    
+        # Metadata grid
         stats_frame = tk.Frame(right, bg=C['card_bg'])
         stats_frame.pack(fill=tk.X, padx=14, pady=10)
-
         stat_vars = {
-            "Archived at":  tk.StringVar(value="—"),
-            "Hostname":     tk.StringVar(value="—"),
-            "Account":      tk.StringVar(value="—"),
-            "Vault files":  tk.StringVar(value="—"),
-            "Log files":    tk.StringVar(value="—"),
-            "AppData files":tk.StringVar(value="—"),
+            "Archived at":       tk.StringVar(value="—"),
+            "Hostname":          tk.StringVar(value="—"),
+            "Account":           tk.StringVar(value="—"),
+            "Vault files":       tk.StringVar(value="—"),
+            "Log files":         tk.StringVar(value="—"),
+            "AppData files":     tk.StringVar(value="—"),
+            "Folder backups":    tk.StringVar(value="—"),
         }
         for i, (lbl, var) in enumerate(stat_vars.items()):
-            col = i % 2
-            row = i // 2
+            col  = i % 2
+            row  = i // 2
             cell = tk.Frame(stats_frame, bg=C['card_bg'])
-            cell.grid(row=row, column=col, padx=8, sticky='w')
+            cell.grid(row=row, column=col, padx=8, pady=2, sticky='w')
             stats_frame.columnconfigure(col, weight=1)
             tk.Label(cell, text=lbl, font=('Segoe UI', 8),
                     bg=C['card_bg'], fg=C['text_muted']).pack(anchor='w')
             tk.Label(cell, textvariable=var, font=('Segoe UI', 10, 'bold'),
                     bg=C['card_bg'], fg=C['text_primary']).pack(anchor='w')
-
-        tk.Frame(right, height=1, bg=C['divider']).pack(fill=tk.X, pady=(8, 0))
-
-        subfolder_var = tk.StringVar(value="appdata")
-        sub_row = tk.Frame(right, bg=C['card_bg'])
-        sub_row.pack(fill=tk.X, padx=14, pady=10)
-        tk.Label(sub_row, text="Restore from:", font=('Segoe UI', 9, 'bold'),
-                bg=C['card_bg'], fg=C['text_primary']).pack(anchor='w')
-        for val, txt in [("appdata", "AppData (users, config, records)"),
-                        ("logs",    "Logs & forensics"),
-                        ("vault",   "File vault (.enc backups)"),
-                        ("keys",    "Encryption keys only")]:
-            tk.Radiobutton(sub_row, text=txt, variable=subfolder_var, value=val,
+    
+        tk.Frame(right, height=1, bg=C['divider']).pack(fill=tk.X, pady=(6, 0))
+    
+        # ── Restore scope selector ────────────────────────────────────────────────
+        scope_frame = tk.Frame(right, bg=C['card_bg'])
+        scope_frame.pack(fill=tk.X, padx=14, pady=(8, 4))
+    
+        tk.Label(scope_frame, text="Restore scope:",
+                font=('Segoe UI', 9, 'bold'),
+                bg=C['card_bg'], fg=C['text_primary']).pack(anchor='w', pady=(0, 4))
+    
+        subfolder_var = tk.StringVar(value="all")
+    
+        scope_options = [
+            ("all",           "Everything  (keys → AppData → logs → vault → folder backups)"),
+            ("appdata",       "AppData only  (users, config, hash records)"),
+            ("logs",          "Logs & forensics only"),
+            ("vault",         "File vault only  (.enc backup blobs)"),
+            ("keys",          "Encryption keys only"),
+            ("folder_backup", "Folder structure backups only"),
+        ]
+        for val, txt in scope_options:
+            tk.Radiobutton(scope_frame, text=txt,
+                        variable=subfolder_var, value=val,
                         bg=C['card_bg'], fg=C['text_primary'],
                         selectcolor=C['input_bg'],
                         activebackground=C['card_bg'],
                         font=('Segoe UI', 9)).pack(anchor='w')
-
-        progress_var = tk.StringVar(value="Loading archives...")
+    
+        # ── Progress label ────────────────────────────────────────────────────────
+        tk.Frame(right, height=1, bg=C['divider']).pack(fill=tk.X, pady=(6, 0))
+        progress_var = tk.StringVar(value="Loading archives from Google Drive…")
         progress_lbl = tk.Label(right, textvariable=progress_var,
                                 font=('Consolas', 8),
                                 bg=C['card_bg'], fg=C['accent_info'],
-                                anchor='w', wraplength=440)
+                                anchor='w', wraplength=520, justify='left')
         progress_lbl.pack(fill=tk.X, padx=14, pady=(4, 8))
         tk.Frame(right, height=1, bg=C['divider']).pack(fill=tk.X)
-
+    
+        # ── Buttons ───────────────────────────────────────────────────────────────
         btn_row = tk.Frame(right, bg=C['card_bg'])
         btn_row.pack(fill=tk.X, padx=14, pady=12)
-
-        _archives   = []
-        _selected   = [None]
-
+    
+        # ── State ─────────────────────────────────────────────────────────────────
+        _archives = []
+        _selected = [None]
+    
         def _on_select(event):
             sel = archive_list.curselection()
             if not sel:
                 return
             a = _archives[sel[0]]
             _selected[0] = a
-            detail_title.configure(text=a.get("folder_name", "?")[-30:])
+            detail_title.configure(text=a.get("folder_name", "?")[-36:])
             fc = a.get("file_counts", {})
             stat_vars["Archived at"].set(a.get("archived_at", "—"))
             stat_vars["Hostname"].set(a.get("hostname", "—"))
             stat_vars["Account"].set(a.get("email", "—"))
-            stat_vars["Vault files"].set(f"{fc.get('vault', 0)} files")
-            stat_vars["Log files"].set(f"{fc.get('logs', 0)} files")
-            stat_vars["AppData files"].set(f"{fc.get('appdata', 0)} files")
-
+            stat_vars["Vault files"].set(f"{fc.get('vault',         0)} files")
+            stat_vars["Log files"].set(f"{fc.get('logs',            0)} files")
+            stat_vars["AppData files"].set(f"{fc.get('appdata',     0)} files")
+            stat_vars["Folder backups"].set(f"{fc.get('folder_backup', 0)} buckets")
+    
         archive_list.bind("<<ListboxSelect>>", _on_select)
-
+    
+        # ── Load archives ─────────────────────────────────────────────────────────
         def _load_archives():
             try:
                 from core.cloud_sync import cloud_sync
                 from core.encryption_manager import crypto_manager
+    
+                # Re-count folder_backup entries too
                 items = cloud_sync.list_archives(crypto_manager.get_machine_id())
+    
+                # Supplement file_counts with folder_backup count
+                for a in items:
+                    fc = a.get("file_counts", {})
+                    if "folder_backup" not in fc:
+                        # list_archives doesn't count this — do it lazily
+                        try:
+                            fb_count = 0
+                            for child in cloud_sync._list_folder(a["folder_id"]):
+                                if child["name"] == "folder_backup":
+                                    fb_count = len(cloud_sync._list_folder(child["id"]))
+                                    break
+                            fc["folder_backup"] = fb_count
+                        except Exception:
+                            fc["folder_backup"] = 0
+    
                 def _populate():
                     archive_list.delete(0, tk.END)
                     _archives.clear()
@@ -2670,49 +2715,107 @@ class ProIntegrityGUI:
                         return
                     _archives.extend(items)
                     for a in items:
-                        archive_list.insert(tk.END, f"  {a.get('archived_at','?')[:10]}")
-                    progress_var.set(f"{len(items)} archive(s) found.")
+                        label = a.get("archived_at", "?")[:10]
+                        archive_list.insert(tk.END, f"  {label}")
+                    progress_var.set(
+                        f"{len(items)} archive(s) found. Select one to inspect.")
+    
                 win.after(0, _populate)
+    
             except Exception as exc:
-                win.after(0, lambda: progress_var.set(f"Error: {exc}"))
-
+                win.after(0, lambda: progress_var.set(f"Error loading archives: {exc}"))
+    
         threading.Thread(target=_load_archives, daemon=True).start()
-
+    
+        # ── Restore handler ───────────────────────────────────────────────────────
         def _do_restore():
             a = _selected[0]
             if not a:
-                messagebox.showwarning("Nothing selected", "Select an archive first.")
+                messagebox.showwarning("Nothing selected",
+                                    "Please select an archive from the list first.")
                 return
-            sub = subfolder_var.get()
+    
+            scope = subfolder_var.get()
+    
+            scope_labels = {
+                "all":           "EVERYTHING (all subfolders)",
+                "appdata":       "AppData (users, config, records)",
+                "logs":          "Logs & forensics",
+                "vault":         "File vault backups",
+                "keys":          "Encryption keys",
+                "folder_backup": "Folder structure backups",
+            }
+            scope_label = scope_labels.get(scope, scope)
+    
             if not messagebox.askyesno(
-                "Confirm selective restore",
-                f"Restore '{sub}' data from:\n{a.get('archived_at','?')}\n\n"
-                "This will overwrite matching local files.\nContinue?"
+                "Confirm restore",
+                f"Restore  {scope_label}\nfrom archive:\n\n"
+                f"  {a.get('archived_at', '?')}\n\n"
+                "Matching local files will be overwritten.\n"
+                "Continue?"
             ):
                 return
-            restore_btn.configure(state='disabled', text="Restoring...")
+    
+            restore_btn.configure(state='disabled', text="Restoring…")
+            all_btn.configure(state='disabled')
+    
             def _run():
                 from core.cloud_sync import cloud_sync
-                result = cloud_sync.restore_from_archive(a["folder_id"], subfolder=sub)
+    
+                if scope == "all":
+                    result_all = cloud_sync.restore_all_from_archive(
+                        a["folder_id"],
+                        progress_cb=lambda sub, r, e:
+                            win.after(0, lambda s=sub, rv=r, ev=e:
+                                    progress_var.set(f"✓ {s}: {rv} files restored"
+                                                    + (f"  ({len(ev)} errors)" if ev else "")))
+                    )
+                    total    = result_all["total_restored"]
+                    n_errors = len(result_all["errors"])
+                    summary  = (f"✅ Full restore complete: {total} files total.  "
+                                f"Errors: {n_errors}")
+                else:
+                    result = cloud_sync.restore_from_archive(a["folder_id"], subfolder=scope)
+                    total    = result["restored"]
+                    n_errors = len(result["errors"])
+                    summary  = (f"✅ Restored {total} files from '{scope}'.  "
+                                f"Errors: {n_errors}")
+    
                 def _done():
                     restore_btn.configure(state='normal', text="Restore Selected")
-                    progress_var.set(
-                        f"✅ Restored {result['restored']} files from archive "
-                        f"({sub}).  Errors: {len(result['errors'])}")
+                    all_btn.configure(state='normal')
+                    progress_var.set(summary)
                     self._append_log(
-                        f"ARCHIVE RESTORE: {result['restored']} files from "
-                        f"{a.get('archived_at','?')} ({sub})")
+                        f"ARCHIVE RESTORE: scope={scope}, "
+                        f"{total} files, archive={a.get('archived_at','?')}")
+    
                 win.after(0, _done)
+    
             threading.Thread(target=_run, daemon=True).start()
-
+    
         restore_btn = tk.Button(
             btn_row, text="Restore Selected",
             command=_do_restore,
             font=('Segoe UI', 10, 'bold'),
             bg=C['accent_secondary'], fg='#fff',
-            bd=0, padx=20, pady=8, cursor='hand2')
+            bd=0, padx=20, pady=8, cursor='hand2',
+            activebackground=C['accent_secondary'])
         restore_btn.pack(side=tk.LEFT)
-
+    
+        # "Restore All" is just a shortcut that sets scope to "all" and fires
+        def _quick_restore_all():
+            subfolder_var.set("all")
+            _do_restore()
+    
+        all_btn = tk.Button(
+            btn_row, text="Restore All",
+            command=_quick_restore_all,
+            font=('Segoe UI', 10, 'bold'),
+            bg=C['accent_danger'], fg='#fff',
+            bd=0, padx=20, pady=8, cursor='hand2',
+            activebackground=C['accent_danger'])
+        all_btn.pack(side=tk.LEFT, padx=(8, 0))
+    
         tk.Button(btn_row, text="Close", command=win.destroy,
                 font=('Segoe UI', 10),
                 bg=C['button_bg'], fg=C['text_secondary'],
@@ -3603,108 +3706,292 @@ class ProIntegrityGUI:
             from tkinter import messagebox
             messagebox.showerror("Configuration Error", f"Windows blocked saving the folder settings.\n\nError: {e}\n\nPlease run the app as Administrator.")
 
+    # ══════════════════════════════════════════════════════════════════════════════
+    #  PATCH 2 — Replace _show_activation_dialog with this version
+    #  Adds "Transfer License" flow when device_mismatch is returned.
+    # ══════════════════════════════════════════════════════════════════════════════
+    
     def _show_activation_dialog(self):
-        """Popup to enter the commercial license key (Account-Based)"""
-        # --- THE FIX: Force memory to sync with the fresh users.json file ---
+        """
+        License activation dialog.
+        On device_mismatch, offers a Transfer License flow instead of dead-end error.
+        """
         if auth:
             auth._load_users()
-            
-        # 1. Fetch the already registered email from the database
-        user_data = auth.users.get(self.username, {})
+    
+        user_data        = auth.users.get(self.username, {})
         registered_email = user_data.get("registered_email", "")
-        
+    
         if not registered_email:
-            messagebox.showerror("Error", "No registered email found for this account. Please contact support.")
+            messagebox.showerror(
+                "Error",
+                "No registered email found for this account.\nPlease contact support."
+            )
             return
-
-        # --- 2. Build the CustomTkinter Activation Window ---
-        upgrade_win = ctk.CTkToplevel(self.root)
-        upgrade_win.title("FMSecure PRO Activation")
-        upgrade_win.geometry("400x260")
-        upgrade_win.attributes("-topmost", True)
-        upgrade_win.grab_set() # Locks focus to this popup
-
-        # Center the window relative to the main app
-        upgrade_win.update_idletasks()
-        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - 200
-        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - 130
-        upgrade_win.geometry(f"+{x}+{y}")
-
-        # UI Elements
-        ctk.CTkLabel(upgrade_win, text="Upgrade to PRO", font=ctk.CTkFont(size=20, weight="bold")).pack(pady=(20, 5))
-        ctk.CTkLabel(upgrade_win, text="Enter your premium license key below:", text_color="gray").pack(pady=(0, 15))
-
-        key_entry = ctk.CTkEntry(upgrade_win, width=300, placeholder_text="Enter Product Key...", justify="center")
-        key_entry.pack(pady=(0, 20))
-
-        # --- Button Actions ---
-        def on_activate():
-            clean_key = key_entry.get().strip()
-            if not clean_key:
-                messagebox.showwarning("Input Required", "Please enter a product key.", parent=upgrade_win)
+    
+        key = simpledialog.askstring(
+            "Activate FMSecure PRO",
+            "Enter your PRO License Key:\n(from your purchase confirmation email)",
+            parent=self.root
+        )
+        if not key:
+            return
+        clean_key = key.strip()
+    
+        # ── Normal activation path ────────────────────────────────────────────────
+        success, msg = auth.activate_license(self.username, clean_key)
+    
+        if success:
+            messagebox.showinfo("Activation Successful! 🎉", msg)
+            self.status_var.set("⭐ Premium Active")
+            from core.integrity_core import CONFIG
+            CONFIG["admin_email"] = registered_email
+            CONFIG["is_pro_user"] = True
+            try:
+                from core.encryption_manager import crypto_manager
+                threading.Thread(target=crypto_manager.force_key_backup,
+                                daemon=True).start()
+            except Exception as e:
+                print(f"Failed to force key backup: {e}")
+            if hasattr(self, 'upgrade_btn') and self.upgrade_btn.winfo_exists():
+                self.upgrade_btn.destroy()
+            self.pro_badge = tk.Label(
+                self.top_btn_frame, text="★  PRO ACTIVE",
+                font=('Segoe UI', 10, 'bold'),
+                bg=self.colors['header_bg'], fg="#d29922")
+            self.pro_badge.pack(side=tk.LEFT, padx=(0, 15), before=self.theme_btn)
+            if hasattr(self, 'footer_label'):
+                self.footer_label.config(
+                    text=f"🔐 FMSecure PRO • Licensed to: {registered_email}",
+                    fg=self.colors['accent_success'])
+            return
+    
+        # ── Check if the failure is specifically a device_mismatch ───────────────
+        try:
+            from core.license_verifier import license_verifier
+            is_mismatch = license_verifier.is_device_mismatch(clean_key)
+        except Exception:
+            is_mismatch = "different device" in msg.lower() or "device_mismatch" in msg.lower()
+    
+        if not is_mismatch:
+            messagebox.showerror("Activation Failed", msg)
+            return
+    
+        # ── Device mismatch → offer Transfer License ──────────────────────────────
+        offer = messagebox.askyesno(
+            "License Transfer Required",
+            "This key is registered to a different device.\n\n"
+            "This usually happens after reinstalling FMSecure on the same computer.\n\n"
+            "Transfer the license to this device?\n"
+            "(A verification code will be sent to your purchase email.)"
+        )
+        if not offer:
+            return
+    
+        self._show_license_transfer_dialog(clean_key)
+    
+    
+    def _show_license_transfer_dialog(self, license_key: str):
+        """
+        Two-step license transfer:
+        Step 1 — user enters purchase email → server sends OTP
+        Step 2 — user enters OTP → server re-binds key to current machine_id
+        """
+        C   = self.colors
+        win = tk.Toplevel(self.root)
+        win.title("Transfer License — FMSecure")
+        win.geometry("480x480")
+        win.resizable(False, False)
+        win.configure(bg=C['card_bg'])
+        win.transient(self.root)
+        win.grab_set()
+    
+        # Center
+        win.update_idletasks()
+        px = self.root.winfo_x() + (self.root.winfo_width()  // 2) - 240
+        py = self.root.winfo_y() + (self.root.winfo_height() // 2) - 240
+        win.geometry(f'+{px}+{py}')
+    
+        # Header accent
+        tk.Frame(win, bg=C['accent_primary'], height=4).pack(fill=tk.X)
+    
+        # Title row
+        title_row = tk.Frame(win, bg=C['card_bg'])
+        title_row.pack(fill=tk.X, padx=24, pady=(18, 0))
+        tk.Label(title_row, text='🔑', font=('Segoe UI', 22),
+                bg=C['card_bg'], fg=C['accent_primary']).pack(side=tk.LEFT, padx=(0, 12))
+        col = tk.Frame(title_row, bg=C['card_bg'])
+        col.pack(side=tk.LEFT)
+        tk.Label(col, text='Transfer License to This Device',
+                font=('Segoe UI', 13, 'bold'),
+                bg=C['card_bg'], fg=C['text_primary']).pack(anchor='w')
+        tk.Label(col, text='Verify ownership via your purchase email',
+                font=('Segoe UI', 9),
+                bg=C['card_bg'], fg=C['text_secondary']).pack(anchor='w')
+        tk.Frame(win, height=1, bg=C['divider']).pack(fill=tk.X, padx=24, pady=(14, 0))
+    
+        # -- Step containers --
+        step1_frame = tk.Frame(win, bg=C['card_bg'])
+        step1_frame.pack(fill=tk.X)
+        step2_frame = tk.Frame(win, bg=C['card_bg'])
+        # step2_frame is hidden until OTP is sent
+    
+        # ── STEP 1 — email entry ─────────────────────────────────────────────────
+        tk.Label(step1_frame, text="Step 1 — Enter your purchase email",
+                font=('Segoe UI', 10, 'bold'),
+                bg=C['card_bg'], fg=C['text_primary']).pack(
+            anchor='w', padx=24, pady=(12, 4))
+        tk.Label(step1_frame,
+                text="Use the email address from your FMSecure order confirmation.",
+                font=('Segoe UI', 9),
+                bg=C['card_bg'], fg=C['text_muted']).pack(anchor='w', padx=24)
+    
+        email_var = tk.StringVar()
+        email_entry = tk.Entry(step1_frame, textvariable=email_var,
+                            font=('Segoe UI', 12),
+                            bg=C['input_bg'], fg=C['text_primary'],
+                            insertbackground=C['text_primary'],
+                            relief='flat',
+                            highlightthickness=1,
+                            highlightbackground=C['input_border'],
+                            highlightcolor=C['accent_primary'])
+        email_entry.pack(fill=tk.X, padx=24, pady=(8, 0))
+        email_entry.focus_set()
+    
+        status_lbl = tk.Label(step1_frame, text='',
+                            font=('Segoe UI', 9),
+                            bg=C['card_bg'], fg=C['accent_danger'])
+        status_lbl.pack(pady=(6, 0))
+    
+        # ── STEP 2 — OTP entry (hidden initially) ────────────────────────────────
+        tk.Label(step2_frame, text="Step 2 — Enter the verification code",
+                font=('Segoe UI', 10, 'bold'),
+                bg=C['card_bg'], fg=C['text_primary']).pack(
+            anchor='w', padx=24, pady=(16, 4))
+    
+        otp_status_lbl = tk.Label(step2_frame, text='',
+                                font=('Segoe UI', 9),
+                                bg=C['card_bg'], fg=C['text_secondary'])
+        otp_status_lbl.pack(anchor='w', padx=24)
+    
+        otp_var = tk.StringVar()
+        otp_entry = tk.Entry(step2_frame, textvariable=otp_var,
+                            font=('Segoe UI', 20, 'bold'),
+                            justify='center',
+                            bg=C['input_bg'], fg=C['text_primary'],
+                            insertbackground=C['text_primary'],
+                            relief='flat',
+                            highlightthickness=1,
+                            highlightbackground=C['input_border'],
+                            highlightcolor=C['accent_primary'])
+        otp_entry.pack(fill=tk.X, padx=24, pady=(8, 0))
+    
+        otp_error_lbl = tk.Label(step2_frame, text='',
+                                font=('Segoe UI', 9),
+                                bg=C['card_bg'], fg=C['accent_danger'])
+        otp_error_lbl.pack(pady=(4, 0))
+    
+        # ── Button row (always visible) ───────────────────────────────────────────
+        tk.Frame(win, height=1, bg=C['divider']).pack(fill=tk.X, padx=24, pady=(12, 0))
+        btn_row = tk.Frame(win, bg=C['card_bg'])
+        btn_row.pack(fill=tk.X, padx=24, pady=(12, 20))
+    
+        def _send_otp():
+            email = email_var.get().strip().lower()
+            if not email or '@' not in email:
+                status_lbl.configure(text='Please enter a valid email address.')
                 return
-            
-            # Close the CustomTkinter window immediately upon submission
-            upgrade_win.destroy()
-            
-            # 3. Send to Auth Manager (Your original logic)
-            success, msg = auth.activate_license(self.username, clean_key)
-            
-            if success:
-                messagebox.showinfo("Activation Successful! 🎉", msg)
-                self.status_var.set("⭐ Premium Active")
-
-                # --- NEW FIX: Set email, update PRO status, and instantly backup key to cloud! ---
-                from core.integrity_core import CONFIG
-                CONFIG["admin_email"] = registered_email
-                CONFIG["is_pro_user"] = True
-                
-                try:
-                    from core.encryption_manager import crypto_manager
-                    import threading
-                    threading.Thread(target=crypto_manager.force_key_backup, daemon=True).start()
-                except Exception as e:
-                    print(f"Failed to force key backup: {e}")
-                # ---------------------------------------------------------------------------------
-                
-                # Hide the upgrade button instantly
-                if hasattr(self, 'upgrade_btn') and self.upgrade_btn.winfo_exists():
-                    self.upgrade_btn.destroy()
-                    
-                # Inject the sleek PRO badge exactly where the button used to be
-                self.pro_badge = tk.Label(self.top_btn_frame, text="⭐ PRO ACTIVE", 
-                                          font=('Segoe UI', 10, 'bold'), 
-                                          bg=self.colors['header_bg'], fg="#ffd700")
-                self.pro_badge.pack(side=tk.LEFT, padx=(0, 15), before=self.theme_btn)
-                    
-                # Update the visual footer
-                if hasattr(self, 'footer_label'):
-                    self.footer_label.config(
-                        text=f"🔐 FMSecure PRO • Licensed to: {registered_email}", 
-                        fg=self.colors['accent_success']
-                    )
-            else:
-                messagebox.showerror("Activation Failed", msg)
-
-        def on_buy_now():
-            import webbrowser
-            webbrowser.open("https://fmsecure-c2-server-production.up.railway.app/")
-
-        # --- Button Layout ---
-        btn_frame = ctk.CTkFrame(upgrade_win, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=50)
-
-        # "Buy Now" - Transparent button with border
-        buy_btn = ctk.CTkButton(btn_frame, text="Buy Now", command=on_buy_now, 
-                                fg_color="transparent", border_width=1, 
-                                text_color=self.colors.get('accent_primary', "#3b8ed0"),
-                                hover_color="#2c2c2c")
-        buy_btn.pack(side="left", expand=True, padx=5)
-
-        # "Activate" - Solid primary button
-        activate_btn = ctk.CTkButton(btn_frame, text="Activate", command=on_activate, 
-                                     fg_color=self.colors.get('accent_primary', "#3b8ed0"))
-        activate_btn.pack(side="right", expand=True, padx=5)
+    
+            action_btn.configure(state='disabled', text='Sending…')
+            status_lbl.configure(text='')
+    
+            def _do_send():
+                from core.license_verifier import license_verifier
+                ok, msg = license_verifier.request_license_transfer(license_key, email)
+    
+                def _update():
+                    action_btn.configure(state='normal')
+                    if ok:
+                        # Hide step1, show step2
+                        step1_frame.pack_forget()
+                        otp_status_lbl.configure(
+                            text=f"Code sent to {email}. Enter it below.")
+                        step2_frame.pack(fill=tk.X)
+                        action_btn.configure(text='Confirm Transfer',
+                                            command=_confirm_transfer)
+                        otp_entry.focus_set()
+                    else:
+                        status_lbl.configure(text=msg)
+    
+                win.after(0, _update)
+    
+            import threading
+            threading.Thread(target=_do_send, daemon=True).start()
+    
+        def _confirm_transfer():
+            otp = otp_var.get().strip()
+            if not otp:
+                otp_error_lbl.configure(text='Please enter the verification code.')
+                return
+    
+            action_btn.configure(state='disabled', text='Verifying…')
+            otp_error_lbl.configure(text='')
+    
+            def _do_confirm():
+                from core.license_verifier import license_verifier
+                ok, msg_out, tier = license_verifier.confirm_license_transfer(
+                    license_key, otp)
+    
+                def _update():
+                    action_btn.configure(state='normal', text='Confirm Transfer')
+                    if ok:
+                        # Persist the activation locally
+                        success, auth_msg = auth.activate_license(
+                            self.username, license_key)
+                        win.destroy()
+                        if success:
+                            messagebox.showinfo(
+                                "Transfer Successful! 🎉",
+                                f"License transferred to this device.\n\n{auth_msg}"
+                            )
+                        else:
+                            # The cache already has the valid response so re-run
+                            messagebox.showinfo(
+                                "Transfer Complete",
+                                "License transferred. Please restart FMSecure to "
+                                "activate PRO features."
+                            )
+                        self._append_log(
+                            f"LICENSE TRANSFER: {license_key[:8]}… reassigned "
+                            f"to this device (tier: {tier})")
+                    else:
+                        otp_error_lbl.configure(text=msg_out)
+    
+                win.after(0, _update)
+    
+            import threading
+            threading.Thread(target=_do_confirm, daemon=True).start()
+    
+        action_btn = tk.Button(
+            btn_row, text='Send Verification Code',
+            command=_send_otp,
+            font=('Segoe UI', 10, 'bold'),
+            bg=C['accent_primary'], fg='#fff',
+            bd=0, padx=20, pady=7, cursor='hand2',
+            activebackground=C['accent_primary'])
+        action_btn.pack(side=tk.RIGHT)
+    
+        tk.Button(btn_row, text='Cancel', command=win.destroy,
+                font=('Segoe UI', 10),
+                bg=C['button_bg'], fg=C['text_secondary'],
+                bd=0, padx=20, pady=7, cursor='hand2',
+                activebackground=C['button_hover']).pack(
+            side=tk.RIGHT, padx=(0, 8))
+    
+        email_entry.bind('<Return>', lambda e: _send_otp())
+        otp_entry.bind('<Return>',   lambda e: action_btn.invoke())
+        win.bind('<Escape>', lambda e: win.destroy())
+ 
 
     def _start_telemetry_heartbeat(self):
         """Silently pings the FastAPI C2 Server every 10 seconds"""
