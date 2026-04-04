@@ -533,7 +533,7 @@ class ProIntegrityGUI:
         self._update_severity_counters()
         self._tail_log_loop()
         self._check_safe_mode_status()
-        self._start_telemetry_heartbeat()
+        # self._start_telemetry_heartbeat()
         self._setup_tray_icon()
         self._check_for_updates()
 
@@ -2542,7 +2542,8 @@ class ProIntegrityGUI:
         C   = self.colors
         win = tk.Toplevel(self.root)
         win.title("Archive Browser — FMSecure")
-        win.geometry("820x600")
+        win.geometry("1100x680")          # wider + taller — fixed, not resizable
+        win.resizable(False, False)
         win.configure(bg=C['bg'])
         win.transient(self.root)
     
@@ -2649,10 +2650,12 @@ class ProIntegrityGUI:
         # ── Progress label ────────────────────────────────────────────────────────
         tk.Frame(right, height=1, bg=C['divider']).pack(fill=tk.X, pady=(6, 0))
         progress_var = tk.StringVar(value="Loading archives from Google Drive…")
+        # anchor='w' + fixed wraplength prevents window resize when long filenames appear
         progress_lbl = tk.Label(right, textvariable=progress_var,
                                 font=('Consolas', 8),
                                 bg=C['card_bg'], fg=C['accent_info'],
-                                anchor='w', wraplength=520, justify='left')
+                                anchor='w', wraplength=560, justify='left',
+                                width=80)
         progress_lbl.pack(fill=tk.X, padx=14, pady=(4, 8))
         tk.Frame(right, height=1, bg=C['divider']).pack(fill=tk.X)
     
@@ -2707,6 +2710,12 @@ class ProIntegrityGUI:
                             fc["folder_backup"] = 0
     
                 def _populate():
+                    # Guard: window may have been closed while Drive was loading
+                    try:
+                        if not win.winfo_exists():
+                            return
+                    except Exception:
+                        return
                     archive_list.delete(0, tk.END)
                     _archives.clear()
                     if not items:
@@ -3713,8 +3722,12 @@ class ProIntegrityGUI:
     
     def _show_activation_dialog(self):
         """
-        License activation dialog.
-        On device_mismatch, offers a Transfer License flow instead of dead-end error.
+        License activation dialog — full styled window.
+        • Logo + branding
+        • License key entry
+        • Buy Now button → product page
+        • Recover Lost Key → sends key to purchase email
+        • Transfer License flow on device_mismatch
         """
         if auth:
             auth._load_users()
@@ -3722,75 +3735,223 @@ class ProIntegrityGUI:
         user_data        = auth.users.get(self.username, {})
         registered_email = user_data.get("registered_email", "")
     
-        if not registered_email:
-            messagebox.showerror(
-                "Error",
-                "No registered email found for this account.\nPlease contact support."
-            )
-            return
+        C   = self.colors
+        win = tk.Toplevel(self.root)
+        win.title("Activate FMSecure PRO")
+        win.geometry("500x560")
+        win.resizable(False, False)
+        win.configure(bg=C['card_bg'])
+        win.transient(self.root)
+        win.grab_set()
     
-        key = simpledialog.askstring(
-            "Activate FMSecure PRO",
-            "Enter your PRO License Key:\n(from your purchase confirmation email)",
-            parent=self.root
-        )
-        if not key:
-            return
-        clean_key = key.strip()
+        # Center on parent
+        win.update_idletasks()
+        px = self.root.winfo_x() + (self.root.winfo_width()  // 2) - 250
+        py = self.root.winfo_y() + (self.root.winfo_height() // 2) - 280
+        win.geometry(f'+{px}+{py}')
+        win.lift()
+        win.focus_force()
     
-        # ── Normal activation path ────────────────────────────────────────────────
-        success, msg = auth.activate_license(self.username, clean_key)
+        # ── Gold accent header ─────────────────────────────────────────────────────
+        tk.Frame(win, bg="#d29922", height=4).pack(fill=tk.X)
     
-        if success:
-            messagebox.showinfo("Activation Successful! 🎉", msg)
-            self.status_var.set("⭐ Premium Active")
-            from core.integrity_core import CONFIG
-            CONFIG["admin_email"] = registered_email
-            CONFIG["is_pro_user"] = True
-            try:
-                from core.encryption_manager import crypto_manager
-                threading.Thread(target=crypto_manager.force_key_backup,
-                                daemon=True).start()
-            except Exception as e:
-                print(f"Failed to force key backup: {e}")
-            if hasattr(self, 'upgrade_btn') and self.upgrade_btn.winfo_exists():
-                self.upgrade_btn.destroy()
-            self.pro_badge = tk.Label(
-                self.top_btn_frame, text="★  PRO ACTIVE",
-                font=('Segoe UI', 10, 'bold'),
-                bg=self.colors['header_bg'], fg="#d29922")
-            self.pro_badge.pack(side=tk.LEFT, padx=(0, 15), before=self.theme_btn)
-            if hasattr(self, 'footer_label'):
-                self.footer_label.config(
-                    text=f"🔐 FMSecure PRO • Licensed to: {registered_email}",
-                    fg=self.colors['accent_success'])
-            return
+        # ── Logo + title row ───────────────────────────────────────────────────────
+        title_row = tk.Frame(win, bg=C['card_bg'])
+        title_row.pack(fill=tk.X, padx=28, pady=(20, 0))
     
-        # ── Check if the failure is specifically a device_mismatch ───────────────
+        # Try to load the app icon as a small logo
         try:
-            from core.license_verifier import license_verifier
-            is_mismatch = license_verifier.is_device_mismatch(clean_key)
+            from PIL import Image, ImageTk
+            import sys
+            base = sys._MEIPASS if getattr(sys, 'frozen', False) else \
+                   os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            logo_path = os.path.join(base, "assets", "icons", "app_icon.png")
+            img = Image.open(logo_path).resize((52, 52))
+            self._activation_logo = ImageTk.PhotoImage(img)
+            logo_lbl = tk.Label(title_row, image=self._activation_logo, bg=C['card_bg'])
+            logo_lbl.pack(side=tk.LEFT, padx=(0, 14))
         except Exception:
-            is_mismatch = "different device" in msg.lower() or "device_mismatch" in msg.lower()
+            tk.Label(title_row, text="★", font=('Segoe UI', 32),
+                     bg=C['card_bg'], fg="#d29922").pack(side=tk.LEFT, padx=(0, 14))
     
-        if not is_mismatch:
-            messagebox.showerror("Activation Failed", msg)
-            return
+        info_col = tk.Frame(title_row, bg=C['card_bg'])
+        info_col.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        tk.Label(info_col, text="Upgrade to FMSecure PRO",
+                 font=('Segoe UI', 15, 'bold'),
+                 bg=C['card_bg'], fg=C['text_primary']).pack(anchor='w')
+        tk.Label(info_col, text="Active Defense • Cloud Backup • Ransomware Killswitch",
+                 font=('Segoe UI', 9),
+                 bg=C['card_bg'], fg=C['text_muted']).pack(anchor='w')
     
-        # ── Device mismatch → offer Transfer License ──────────────────────────────
-        offer = messagebox.askyesno(
-            "License Transfer Required",
-            "This key is registered to a different device.\n\n"
-            "This usually happens after reinstalling FMSecure on the same computer.\n\n"
-            "Transfer the license to this device?\n"
-            "(A verification code will be sent to your purchase email.)"
-        )
-        if not offer:
-            return
+        tk.Frame(win, height=1, bg=C['divider']).pack(fill=tk.X, padx=28, pady=(16, 0))
     
-        self._show_license_transfer_dialog(clean_key)
+        # ── Key entry ──────────────────────────────────────────────────────────────
+        tk.Label(win, text="ENTER YOUR LICENSE KEY",
+                 font=('Segoe UI', 9, 'bold'), 
+                 bg=C['card_bg'], fg=C['text_muted']).pack(
+            anchor='w', padx=28, pady=(14, 4))
     
+        key_var = tk.StringVar()
+        key_entry = tk.Entry(win, textvariable=key_var,
+                             font=('Consolas', 13),
+                             bg=C['input_bg'], fg="#d29922",
+                             insertbackground=C['text_primary'],
+                             relief='flat',
+                             highlightthickness=1,
+                             highlightbackground=C['input_border'],
+                             highlightcolor="#d29922")
+        key_entry.pack(fill=tk.X, padx=28, pady=(0, 4))
+        key_entry.focus_set()
     
+        status_lbl = tk.Label(win, text='',
+                               font=('Segoe UI', 9),
+                               bg=C['card_bg'], fg=C['accent_danger'],
+                               wraplength=420, justify='left')
+        status_lbl.pack(anchor='w', padx=28)
+    
+        # ── Activate button ────────────────────────────────────────────────────────
+        def _do_activate():
+            clean_key = key_var.get().strip()
+            if not clean_key:
+                status_lbl.configure(text="Please enter your license key.")
+                return
+            if not registered_email:
+                status_lbl.configure(
+                    text="No registered email on this account.\nContact support.")
+                return
+    
+            activate_btn.configure(state='disabled', text="Activating…")
+            status_lbl.configure(text='', fg=C['accent_danger'])
+    
+            def _run():
+                success, msg = auth.activate_license(self.username, clean_key)
+    
+                def _update():
+                    activate_btn.configure(state='normal', text="Activate")
+                    if success:
+                        win.destroy()
+                        self.status_var.set("⭐ Premium Active")
+                        from core.integrity_core import CONFIG
+                        CONFIG["admin_email"] = registered_email
+                        CONFIG["is_pro_user"] = True
+                        try:
+                            from core.encryption_manager import crypto_manager
+                            threading.Thread(target=crypto_manager.force_key_backup,
+                                             daemon=True).start()
+                        except Exception:
+                            pass
+                        if hasattr(self, 'upgrade_btn') and self.upgrade_btn.winfo_exists():
+                            self.upgrade_btn.destroy()
+                        self.pro_badge = tk.Label(
+                            self.top_btn_frame, text="★  PRO ACTIVE",
+                            font=('Segoe UI', 10, 'bold'),
+                            bg=self.colors['header_bg'], fg="#d29922")
+                        self.pro_badge.pack(side=tk.LEFT, padx=(0, 15),
+                                             before=self.theme_btn)
+                        messagebox.showinfo(
+                            "Activation Successful! 🎉",
+                            f"Welcome to FMSecure PRO!\n\n{msg}"
+                        )
+                        return
+    
+                    # Check for device_mismatch
+                    try:
+                        from core.license_verifier import license_verifier
+                        is_mismatch = license_verifier.is_device_mismatch(clean_key)
+                    except Exception:
+                        is_mismatch = ("different device" in msg.lower() or
+                                       "device_mismatch" in msg.lower())
+    
+                    if is_mismatch:
+                        status_lbl.configure(
+                            text="This key is linked to a different device.\n"
+                                 "Use 'Transfer License' below to reassign it.")
+                        transfer_btn.pack(fill=tk.X, padx=28, pady=(6, 0))
+                    else:
+                        status_lbl.configure(text=msg)
+    
+                self.root.after(0, _update)
+    
+            threading.Thread(target=_run, daemon=True).start()
+    
+        activate_btn = tk.Button(win, text="Activate",
+                                  command=_do_activate,
+                                  font=('Segoe UI', 11, 'bold'),
+                                  bg="#d29922", fg="#0d1117",
+                                  relief='flat', padx=20, pady=9,
+                                  cursor='hand2',
+                                  activebackground="#e6a817")
+        activate_btn.pack(fill=tk.X, padx=28, pady=(10, 0))
+        win.bind('<Return>', lambda e: _do_activate())
+    
+        # ── Transfer License (hidden until mismatch detected) ─────────────────────
+        transfer_btn = tk.Button(
+            win, text="Transfer License to This Device",
+            command=lambda: (win.destroy(),
+                             self._show_license_transfer_dialog(key_var.get().strip())),
+            font=('Segoe UI', 9),
+            bg=C['button_bg'], fg=C['accent_info'],
+            relief='flat', padx=12, pady=6, cursor='hand2')
+        # Not packed yet — shown only on device_mismatch
+    
+        tk.Frame(win, height=1, bg=C['divider']).pack(fill=tk.X, padx=28, pady=(14, 0))
+    
+        # ── Secondary actions row ──────────────────────────────────────────────────
+        sec_row = tk.Frame(win, bg=C['card_bg'])
+        sec_row.pack(fill=tk.X, padx=28, pady=(12, 0))
+    
+        # Buy Now
+        import webbrowser
+        buy_btn = tk.Button(
+            sec_row, text="Buy PRO License →",
+            command=lambda: webbrowser.open(
+                "https://fmsecure-c2-server-production.up.railway.app/pricing"),
+            font=('Segoe UI', 9, 'bold'),
+            bg="#238636", fg="#ffffff",
+            relief='flat', padx=12, pady=6, cursor='hand2',
+            activebackground="#2ea043")
+        buy_btn.pack(side=tk.LEFT)
+    
+        # Recover Lost Key
+        def _recover_key():
+            self._show_key_recovery_dialog(win)
+    
+        recover_btn = tk.Button(
+            sec_row, text="Recover Lost Key",
+            command=_recover_key,
+            font=('Segoe UI', 9),
+            bg=C['button_bg'], fg=C['text_secondary'],
+            relief='flat', padx=12, pady=6, cursor='hand2')
+        recover_btn.pack(side=tk.RIGHT)
+    
+        tk.Frame(win, height=1, bg=C['divider']).pack(fill=tk.X, padx=28, pady=(12, 0))
+    
+        # ── Feature highlights ─────────────────────────────────────────────────────
+        feats = tk.Frame(win, bg=C['card_bg'])
+        feats.pack(fill=tk.X, padx=28, pady=(10, 0))
+        for icon, txt in [
+            ("🛡", "Active Defense — auto-heal tampered files"),
+            ("☁", "Cloud Backup — Google Drive disaster recovery"),
+            ("🛑", "Ransomware Killswitch — OS-level folder lockdown"),
+            ("🔌", "USB Device Control — block unauthorized drives"),
+        ]:
+            row = tk.Frame(feats, bg=C['card_bg'])
+            row.pack(fill=tk.X, pady=2)
+            tk.Label(row, text=icon, font=('Segoe UI', 11),
+                     bg=C['card_bg'], fg="#d29922", width=2).pack(side=tk.LEFT)
+            tk.Label(row, text=txt, font=('Segoe UI', 9),
+                     bg=C['card_bg'], fg=C['text_secondary']).pack(
+                side=tk.LEFT, padx=4)
+    
+        # ── Close button ───────────────────────────────────────────────────────────
+        tk.Button(win, text="Close",
+                  command=win.destroy,
+                  font=('Segoe UI', 9),
+                  bg=C['button_bg'], fg=C['text_secondary'],
+                  relief='flat', padx=12, pady=5, cursor='hand2').pack(
+            anchor='e', padx=28, pady=(14, 20))
+    
+
     def _show_license_transfer_dialog(self, license_key: str):
         """
         Two-step license transfer:
@@ -3993,7 +4154,128 @@ class ProIntegrityGUI:
         win.bind('<Escape>', lambda e: win.destroy())
  
 
-    def _start_telemetry_heartbeat(self):
+    def _show_key_recovery_dialog(self, parent_win=None):
+        """
+        Recover a lost license key by sending it to the purchase email.
+        Calls POST /api/license/recover_key on the Railway server.
+        The server looks up all keys for that email and re-sends them.
+        """
+        C   = self.colors
+        dlg = tk.Toplevel(parent_win or self.root)
+        dlg.title("Recover Lost License Key")
+        dlg.geometry("420x300")
+        dlg.resizable(False, False)
+        dlg.configure(bg=C['card_bg'])
+        dlg.transient(parent_win or self.root)
+        dlg.grab_set()
+
+        dlg.update_idletasks()
+        base = parent_win or self.root
+        px   = base.winfo_x() + (base.winfo_width()  // 2) - 210
+        py   = base.winfo_y() + (base.winfo_height() // 2) - 150
+        dlg.geometry(f'+{px}+{py}')
+
+        tk.Frame(dlg, bg="#d29922", height=4).pack(fill=tk.X)
+
+        tk.Label(dlg, text="🔑  Recover Lost License Key",
+                 font=('Segoe UI', 13, 'bold'),
+                 bg=C['card_bg'], fg=C['text_primary']).pack(
+            anchor='w', padx=24, pady=(18, 4))
+        tk.Label(dlg,
+                 text="Enter the email you used to purchase FMSecure PRO.\n"
+                      "All active keys for that email will be re-sent.",
+                 font=('Segoe UI', 9),
+                 bg=C['card_bg'], fg=C['text_muted'],
+                 justify='left', wraplength=360).pack(anchor='w', padx=24)
+
+        tk.Frame(dlg, height=1, bg=C['divider']).pack(fill=tk.X, padx=24, pady=(12, 0))
+
+        tk.Label(dlg, text="PURCHASE EMAIL",
+                 font=('Segoe UI', 9, 'bold'),
+                 bg=C['card_bg'], fg=C['text_muted']).pack(
+            anchor='w', padx=24, pady=(10, 4))
+
+        email_var = tk.StringVar()
+        email_ent = tk.Entry(dlg, textvariable=email_var,
+                              font=('Segoe UI', 12),
+                              bg=C['input_bg'], fg=C['text_primary'],
+                              insertbackground=C['text_primary'],
+                              relief='flat',
+                              highlightthickness=1,
+                              highlightbackground=C['input_border'],
+                              highlightcolor="#d29922")
+        email_ent.pack(fill=tk.X, padx=24, pady=(0, 4))
+        email_ent.focus_set()
+
+        status_lbl = tk.Label(dlg, text='',
+                               font=('Segoe UI', 9),
+                               bg=C['card_bg'], fg=C['accent_danger'],
+                               wraplength=360, justify='left')
+        status_lbl.pack(anchor='w', padx=24)
+
+        btn_row = tk.Frame(dlg, bg=C['card_bg'])
+        btn_row.pack(fill=tk.X, padx=24, pady=(14, 20))
+
+        def _do_recover():
+            email = email_var.get().strip().lower()
+            if not email or '@' not in email:
+                status_lbl.configure(text="Please enter a valid email address.")
+                return
+            send_btn.configure(state='disabled', text="Sending…")
+            status_lbl.configure(text='', fg=C['accent_danger'])
+
+            def _run():
+                try:
+                    import requests as _req
+                    from core.license_verifier import LICENSE_SERVER_URL
+                    r = _req.post(
+                        f"{LICENSE_SERVER_URL}/api/license/recover_key",
+                        json={"email": email},
+                        timeout=10
+                    )
+                    data = r.json() if r.status_code in (200, 400) else {}
+                    if r.status_code == 200 and data.get("ok"):
+                        def _ok():
+                            dlg.destroy()
+                            messagebox.showinfo(
+                                "Key Sent",
+                                f"Your license key(s) have been sent to:\n{email}\n\n"
+                                "Check your inbox (and spam folder)."
+                            )
+                        self.root.after(0, _ok)
+                    else:
+                        reason = data.get("reason",
+                                          "No active license found for this email.")
+                        self.root.after(0, lambda r=reason: (
+                            send_btn.configure(state='normal', text="Send My Key"),
+                            status_lbl.configure(text=r)
+                        ))
+                except Exception as e:
+                    self.root.after(0, lambda err=str(e): (
+                        send_btn.configure(state='normal', text="Send My Key"),
+                        status_lbl.configure(text=f"Server error: {err}")
+                    ))
+
+            import threading
+            threading.Thread(target=_run, daemon=True).start()
+
+        send_btn = tk.Button(btn_row, text="Send My Key",
+                              command=_do_recover,
+                              font=('Segoe UI', 10, 'bold'),
+                              bg="#d29922", fg="#0d1117",
+                              relief='flat', padx=16, pady=7,
+                              cursor='hand2',
+                              activebackground="#e6a817")
+        send_btn.pack(side=tk.LEFT)
+
+        tk.Button(btn_row, text="Cancel", command=dlg.destroy,
+                  font=('Segoe UI', 10),
+                  bg=C['button_bg'], fg=C['text_secondary'],
+                  relief='flat', padx=16, pady=7,
+                  cursor='hand2').pack(side=tk.RIGHT)
+
+        email_ent.bind('<Return>', lambda e: _do_recover())
+        dlg.bind('<Escape>', lambda e: dlg.destroy())
         """Silently pings the FastAPI C2 Server every 10 seconds"""
         def heartbeat_loop():
             # Generate a unique hardware ID and get the PC name

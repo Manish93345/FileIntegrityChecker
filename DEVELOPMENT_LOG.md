@@ -1,179 +1,275 @@
-# 📘 Development Log — File Integrity Security Monitor
+# 📘 Development Log — FMSecure: Enterprise EDR
 
-This document tracks the complete engineering journey of the project,  
-from a simple hash checker to a production-ready security product with  
-Endpoint Detection and Response (EDR) capabilities.
+This document tracks the complete engineering journey of the project,
+from a simple file hash checker to a production-ready Endpoint Detection
+and Response (EDR) platform with a live cloud Command & Control server,
+server-validated licensing, and consent-based disaster recovery.
 
 ---
 
 ## 🗓️ Phase 0 — Foundations (Oct 2025)
-- Project structure created
-- Initial README written
-- Basic hash generator for single file validation
-- Single‑file integrity checker (store & compare hash)
+- Project structure created, initial README written
+- Basic hash generator for single-file validation (`hash_generation.py`)
+- Single-file integrity checker — stores hash, detects tampering on re-run (`file_checker.py`)
+- Polling-based folder monitor detecting create / modify / delete, writes `integrity_log.txt` and `hash_record.json`
 
 ---
 
-## 🗓️ Phase 1 — Folder Monitoring (Oct 2025)
-- Polling‑based folder monitor (detect create / modify / delete)
-- Persistent hash storage (JSON) and event logging (plain text)
-- Introduction of baseline snapshot for a monitored directory
+## 🗓️ Phase 1 — Real-Time Monitoring (Oct 2025)
+- Replaced polling with event-driven monitoring via `watchdog` library
+- `realtime_monitor.py` — generates `hash_records.json` and `integrity_log.txt` on live events
+- Chunked hashing with retry logic for `PermissionError` and transient file locks
+- Optional webhook alert on any event if `WEBHOOK_URL` is configured
 
 ---
 
 ## 🗓️ Phase 2 — Security Hardening (Oct 2025)
-- HMAC protection for hash database to prevent tampering
-- Periodic background verification thread
-- Startup integrity checks (self‑audit of records)
-- Optional webhook alerts for critical events
-- Enhanced CLI controls (manual verify, interval settings)
+- HMAC signature for `hash_records.json` — any external modification is immediately detected
+- Periodic auto-verification background thread (configurable interval)
+- Atomic save of records + signature — no partial-write window
+- Smart log rotation (size-based with configurable backup count)
+- Enhanced CLI: `--verify`, `--periodic`, `--check-integrity`, `--watch`, `--webhook`
 
 ---
 
 ## 🗓️ Phase 3 — Audit & Logs (Nov 2025)
-- Tamper‑proof logging with HMAC signatures for log files
-- Automatic log rotation (size‑based, with backup limits)
-- Verification summary reports (JSON + human‑readable)
-- Performance optimizations (chunked hashing, retry logic)
+- Tamper-proof logging — HMAC signature applied per log line
+- Log rotation: `integrity_log.txt.1 → .2 → .3`, matching `.sig` backups
+- Verification summary reports (JSON + human-readable text)
+- Performance optimizations: chunked hashing, retry on lock
 
 ---
 
 ## 🗓️ Phase 4 — Configuration System (Nov 2025)
-- External `config.json` for all settings (watch folder, secret key, webhook)
-- Runtime configuration reload
-- Separation of core logic from user‑facing interfaces
+- External `config.json` for all settings (watch folder, secret key, webhook URL, intervals)
+- Runtime configuration reload without restart
+- Separation of core engine from user-facing interface layers
 
 ---
 
 ## 🗓️ Phase 5 — GUI Introduction (Nov 2025)
-- Backend split into core engine and UI layers
-- Command‑line interface (CLI) for terminal users
-- Graphical interface (GUI) with:
-  - Folder selection
-  - Start/stop monitoring
-  - Manual verification trigger
-  - Live log feed
+- Backend split: `integrity_core.py` (engine), `integrity_cli.py` (terminal), `integrity_gui.py` (desktop)
+- GUI features: folder selection, start/stop monitoring, manual verification, live log feed
 
 ---
 
 ## 🗓️ Phase 6 — GUI & Reporting Enhancements (Dec 2025)
 - Dark / Light theme toggle
-- Icons and visual polish
-- PDF report export with embedded charts (matplotlib, reportlab)
-- Sliding status window for real‑time event summary
-- In‑window alerts instead of pop‑ups
+- PDF report export with embedded matplotlib charts (ReportLab)
+- Sliding status window for real-time event summary
+- In-window alerts replacing modal pop-ups
 
 ---
 
 ## 🗓️ Phase 7 — UX & Visual Intelligence (Dec 2025)
-- Color‑coded alerts (INFO / MEDIUM / HIGH / CRITICAL)
+- Color-coded severity alerts: INFO (blue) / MEDIUM (yellow) / HIGH (orange) / CRITICAL (red)
 - Dashboard widgets with live counters
-- Improved user feedback (status banners, progress indicators)
+- Status banners and progress indicators
 
 ---
 
-## 🗓️ Phase 8 — Security Intelligence (Dec 2026)
+## 🗓️ Phase 8 — Security Intelligence (Jan 2026)
 
-### Phase 8.1 — Authentication
-- User / Admin role separation
-- Admin login alerts
-- Password change logging
-- Credential storage with hashing
+### 8.1 — Authentication & Access Control
+- Admin / User role separation
+- Password hashing with SHA-256 + salt
+- Login attempt logging and brute-force protection
 
-### Phase 8.2 — Severity Engine
-- Severity classification for all events
-- Severity‑aware alerting (different webhook colors)
+### 8.2 — Severity Engine
+- Event-to-severity mapping for all 20+ event types
+- Severity-aware webhook embeds (color-coded Discord/Slack cards)
+- Persistent severity counters with thread-safe in-memory cache + disk fallback
 
-### Phase 8.3 — Auto Response & Safe Mode
-- Automated actions per severity:
+### 8.3 — Auto Response & Safe Mode
+- Automated response rules per severity:
   - **INFO** → log only
   - **MEDIUM** → alert + log
-  - **HIGH** → alert + incident snapshot
-  - **CRITICAL** → Safe Mode (monitoring freeze, admin alert)
-- Incident snapshot generation (mini‑report with last events)
+  - **HIGH** → alert + encrypted incident snapshot
+  - **CRITICAL** → Safe Mode (monitoring freeze + admin alert)
+- `safe_mode.py` — lockdown flag file, state persistence, admin override
+- `incident_snapshot.py` — AES-encrypted forensic capture with system state, disk info, process info, recent log lines
 
 ---
 
-## 🗓️ Phase 9 — Cleanup & Demo Mode (Jan 2026)
-- Production‑ready folder structure (core, gui, config, reports, logs)
-- Internal files hidden from casual view
-- Demo simulation mode (fake events, tamper scenarios)
-- Log archive & reset menu
-- Interview‑ready demo assets (screenshots, videos)
-- Fixed system tray bugs, logout issues, session restoration
+## 🗓️ Phase 9 — Cleanup, Demo Mode & Production Structure (Jan–Feb 2026)
+- Production folder structure: `core/`, `gui/`, `assets/`, `logs/`
+- Internal files hidden via Windows file attributes
+- Demo simulation mode — generates realistic fake events for live demonstrations
+- Log archive & session reset menu
+- System tray integration — minimize to tray, authenticate before showing dashboard
+- Fixed: alert pop-ups appearing when app is minimized to tray
+- Fixed: logout bug, watchdog recovery GUI flash
 
 ---
 
 ## 🗓️ Phase 10 — Performance & Forensic Enhancements (Jan 2026)
-- **Multithreaded hashing** – reduced scan time for large folders (119 GB from 2m18s → 1m5s)
-- **Rename detection** – OS‑level move events captured and logged
-- **Hidden file tracking** – Windows file attributes (hidden, system) now monitored
-- **Atomic save handling** – debounce timer prevents false alerts during file writes
-- **Encryption at rest** – AES‑128 for logs, user database, and hash records (separate key per installation)
-- **Audit log viewer** – on‑the‑fly decryption of encrypted `.dat` logs inside GUI
+- **Multithreaded hashing** with `concurrent.futures.ThreadPoolExecutor`
+  - 119 GB folder: 2m 18s → 1m 5s (sequential → 16-thread parallel)
+  - Achieved 1,830 MB/s sustained read throughput on NVMe SSD
+  - Python code is no longer the bottleneck — hardware I/O is the limit
+- **Rename detection** — `on_moved` handler distinguishes true rename from editor "atomic save" pattern
+- **Hidden file tracking** — `os.stat().st_file_attributes` captures Windows Hidden/System/Archive bits
+- **State hashing** — master hash = SHA-256(content_hash | attributes | mtime), detects property-only changes
+- **Debounce timer** — 2-second stability window prevents false alerts during large file writes
+- **Encryption at rest** — AES-256 (Fernet) for `users.dat`, `hash_records.dat`, `integrity_log.dat`
+- **Secure Audit Log Viewer** — on-the-fly AES decryption in RAM, files stay encrypted on disk
 
 ---
 
 ## 🗓️ Phase 11 — Active Defense & Automated Response (Feb 2026)
-- **Auto‑Healing Vault**:
-  - Selective backup of small, critical files (size & extension filters)
-  - Encrypted, hidden vault in AppData
-  - Instant restoration on modification or deletion
-- **Ransomware Killswitch**:
-  - Burst detection (≥5 files modified in 10s) triggers OS‑level folder lockdown (icacls)
-  - Strips write/modify permissions, paralyzing encryption attempts
+- **Auto-Healing Vault** (`vault_manager.py`):
+  - Selective backup: files < 10 MB with allowed extensions only
+  - Hidden, obfuscated vault (`AppData/system32_vault/`, sha256(path).enc filenames)
+  - Instant file restoration on modification or deletion
+  - Infinite-loop prevention via debounce timer + content-hash comparison
+- **Ransomware Killswitch** (`lockdown_manager.py`):
+  - Burst detection: ≥5 file events in 10 seconds
+  - OS-level lockdown via Windows `icacls` — strips Write/Delete for Everyone
+  - Parallelizes ransomware encryption attempts at kernel level
 - **Honeypot Tripwire**:
-  - Fake file monitored
-  - Any access instantly detonates killswitch and alerts admin
+  - `secret_passwords.txt` monitored separately
+  - Any access instantly detonates killswitch + sends CRITICAL alert
+- **AES Forensic Snapshots**: encrypted `.dat` captures with system state, disk, process, last 15 log lines
 
 ---
 
 ## 🗓️ Phase 12 — Enterprise Readiness (Feb 2026)
-- **Webhook & Email Alerting**:
-  - Rich embed alerts for Slack/Discord (color‑coded)
-  - SMTP email alerts for compliance trail
-- **Cloud Disaster Recovery** (Google Drive Sync):
-  - OAuth 2.0 authentication
-  - Per‑user encrypted cloud vaults
-  - Two‑tier restore (local vault → cloud rescue)
-- **Google OAuth Login** (optional):
-  - “Continue with Google” for seamless authentication
-- **Watchdog Stealth Mode**:
-  - Background process that resurrects main app if killed
-  - Stateful recovery (auto‑login and resume monitoring)
-- **USB Device Control**:
-  - Real‑time detection of USB insertion
-  - Forced read‑only or eject via Windows Registry (DLP)
+- **Dual-Channel Alerting**:
+  - Discord/Slack Rich Embeds (color-coded, real-time, mobile push)
+  - SMTP email alerts with forensic `.dat` attachment for compliance trail
+- **Cloud Disaster Recovery** (Google Drive OAuth 2.0):
+  - Per-machine encrypted cloud vaults identified by hardware `machine_id`
+  - Two-tier restore: local vault → cloud rescue
+  - Folder structure backup with selective extension/size filtering
+- **Google OAuth Login**: "Continue with Google" with device PIN as secondary factor
+- **Watchdog Stealth Mode** (`sys_watchdog.py`):
+  - Separate process masquerading as `WinSysHost.exe`
+  - Resurrects app with `--recovery` flag, auto-starts monitoring
+- **USB Device Control** (`usb_policy.py`): Windows Registry `StorageDevicePolicies` enforcement
 
 ---
 
-## 🗓️ Phase 13 — Admin UX & Hardening (Feb 2026)
-- **Profile Panel** – user info, license status, subscription management
-- **Password‑Protected Controls** – Stop Monitoring and Settings now require admin password
+## 🗓️ Phase 13 — Admin UX & Commercial Licensing (Feb–Mar 2026)
+- **Profile Panel** — live user info, license tier, subscription status
+- **Password-Protected Controls** — Stop Monitoring and Settings require re-authentication
 - **License System**:
-  - Offline license generation with HMAC signing
-  - PRO feature unlocking (Active Defense, Cloud Sync, etc.)
-- **First‑Time Setup** – registration screen with email OTP verification
-- **One‑Time Password (OTP)** – SMTP‑based for password recovery / registration
+  - Server-validated (POST `/api/license/validate` to Railway FastAPI)
+  - 24-hour AES-encrypted local cache for offline operation
+  - Graceful degradation to Free tier if server unreachable
+  - PRO tiers: `pro_monthly`, `pro_annual`
+- **Registration with Email OTP**: SMTP-based 6-digit code, 5-minute TTL, burns on use
+- **Password Recovery**: OTP-based reset via purchase email
+- **In-App Update Banner**: GitHub Gist version check on startup
+  - Gist URL: https://gist.github.com/Manish93345/f339aeaae5ef231abf2be28bb750e4d8
 
 ---
 
+## 🗓️ Phase A — GUI Upgrade to Production Quality (Mar 2026)
+- Migrated from Tkinter to **CustomTkinter** — 10× visual improvement
+- Branded splash screen with animated loading bar and app logo
+- Professional taskbar icon (`.ico`) injected at runtime
+- Fixed all Google SSO edge cases:
+  - Email allowlist enforcement — only pre-registered emails can sign in with Google
+  - Device PIN as secondary factor for Google SSO users (no password set)
+  - PIN change dialog for Google SSO users (`_create_pin_change_window`)
+  - `_authenticate_action()` now routes to PIN or password depending on `auth_method`
+- Live Security Feed with severity filter pills (ALL / CRITICAL / HIGH / MEDIUM / INFO)
+- Multi-folder monitoring with per-tier folder limit enforcement
+- Menu animation smooth slide (ghost frame pattern to eliminate Tkinter redraw lag)
 
-## For exe file 
-  ### Run it in terminal
-  pyinstaller run.py `
-  --onedir `
-  --noconsole `
-  --name SecureFIM `
-  --icon=assets/icons/app_icon.ico `
-  --clean
+---
 
+## 🗓️ Phase B — Cloud C2 Server Deployment (Mar 2026)
+- **Railway.app deployment**: FastAPI + PostgreSQL, live at `fmsecure-c2-server-production.up.railway.app`
+- **C2 Fleet Dashboard**: real-time heartbeat table, online/offline status, ARMED/UNARMED badge
+- **Remote Lockdown**: ISOLATE HOST button queues `LOCKDOWN` command, agent executes on next heartbeat
+- **Cookie-based admin sessions** with token-bucket rate limiting (SlowAPI)
+- **Server-validated licensing**: Razorpay payment → Stripe webhook → license row in PostgreSQL → SendGrid key delivery email
+- **Admin endpoints**: `/api/license/list`, `/api/license/create_manual`, `/api/license/release_device`
 
-pyinstaller run.py --onedir --noconsole --name SecureFIM --icon=assets/icons/app_icon.ico --clean --add-data "credentials.json;."
+---
+
+## 🗓️ Phase C — Encryption Hardening & Full Disaster Recovery (Mar 2026)
+- **Hardware Key Encryption Key (KEK)**:
+  - AES master key protected by a second key derived from hardware (PBKDF2 × 200,000 over hostname + machine + processor)
+  - KEK never written to disk — lives in RAM only, re-derived on every boot
+  - Stolen `sys.key` on a different machine → KEK mismatch → unreadable
+  - Legacy upgrade path: 44-byte plaintext keys auto-upgraded to KEK format on first boot
+- **Three-Layer Key Protection**:
+  - L1: `system32_config/sys.key` (KEK-encrypted, hidden)
+  - L2: `system32_shadow/.sys_backup.key` (KEK-encrypted, hidden)
+  - L3: Google Drive `FMSecure_{MACHINE_ID}/keys/` (PRO only)
+- **Machine-ID as single source of truth** for all cloud folders:
+  - Industry pattern from CrowdStrike/SentinelOne: hardware identity, not email
+  - Eliminates `Vault_UnknownUser` proliferation and email injection race conditions
+- **Full AppData backup** every 6 hours (PRO, background scheduler)
+- **Folder Structure Vault** (`folder_structure_vault.py`):
+  - Backs up complete directory tree to Drive `folder_backup/` subfolder
+  - Selective restore: original location or new destination
+  - Skipped-files report for size/extension violations
+- **Concurrent batch upload** with `ThreadPoolExecutor(max_workers=4)`, live progress callback
+- **Two-Phase Initialization** to avoid circular import at startup:
+  - Phase 1 (at import): local-only key load, no network
+  - Phase 2 (after cloud_sync ready): cloud recovery if needed
+
+---
+
+## 🗓️ Phase D — Consent-Based Recovery, Archive Browser & License Hardening (Apr 2026)
+
+### D.1 — Machine ID Determinism Fix
+The `license_verifier._get_machine_id()` was appending `uuid.uuid4().hex[:8]` — a random suffix that regenerated after reinstall. After reinstall, the stored `machine_id.dat` was gone, a new random suffix appeared, and the server returned `device_mismatch` for a key the user legitimately owned. Fixed by replacing the entire function with pure hardware derivation identical to `encryption_manager.get_machine_id()`. No random component, deterministic forever.
+
+### D.2 — License Transfer Flow (for old activations)
+Users who activated before the D.1 fix have the old random machine_id in the database. Added a two-step OTP transfer flow: user provides purchase email → server sends 6-digit OTP via SendGrid → user enters OTP → server updates `machine_id` in PostgreSQL. OTP TTL: 15 minutes. Constant-time responses throughout to prevent timing and enumeration attacks. Transfer dialog built into the new styled activation window, appearing only when `device_mismatch` is detected.
+
+### D.3 — Consent-Based Restore (The WhatsApp Pattern)
+On a fresh install, the app previously silently probed Drive and restored everything without asking. Now: probe runs in a background thread while the UI shows a loading screen with a braille spinner. Both active backup and all archives are fetched. If one option exists → single detection screen. If multiple exist → picker screen lists all with date, email, and file count. User explicitly chooses which backup to restore or clicks "Start Fresh". Archives are never deleted — renamed atomically to `FMSecure_{MID}_Archive_{Timestamp}/`.
+
+### D.4 — Wrong Password After Restore (Critical Bug)
+Root cause: `users.dat` on Drive was encrypted with the backup's key (K2). Local key K1 existed, so `attempt_cloud_recovery_if_needed()` returned immediately without downloading K2. K2 was never loaded. K1 tried to decrypt K2-encrypted `users.dat` → failure → empty auth database → every password rejected. Fix: before restoring, delete local key files and reset all `crypto_manager` state flags, forcing it to download K2 from Drive. Then restore `users.dat`. Then `auth.reload()` twice with OS flush gap.
+
+### D.5 — Archive Browser Improvements
+- TclError crash fixed with `winfo_exists()` guard before `_populate()`
+- Window enlarged to 1100×680, fixed size
+- Progress label given fixed width (80 chars) to prevent window resizing on long filenames
+- "Restore All" button added — restores subfolders in correct order (keys first)
+- Folder structure backup scope option added
+- All archives now shown in startup picker (was only showing active folder)
+
+### D.6 — Splash Screen Logo Fix
+Two bugs: Tkinter `PhotoImage` garbage collection (fixed by pinning reference to canvas widget with `canvas.logo_img = self.logo_img`), and a duplicate `_show_splash_screen()` call in `__init__` that created a second windowless splash that overwrote the reference.
+
+### D.7 — Activation Dialog Redesign
+Replaced plain `simpledialog.askstring()` with a full styled 500×560 window: app logo, gold accent, feature highlights, activation in background thread, inline error messages, "Buy PRO" button linking to pricing page, "Recover Lost Key" button, "Transfer License" button appearing dynamically on `device_mismatch` only.
+
+### D.8 — Lost License Key Recovery
+New server endpoint `POST /api/license/recover_key` — looks up all active non-expired keys for the provided email and re-sends each via SendGrid. Always returns `{ok: true}` regardless of whether the email exists (enumeration prevention). New `_show_key_recovery_dialog()` in the GUI.
+
+### D.9 — Two-Phase Encryption Manager Consent Gate
+`attempt_cloud_recovery_if_needed()` now requires `user_consented=True` to touch the cloud. Default (`False`) generates a fresh local key without any network call. This ensures the cloud is never restored without explicit user action, completing the consent architecture.
+
+---
+
+## 🔮 Pending / Future Scope
+- Fix vault width — label changes cause window resize
+- Progress animation during backup restore download
+- Cloud sync progress bar and last-synced timestamp in GUI
+- Cloud sync window freeze when closed before OAuth completes
+- Password hardening — upgrade SHA-256 to bcrypt
+- Server-side decompile protection — public/private key signing for license keys
+- Network Isolation — `netsh advfirewall` integration during Killswitch
+- ML Heuristics — isolation forest for anomaly detection replacing static burst threshold
+- Memory Scanning — API hooking for fileless malware detection
+
+---
+
+## 🛠️ Build Commands
+```powershell
+# Compile the invisible Watchdog
 pyinstaller --onedir --noconsole --name WinSysHost sys_watchdog.py
 
-
-pyinstaller run.py --onedir --noconsole --name SecureFIM --icon=assets/icons/app_icon.ico --clean --add-data "credentials.json;." --add-data "assets;assets"
-
-
-pyinstaller run.py --onedir --noconsole --name SecureFIM --icon=assets/icons/app_icon.ico --add-data "assets;assets" --clean
+# Compile the Main Agent
+pyinstaller run.py --onedir --noconsole --name SecureFIM ^
+  --icon=assets/icons/app_icon.ico ^
+  --add-data "assets;assets" --clean
+```

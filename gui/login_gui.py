@@ -1323,24 +1323,45 @@ class LoginWindow:
             try:
                 from core.cloud_sync import cloud_sync
                 from core.encryption_manager import crypto_manager
-    
+
                 if not cloud_sync.is_active:
                     self.root.after(0, self._build_register_ui)
                     return
-    
-                machine_id  = crypto_manager.get_machine_id()
+
+                machine_id = crypto_manager.get_machine_id()
+
+                # Fetch BOTH the active backup and all archives in parallel.
+                # Industry pattern: always show the user everything available,
+                # never silently discard backups because only one "layer" was checked.
                 backup_info = cloud_sync.check_backup_exists(machine_id)
-    
+                archives    = cloud_sync.list_archives(machine_id)
+
+                # Build a unified list: active backup first (if present), then archives
+                all_options = []
                 if backup_info:
-                    self.root.after(0, lambda: self._build_reinstall_detection_ui(
-                        backup_info, machine_id))
-                else:
+                    # Tag it so the UI can label it "Current backup"
+                    backup_info["_is_active"] = True
+                    backup_info["archived_at"] = backup_info.get("last_sync", "Current")
+                    all_options.append(backup_info)
+                for a in archives:
+                    a["_is_active"] = False
+                    all_options.append(a)
+
+                if not all_options:
                     self.root.after(0, self._build_register_ui)
-    
+                elif len(all_options) == 1:
+                    # Only one option — go straight to the single-backup screen
+                    self.root.after(0, lambda: self._build_reinstall_detection_ui(
+                        all_options[0], machine_id))
+                else:
+                    # Multiple options — show the picker so user chooses which one
+                    self.root.after(0, lambda: self._build_archive_picker_ui(
+                        all_options, machine_id))
+
             except Exception as e:
                 print(f"[LOGIN] Reinstall check error (non-critical): {e}")
                 self.root.after(0, self._build_register_ui)
-    
+
         import threading
         threading.Thread(target=_probe, daemon=True).start()
 
@@ -1471,7 +1492,6 @@ class LoginWindow:
         for widget in self.root.winfo_children():
             widget.destroy()
 
-        # Show progress
         card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
         card.pack(expand=True, fill="both", padx=40, pady=60)
         ctk.CTkLabel(card, text="⏳ Restoring your data...",
@@ -1482,22 +1502,73 @@ class LoginWindow:
 
         def _do_restore():
             from core.encryption_manager import crypto_manager
+            from core.cloud_sync import cloud_sync
+            import os, time
 
-            progress_var.set("Downloading encryption key...")
-            # Pass user_consented=True — this is the explicit consent gate
+            # ── CRITICAL FIX ─────────────────────────────────────────────────
+            # The local key and the cloud backup's key are DIFFERENT installs.
+            # If the local key exists, crypto_manager returns immediately and
+            # never downloads the backup key → users.dat (encrypted with the
+            # backup key) cannot be decrypted → "wrong password".
+            #
+            # Solution: delete local key files first so crypto_manager is
+            # forced to download the cloud key. This is the correct sequence:
+            #   1. Delete local key
+            #   2. Download backup key from cloud
+            #   3. Restore users.dat (now decryptable with the just-downloaded key)
+            #   4. Reload auth
+            # ─────────────────────────────────────────────────────────────────
+            progress_var.set("Clearing local key for fresh restore...")
+            try:
+                for kpath in [crypto_manager.key_file, crypto_manager.key_backup]:
+                    if os.path.exists(kpath):
+                        os.remove(kpath)
+                        print(f"[RESTORE] Cleared local key: {os.path.basename(kpath)}")
+                # Reset runtime state so Phase 1 sees "no key" and Phase 2 runs
+                crypto_manager.fernet                    = None
+                crypto_manager._key_bytes                = None
+                crypto_manager._local_ok                 = False
+                crypto_manager._cloud_recovery_attempted = False
+            except Exception as e:
+                print(f"[RESTORE] Key clear warning (non-critical): {e}")
+
+            # Step 2 — download the backup's encryption key
+            progress_var.set("Downloading encryption key from cloud...")
             key_ok = crypto_manager.attempt_cloud_recovery_if_needed(user_consented=True)
 
-            progress_var.set("Restoring account database...")
-            # auth.reload() is called inside attempt_cloud_recovery_if_needed
+            if not key_ok or crypto_manager.fernet is None:
+                progress_var.set("⚠️  Encryption key not found in this backup.\n"
+                                 "Please create a new account.")
+                self.root.after(2500, self._build_register_ui)
+                return
 
-            if key_ok:
-                progress_var.set("✅ Restore complete — please log in.")
-                self.root.after(1200, self._build_login_ui)
-            else:
-                progress_var.set("⚠️  Key not recoverable — new key generated.\n"
-                                "Old encrypted data cannot be decrypted.\n"
-                                "Please create a new account.")
-                self.root.after(2000, self._build_register_ui)
+            # Step 3 — restore appdata.  users.dat is now decryptable because
+            # we have the correct encryption key loaded.
+            progress_var.set("Restoring account database...")
+            try:
+                cloud_sync.restore_full_appdata(machine_id)
+            except Exception as e:
+                print(f"[RESTORE] restore_full_appdata error: {e}")
+
+            progress_var.set("Restoring logs & forensics...")
+            try:
+                cloud_sync.restore_logs_and_forensics(machine_id)
+            except Exception as e:
+                print(f"[RESTORE] restore_logs error: {e}")
+
+            # Step 4 — reload auth AFTER files are on disk.
+            # Small sleep ensures the OS has flushed users.dat before we read it.
+            progress_var.set("Reloading credentials...")
+            try:
+                time.sleep(0.5)
+                auth.reload()
+                time.sleep(0.2)
+                auth.reload()   # second pass — paranoia, costs nothing
+            except Exception as e:
+                print(f"[RESTORE] auth.reload error: {e}")
+
+            progress_var.set("✅ Restore complete — please log in.")
+            self.root.after(1500, self._build_login_ui)
 
         import threading
         threading.Thread(target=_do_restore, daemon=True).start()
@@ -1534,6 +1605,206 @@ class LoginWindow:
         """Synchronous yes/no confirm dialog."""
         import tkinter.messagebox as mb
         return mb.askyesno("Confirm", message, parent=self.root)
+
+
+    def _build_archive_picker_ui(self, all_options: list, machine_id: str):
+        """
+        Shown when multiple backups exist (active + archives, or multiple archives).
+        Lists every available backup with date, account email, and file counts.
+        User picks one and clicks Restore, or starts fresh.
+
+        'all_options' items are dicts with the same shape as check_backup_exists()
+        returns, plus '_is_active' bool and 'archived_at' string.
+        """
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
+        main_card.pack(expand=True, fill="both", padx=20, pady=16)
+
+        ctk.CTkLabel(main_card, text="☁",
+                     font=("Segoe UI", 36), text_color="#00a8ff").pack(pady=(18, 4))
+        ctk.CTkLabel(main_card,
+                     text=f"{len(all_options)} Backup(s) Found",
+                     font=("Segoe UI", 18, "bold"), text_color="#ffffff").pack()
+        ctk.CTkLabel(main_card,
+                     text="Select which backup to restore, or start fresh.",
+                     font=("Segoe UI", 10), text_color="#a0a0a0",
+                     justify="center").pack(pady=(4, 12))
+
+        # Scrollable option list
+        scroll = ctk.CTkScrollableFrame(main_card, fg_color="#2b2b2b",
+                                        corner_radius=8, height=200)
+        scroll.pack(fill="x", padx=20, pady=(0, 10))
+
+        selected = [None]
+        all_btns = []
+
+        def _select(opt, btn_ref):
+            selected[0] = opt
+            for b in all_btns:
+                b.configure(fg_color="#3b3b3b")
+            btn_ref.configure(fg_color="#00a8ff")
+            restore_btn.configure(state="normal")
+
+        for opt in all_options:
+            fc      = opt.get("file_counts", {})
+            n_files = sum(v for v in fc.values() if isinstance(v, int))
+            is_act  = opt.get("_is_active", False)
+            tag     = "  ★ CURRENT  " if is_act else "  ARCHIVE  "
+            date    = (opt.get("last_sync") or opt.get("archived_at") or "Unknown")[:16]
+            email   = opt.get("email", "?")[:32]
+            lbl     = f"{tag}  {date}   •   {email}   •   {n_files} files"
+
+            btn = ctk.CTkButton(
+                scroll, text=lbl,
+                command=lambda o=opt, b=None: None,  # set below
+                font=("Segoe UI", 10),
+                fg_color="#3b3b3b", hover_color="#4a4a4a",
+                text_color="#ffffff", anchor="w",
+                height=40, corner_radius=6)
+            btn.configure(command=lambda o=opt, bref=btn: _select(o, bref))
+            btn.pack(fill="x", padx=8, pady=3)
+            all_btns.append(btn)
+
+        restore_btn = ctk.CTkButton(
+            main_card, text="Restore Selected Backup",
+            command=lambda: self._execute_restore_from_option(selected[0], machine_id),
+            font=("Segoe UI", 12, "bold"),
+            fg_color="#00a8ff", hover_color="#0077cc",
+            state="disabled", corner_radius=8, height=42)
+        restore_btn.pack(fill="x", padx=20, pady=(0, 8))
+
+        # Start fresh — no active folder case (or user just doesn't want any backup)
+        def _start_fresh():
+            if not self.show_warning_confirm(
+                "Start Fresh?\n\n"
+                "Your existing backups will remain in Google Drive as archives.\n"
+                "A new account will be created.\n\n"
+                "Your PRO license is NOT cancelled — re-enter your key after setup."
+            ):
+                return
+            def _run():
+                from core.encryption_manager import crypto_manager
+                crypto_manager.attempt_cloud_recovery_if_needed(user_consented=False)
+                self.root.after(0, self._build_register_ui)
+            import threading
+            threading.Thread(target=_run, daemon=True).start()
+
+        ctk.CTkButton(
+            main_card, text="Start Fresh",
+            command=_start_fresh,
+            font=("Segoe UI", 11),
+            fg_color="#2b2b2b", hover_color="#3a3a3a",
+            text_color="#aaaaaa", corner_radius=8, height=36
+        ).pack(fill="x", padx=20, pady=(0, 4))
+
+        ctk.CTkLabel(
+            main_card,
+            text="Your PRO license is preserved — re-enter your key after registering.",
+            font=("Segoe UI", 9), text_color="#555555", justify="center"
+        ).pack(pady=(0, 12))
+
+
+    def _execute_restore_from_option(self, opt: dict, machine_id: str):
+        """
+        Restore from a selected option (either the active backup or an archive).
+        Routes to the correct restore path depending on _is_active flag.
+        Both paths share the same key-clear-first logic.
+        """
+        if not opt:
+            return
+
+        if opt.get("_is_active"):
+            # Active folder — use the standard restore flow
+            self._execute_restore(machine_id)
+        else:
+            # Archive folder — restore from the specific archive folder_id
+            self._execute_restore_from_archive(opt, machine_id)
+
+
+    def _execute_restore_from_archive(self, archive: dict, machine_id: str):
+        """
+        Restore from a specific archive folder.
+        Same key-clear-first pattern as _execute_restore.
+        """
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
+        card.pack(expand=True, fill="both", padx=40, pady=60)
+        ctk.CTkLabel(card, text="⏳ Restoring from archive...",
+                     font=("Segoe UI", 14, "bold"), text_color="#00a8ff").pack(pady=30)
+        progress_var = ctk.StringVar(value="Starting restore…")
+        ctk.CTkLabel(card, textvariable=progress_var,
+                     font=("Segoe UI", 10), text_color="#a0a0a0").pack()
+
+        def _run():
+            from core.cloud_sync import cloud_sync
+            from core.encryption_manager import crypto_manager
+            import os, time
+
+            archive_folder_id = archive["folder_id"]
+
+            # Step 1 — clear local key so crypto_manager downloads the archive's key
+            progress_var.set("Clearing local key for fresh restore...")
+            try:
+                for kpath in [crypto_manager.key_file, crypto_manager.key_backup]:
+                    if os.path.exists(kpath):
+                        os.remove(kpath)
+                crypto_manager.fernet                    = None
+                crypto_manager._key_bytes                = None
+                crypto_manager._local_ok                 = False
+                crypto_manager._cloud_recovery_attempted = False
+            except Exception as e:
+                print(f"[RESTORE_ARCHIVE] Key clear warning: {e}")
+
+            # Step 2 — restore key files from archive
+            progress_var.set("Downloading encryption key...")
+            key_result = cloud_sync.restore_from_archive(archive_folder_id,
+                                                          subfolder="keys",
+                                                          machine_id=machine_id)
+            print(f"[RESTORE_ARCHIVE] Keys: {key_result}")
+
+            # Step 3 — reload the key from the just-restored files
+            progress_var.set("Loading encryption key...")
+            try:
+                crypto_manager._phase1_local_init()
+            except Exception as e:
+                print(f"[RESTORE_ARCHIVE] Phase1 reload error: {e}")
+
+            if crypto_manager.fernet is None:
+                progress_var.set("⚠️  No encryption key in this archive.\n"
+                                 "Please create a new account.")
+                self.root.after(2500, self._build_register_ui)
+                return
+
+            # Step 4 — restore appdata with the now-correct key loaded
+            progress_var.set("Restoring account database...")
+            cloud_sync.restore_from_archive(archive_folder_id,
+                                             subfolder="appdata",
+                                             machine_id=machine_id)
+
+            progress_var.set("Restoring logs & forensics...")
+            cloud_sync.restore_from_archive(archive_folder_id,
+                                             subfolder="logs",
+                                             machine_id=machine_id)
+
+            # Step 5 — reload auth
+            progress_var.set("Reloading credentials...")
+            try:
+                time.sleep(0.5)
+                auth.reload()
+                time.sleep(0.2)
+                auth.reload()
+            except Exception as e:
+                print(f"[RESTORE_ARCHIVE] auth.reload error: {e}")
+
+            progress_var.set("✅ Restore complete — please log in.")
+            self.root.after(1500, self._build_login_ui)
+
+        import threading
+        threading.Thread(target=_run, daemon=True).start()
 
     # ------------------------------------------------------------------
     # Launch main app (reusing the same root window)
