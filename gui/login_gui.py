@@ -1614,87 +1614,151 @@ class LoginWindow:
 
 
     def _execute_restore(self, machine_id: str):
-        """User chose to restore. Now we have explicit consent — run Phase 2."""
         for widget in self.root.winfo_children():
             widget.destroy()
 
         card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
-        card.pack(expand=True, fill="both", padx=40, pady=60)
-        ctk.CTkLabel(card, text="⏳ Restoring your data...",
-                    font=("Segoe UI", 14, "bold"), text_color="#00a8ff").pack(pady=30)
-        progress_var = ctk.StringVar(value="Connecting to Google Drive...")
+        card.pack(expand=True, fill="both", padx=30, pady=24)
+
+        ctk.CTkLabel(card, text="☁",
+                    font=("Segoe UI", 42), text_color="#00a8ff").pack(pady=(24, 6))
+        ctk.CTkLabel(card, text="Restoring Your Installation",
+                    font=("Segoe UI", 18, "bold"), text_color="#ffffff").pack()
+        ctk.CTkLabel(card, text="Recovering data from Google Drive…",
+                    font=("Segoe UI", 10), text_color="#a0a0a0").pack(pady=(4, 16))
+
+        # ── Step indicators ───────────────────────────────────────────────
+        steps_frame = ctk.CTkFrame(card, fg_color="#2b2b2b", corner_radius=10)
+        steps_frame.pack(fill="x", padx=28, pady=(0, 14))
+
+        STEP_DEFS = [
+            ("🔑", "Recovering encryption key"),
+            ("👤", "Restoring account database"),
+            ("📋", "Restoring audit logs & forensics"),
+            ("⚙️", "Reloading credentials"),
+            ("✅", "Finalizing"),
+        ]
+        step_widgets = []
+        for icon, label in STEP_DEFS:
+            row = ctk.CTkFrame(steps_frame, fg_color="transparent")
+            row.pack(fill="x", padx=14, pady=3)
+            icon_lbl = ctk.CTkLabel(row, text=icon, font=("Segoe UI", 13),
+                                    text_color="#444444", width=26)
+            icon_lbl.pack(side="left")
+            txt_lbl  = ctk.CTkLabel(row, text=label, font=("Segoe UI", 11),
+                                    text_color="#555555", anchor="w")
+            txt_lbl.pack(side="left", padx=8)
+            step_widgets.append((icon_lbl, txt_lbl))
+
+        # ── Progress bar ──────────────────────────────────────────────────
+        progress_bar = ctk.CTkProgressBar(card, width=320, height=6,
+                                        fg_color="#2b2b2b",
+                                        progress_color="#00a8ff")
+        progress_bar.pack(pady=(0, 6))
+        progress_bar.set(0)
+
+        progress_var = ctk.StringVar(value="Connecting to Google Drive…")
         ctk.CTkLabel(card, textvariable=progress_var,
-                    font=("Segoe UI", 10), text_color="#a0a0a0").pack()
+                    font=("Consolas", 9), text_color="#00a8ff").pack()
+
+        # ── Braille spinner ────────────────────────────────────────────────
+        SPIN = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
+        spin_idx = [0]
+        spin_lbl = ctk.CTkLabel(card, text=SPIN[0],
+                                font=("Segoe UI", 18), text_color="#555555")
+        spin_lbl.pack(pady=(6, 0))
+
+        def _spin():
+            try:
+                if spin_lbl.winfo_exists():
+                    spin_lbl.configure(text=SPIN[spin_idx[0] % len(SPIN)])
+                    spin_idx[0] += 1
+                    self.root.after(80, _spin)
+            except Exception:
+                pass
+        _spin()
+
+        TOTAL_STEPS = len(STEP_DEFS)
+
+        def _activate_step(idx):
+            for i, (il, tl) in enumerate(step_widgets):
+                if i < idx:
+                    il.configure(text_color="#00cc66")
+                    tl.configure(text_color="#00cc66")
+                elif i == idx:
+                    il.configure(text_color="#00a8ff")
+                    tl.configure(text_color="#ffffff")
+                else:
+                    il.configure(text_color="#444444")
+                    tl.configure(text_color="#555555")
+            progress_bar.set((idx + 1) / TOTAL_STEPS)
 
         def _do_restore():
             from core.encryption_manager import crypto_manager
             from core.cloud_sync import cloud_sync
             import os, time
 
-            # ── CRITICAL FIX ─────────────────────────────────────────────────
-            # The local key and the cloud backup's key are DIFFERENT installs.
-            # If the local key exists, crypto_manager returns immediately and
-            # never downloads the backup key → users.dat (encrypted with the
-            # backup key) cannot be decrypted → "wrong password".
-            #
-            # Solution: delete local key files first so crypto_manager is
-            # forced to download the cloud key. This is the correct sequence:
-            #   1. Delete local key
-            #   2. Download backup key from cloud
-            #   3. Restore users.dat (now decryptable with the just-downloaded key)
-            #   4. Reload auth
-            # ─────────────────────────────────────────────────────────────────
-            progress_var.set("Clearing local key for fresh restore...")
+            # Step 0 — clear local key so cloud key is downloaded fresh
+            self.root.after(0, lambda: _activate_step(0))
+            self.root.after(0, lambda: progress_var.set("Step 1/5: Preparing encryption recovery…"))
             try:
                 for kpath in [crypto_manager.key_file, crypto_manager.key_backup]:
                     if os.path.exists(kpath):
                         os.remove(kpath)
-                        print(f"[RESTORE] Cleared local key: {os.path.basename(kpath)}")
-                # Reset runtime state so Phase 1 sees "no key" and Phase 2 runs
                 crypto_manager.fernet                    = None
                 crypto_manager._key_bytes                = None
                 crypto_manager._local_ok                 = False
                 crypto_manager._cloud_recovery_attempted = False
             except Exception as e:
-                print(f"[RESTORE] Key clear warning (non-critical): {e}")
+                print(f"[RESTORE] Key clear warning: {e}")
 
-            # Step 2 — download the backup's encryption key
-            progress_var.set("Downloading encryption key from cloud...")
+            # Step 1 — download encryption key
+            self.root.after(0, lambda: progress_var.set("Step 1/5: Downloading encryption key…"))
             key_ok = crypto_manager.attempt_cloud_recovery_if_needed(user_consented=True)
 
             if not key_ok or crypto_manager.fernet is None:
-                progress_var.set("⚠️  Encryption key not found in this backup.\n"
-                                 "Please create a new account.")
-                self.root.after(2500, self._build_register_ui)
+                def _fail():
+                    spin_lbl.configure(text="❌", text_color="#ff4444")
+                    progress_var.set("⚠️  Key not found — please create a new account.")
+                self.root.after(0, _fail)
+                self.root.after(2800, self._build_register_ui)
                 return
 
-            # Step 3 — restore appdata.  users.dat is now decryptable because
-            # we have the correct encryption key loaded.
-            progress_var.set("Restoring account database...")
+            # Step 2 — AppData (users.dat, config, hash records)
+            self.root.after(0, lambda: _activate_step(1))
+            self.root.after(0, lambda: progress_var.set("Step 2/5: Restoring account database…"))
             try:
                 cloud_sync.restore_full_appdata(machine_id)
             except Exception as e:
-                print(f"[RESTORE] restore_full_appdata error: {e}")
+                print(f"[RESTORE] AppData error: {e}")
 
-            progress_var.set("Restoring logs & forensics...")
+            # Step 3 — Logs + forensics
+            self.root.after(0, lambda: _activate_step(2))
+            self.root.after(0, lambda: progress_var.set("Step 3/5: Restoring audit logs…"))
             try:
                 cloud_sync.restore_logs_and_forensics(machine_id)
             except Exception as e:
-                print(f"[RESTORE] restore_logs error: {e}")
+                print(f"[RESTORE] Logs error: {e}")
 
-            # Step 4 — reload auth AFTER files are on disk.
-            # Small sleep ensures the OS has flushed users.dat before we read it.
-            progress_var.set("Reloading credentials...")
+            # Step 4 — Reload auth (double pass for safety)
+            self.root.after(0, lambda: _activate_step(3))
+            self.root.after(0, lambda: progress_var.set("Step 4/5: Reloading credentials…"))
             try:
                 time.sleep(0.5)
                 auth.reload()
                 time.sleep(0.2)
-                auth.reload()   # second pass — paranoia, costs nothing
+                auth.reload()
             except Exception as e:
                 print(f"[RESTORE] auth.reload error: {e}")
 
-            progress_var.set("✅ Restore complete — please log in.")
-            self.root.after(1500, self._build_login_ui)
+            # Step 5 — Done
+            self.root.after(0, lambda: _activate_step(4))
+            self.root.after(0, lambda: progress_var.set("✅ Restore complete — please log in."))
+
+            def _finish():
+                spin_lbl.configure(text="✅", text_color="#00cc66")
+                self.root.after(2000, self._build_login_ui)
+            self.root.after(0, _finish)
 
         import threading
         threading.Thread(target=_do_restore, daemon=True).start()

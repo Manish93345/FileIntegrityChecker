@@ -100,14 +100,29 @@ class VaultManager:
         # --- 🚨 FIX 1: LOCAL VAULT & ACTIVE DEFENSE GATEKEEPER ---
         try:
             from core.integrity_core import CONFIG
-            
-            # 1. Obey the Active Defense GUI toggle (FIXED KEY NAME)
+
+            # Resolve actual PRO status — resilient to CONFIG resets by load_config()
+            is_pro = CONFIG.get("is_pro_user", False)
+            if not is_pro:
+                try:
+                    from core.auth_manager import auth
+                    from core.subscription_manager import subscription_manager
+                    for username, data in auth.users.items():
+                        if data.get("role") == "admin":
+                            is_pro = subscription_manager.is_pro(
+                                auth.get_user_tier(username))
+                            if is_pro:
+                                CONFIG["is_pro_user"] = True   # heal for future calls
+                            break
+                except Exception:
+                    pass
+
             if not CONFIG.get("active_defense", False):
                 return False, "Active Defense is disabled."
-                
-            # 2. Obey the PRO Tier requirement
-            if not CONFIG.get("is_pro_user", False):
+
+            if not is_pro:
                 return False, "Forensic Vault requires PRO Tier."
+
         except Exception:
             pass
         # ---------------------------------------------------------

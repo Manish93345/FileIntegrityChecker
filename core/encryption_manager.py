@@ -112,17 +112,22 @@ class EncryptionManager:
 
     def _derive_hardware_kek(self) -> Fernet:
         """
-        Derives an AES-256 key from physical hardware.
-        Never written to disk. Identical on every boot of the same machine.
+        Derive KEK from the STORED machine_id (written once to machine_id.txt).
+        This is stable across Python versions, EXE/script modes, and reboots.
+
+        Previously used platform.processor() which can return different strings
+        between environments → inconsistent KEK → users.dat unreadable on relaunch.
         """
-        hw  = f"{platform.node()}-{platform.machine()}-{platform.processor()}"
+        # _machine_id is always set before this is called (see __init__ order)
+        seed = getattr(self, '_machine_id', None) or \
+               f"{platform.node()}-{platform.machine()}-{platform.processor()}"
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
             salt=b"fmsecure_kek_salt_v2_immutable",
             iterations=200_000,
         )
-        return Fernet(base64.urlsafe_b64encode(kdf.derive(hw.encode())))
+        return Fernet(base64.urlsafe_b64encode(kdf.derive(seed.encode())))
 
     # ══════════════════════════════════════════════════════════════════════════
     #  KEY FILE I/O
@@ -143,8 +148,10 @@ class EncryptionManager:
     def _read_key(self, path: str):
         """
         Read and KEK-decrypt a key file.
-        Handles legacy v1 plaintext keys (44-byte raw Fernet keys).
-        Returns raw Fernet key bytes, or None on failure.
+        Handles:
+          • Legacy v1 plaintext 44-byte keys  (upgrade to KEK)
+          • Keys encrypted with old platform-string KEK  (migrate to machine_id KEK)
+          • Current machine_id KEK (normal path)
         """
         if not os.path.exists(path):
             return None
@@ -153,7 +160,7 @@ class EncryptionManager:
             if not data:
                 return None
 
-            # Legacy v1 upgrade path
+            # ── Legacy v1: raw 44-byte Fernet key ────────────────────────────
             if len(data) == 44:
                 try:
                     Fernet(data)
@@ -163,13 +170,34 @@ class EncryptionManager:
                 except Exception:
                     pass
 
-            # Normal KEK-encrypted path
+            # ── Normal path: current KEK (machine_id based) ───────────────────
             try:
                 return self.hardware_kek.decrypt(data)
             except Exception:
-                print(f"[KEY] KEK mismatch for '{os.path.basename(path)}' "
-                      f"(different machine or corrupted).")
-                return None
+                pass   # fall through to migration
+
+            # ── Migration: try old platform-string KEK ───────────────────────
+            # Handles users whose sys.key was encrypted before this fix.
+            try:
+                hw_old = f"{platform.node()}-{platform.machine()}-{platform.processor()}"
+                kdf_old = PBKDF2HMAC(
+                    algorithm=hashes.SHA256(),
+                    length=32,
+                    salt=b"fmsecure_kek_salt_v2_immutable",
+                    iterations=200_000,
+                )
+                old_kek = Fernet(base64.urlsafe_b64encode(kdf_old.derive(hw_old.encode())))
+                raw = old_kek.decrypt(data)
+                # Success — re-encrypt with the new stable KEK so next load uses it
+                print(f"[KEY] Migrating '{os.path.basename(path)}' from platform KEK → machine_id KEK.")
+                self._write_key(path, raw)
+                return raw
+            except Exception:
+                pass
+
+            print(f"[KEY] KEK mismatch for '{os.path.basename(path)}' "
+                  f"(different machine or corrupted).")
+            return None
 
         except Exception as e:
             print(f"[KEY] Read error '{path}': {e}")

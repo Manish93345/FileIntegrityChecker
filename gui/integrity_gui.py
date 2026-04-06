@@ -521,7 +521,28 @@ class ProIntegrityGUI:
                 save_config()
             except Exception as e:
                 print(f"Failed to save sanitized config: {e}")
-        # -------------------------------
+
+        # ---------------------------------------------------------
+        # 🚨 MASTER FIX: INITIALIZE ENCRYPTION & AUTO-CREATE DEV USER 
+        # ---------------------------------------------------------
+        try:
+            from core.encryption_manager import crypto_manager
+            
+            # 1. Kickstart the Encryption Engine (Fixes the NoneType crash)
+            if crypto_manager.fernet is None:
+                crypto_manager.attempt_cloud_recovery_if_needed(user_consented=False)
+            
+            # 2. Reload the Auth Database with the active key
+            if auth:
+                auth.reload()
+                
+                # 🚨 FIX: Deleted the "Auto-Registering missing user" block here!
+                # It was silently overwriting your real password with 'admin123'!
+                    
+        except Exception as e:
+            print(f"Startup Fix Error: {e}")
+        # ---------------------------------------------------------
+        # ---------------------------------------------------------
 
         self._configure_styles()
         self._build_widgets()
@@ -532,6 +553,7 @@ class ProIntegrityGUI:
         self._update_dashboard()
         self._update_severity_counters()
         self._tail_log_loop()
+        self._clear_stale_lockdown_on_startup()   # ← ADD THIS LINE
         self._check_safe_mode_status()
         # self._start_telemetry_heartbeat()
         self._setup_tray_icon()
@@ -1284,6 +1306,7 @@ class ProIntegrityGUI:
         # Vault pane
         vp = self._card(panes, accent=C['accent_success'])
         vp.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        vp.pack_propagate(False)
         vi = vp.inner()
 
         _SectionLabel(vi, 'Auto-Heal Vault', C).pack(anchor='w', padx=12, pady=(10, 4))
@@ -1305,6 +1328,7 @@ class ProIntegrityGUI:
         # Cloud pane
         cp = self._card(panes, accent=C['accent_info'])
         cp.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(12, 0))
+        cp.pack_propagate(False)
         ci = cp.inner()
 
         _SectionLabel(ci, 'Cloud Disaster Recovery', C).pack(anchor='w', padx=12, pady=(10, 4))
@@ -1339,14 +1363,11 @@ class ProIntegrityGUI:
         
         # 🚨 FIX 1: Lock the label to fill the X axis, but dynamically wrap based on actual width
         self.cloud_progress_lbl = tk.Label(ci, textvariable=self.cloud_progress_var,
-                 font=('Consolas', 8),
-                 bg=C['card_bg'], fg=C['accent_info'],
-                 anchor='w', justify='left')
+                font=('Consolas', 8),
+                bg=C['card_bg'], fg=C['accent_info'],
+                anchor='w', justify='left',
+                wraplength=220, width=32)      # ← fixed char-width kills reflow
         self.cloud_progress_lbl.pack(fill=tk.X, padx=12, pady=(5, 12))
-        
-        # This absolutely prevents Tkinter from resizing the parent frame
-        self.cloud_progress_lbl.bind('<Configure>', 
-            lambda e: self.cloud_progress_lbl.configure(wraplength=max(150, e.width - 10)))
 
         # Audit log viewer button
         sep = tk.Frame(parent, height=1, bg=C['divider'])
@@ -1996,36 +2017,112 @@ class ProIntegrityGUI:
                             self.cloud_progress_var.set(s))
             self.root.after(0, lambda s=summary: self._append_log(s))
  
+        self._sync_config_from_auth()
         threading.Thread(target=_do_sync, daemon=True).start()
     
 
     def _restore_from_cloud(self):
-        """Restore encrypted vault .enc files from the user's Drive folder."""
+        """Restore vault .enc files from Google Drive with live progress feedback."""
         from tkinter import messagebox
-    
+
+        # PRO gate
         tier = "free"
         if auth:
             tier = auth.get_user_tier(self.username)
         if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
             tier = "pro_monthly"
         if not subscription_manager.is_pro(tier):
-            messagebox.showwarning(
-                "⭐ Premium Feature",
-                "☁️ Cloud Disaster Recovery is a PRO feature.")
+            messagebox.showwarning("⭐ Premium Feature",
+                                "☁️ Cloud Disaster Recovery is a PRO feature.")
             return
-    
-        self._append_log('Restoring vault from cloud…')
-        try:
-            from core.cloud_sync import cloud_sync
-            from core.integrity_core import CONFIG
-            if auth:
-                user_data  = auth.users.get(self.username, {})
-                CONFIG["admin_email"] = user_data.get("registered_email", "UnknownUser")
-            if hasattr(cloud_sync, 'restore_from_cloud'):
-                threading.Thread(target=cloud_sync.restore_from_cloud, daemon=True).start()
-                messagebox.showinfo('Cloud Restore', 'Vault restore started in background.')
-        except Exception as e:
-            messagebox.showinfo('Cloud Restore', f'Error: {e}')
+
+        from core.cloud_sync import cloud_sync
+        from core.encryption_manager import crypto_manager
+        from core.utils import get_app_data_dir
+
+        if not cloud_sync.is_active:
+            cloud_sync.force_authenticate()
+            if not cloud_sync.is_active:
+                messagebox.showerror('Cloud Offline',
+                                    'Google Drive authentication failed.\n'
+                                    'Please try again.')
+                return
+
+        machine_id = crypto_manager.get_machine_id()
+        self._append_log('Vault restore from cloud initiated…')
+        self.cloud_progress_var.set("🔄 Connecting to vault folder…")
+
+        def _do_restore():
+            try:
+                app_data  = get_app_data_dir()
+                vault_dir = os.path.join(app_data, "system32_vault")
+                os.makedirs(vault_dir, exist_ok=True)
+
+                # Resolve the vault subfolder (requires is_pro_user in CONFIG)
+                vault_folder_id = cloud_sync._get_subfolder("vault", machine_id)
+
+                if not vault_folder_id:
+                    self.root.after(0, lambda: self.cloud_progress_var.set(
+                        "❌ No vault folder on Drive. Sync to Cloud first."))
+                    self.root.after(0, lambda: messagebox.showerror(
+                        'Restore Failed',
+                        'No vault folder found on Google Drive.\n\n'
+                        'Run "Sync to Cloud" to create your first backup, '
+                        'then try restoring again.'))
+                    return
+
+                items = cloud_sync._list_folder(vault_folder_id)
+                if not items:
+                    self.root.after(0, lambda: self.cloud_progress_var.set(
+                        "⚠️ Cloud vault is empty."))
+                    self.root.after(0, lambda: messagebox.showinfo(
+                        'Nothing to Restore',
+                        'Your cloud vault folder exists but contains no files.\n\n'
+                        'Run "Sync to Cloud" to upload your vault, '
+                        'then try restoring.'))
+                    return
+
+                total, restored, failed = len(items), 0, []
+
+                for item in items:
+                    dest = os.path.join(vault_dir, item['name'])
+                    ok   = cloud_sync._download_one_file(item['id'], dest)
+                    if ok:
+                        restored += 1
+                    else:
+                        failed.append(item['name'])
+
+                    pct = int((restored + len(failed)) / total * 100)
+                    msg = f"↓ [{restored + len(failed)}/{total}]  {item['name'][:38]}"
+                    self.root.after(0, lambda m=msg: self.cloud_progress_var.set(m))
+
+                def _finish():
+                    summary = f"✅ {restored}/{total} vault files restored."
+                    if failed:
+                        summary += f"  {len(failed)} failed."
+                    self.cloud_progress_var.set(summary)
+                    self._append_log(
+                        f"VAULT RESTORE: {restored}/{total} files → {vault_dir}")
+                    detail = (f"Restored {restored} of {total} vault file(s) to:\n"
+                            f"{vault_dir}\n\n")
+                    if failed:
+                        detail += f"Failed ({len(failed)}): {', '.join(failed[:5])}"
+                    else:
+                        detail += ("Active Defense can now auto-restore these files "
+                                "if they are tampered with or deleted.")
+                    messagebox.showinfo('Vault Restore Complete', detail)
+
+                self.root.after(0, _finish)
+
+            except Exception as e:
+                err = str(e)
+                self.root.after(0, lambda: self.cloud_progress_var.set(
+                    f"❌ Restore error — see console."))
+                self.root.after(0, lambda: messagebox.showerror(
+                    'Restore Error', f'Vault restore failed:\n\n{err}'))
+                self._append_log(f"VAULT RESTORE ERROR: {e}")
+
+        threading.Thread(target=_do_restore, daemon=True).start()
 
         
     def _open_folder_structure_restore(self):
@@ -2873,6 +2970,7 @@ class ProIntegrityGUI:
                 json.dump(file_cfg, f, indent=4)
                 
             load_config(CONFIG_FILE)
+            self._sync_config_from_auth() 
             self._append_log(f'Active Defense {"ENABLED" if new_state else "DISABLED"} by {self.username}')
             
             # 🚨 FIX: Retroactively backup files if turned ON mid-session
@@ -4380,6 +4478,7 @@ class ProIntegrityGUI:
         )
 
     def start_monitor(self):
+        self._sync_config_from_auth()
         """Start monitoring"""
         if not FileIntegrityMonitor:
             messagebox.showerror("Error", "Backend not available.")
@@ -5095,6 +5194,35 @@ class ProIntegrityGUI:
         
         # Recursively find and disable buttons
         self._disable_recursive(self.root, restricted_actions)
+
+    def _sync_config_from_auth(self):
+        """
+        Re-sync CONFIG with the live auth tier.
+        Call before ANY PRO-gated operation because load_config() calls
+        can silently reset is_pro_user / admin_email back to defaults.
+        """
+        try:
+            from core.integrity_core import CONFIG, save_config
+            if not auth:
+                return
+
+            tier   = auth.get_user_tier(self.username)
+            is_pro = subscription_manager.is_pro(tier)
+
+            CONFIG["is_pro_user"] = is_pro
+
+            if is_pro or hasattr(self, 'pro_badge'):
+                CONFIG["is_pro_user"] = True          # pro_badge is reliable visual proof
+                user_data = auth.users.get(self.username, {})
+                email     = user_data.get("registered_email", "")
+                if email and email not in ("UnknownUser", ""):
+                    CONFIG["admin_email"] = email
+
+            save_config()
+            print(f"[CONFIG] Synced — is_pro={CONFIG['is_pro_user']}, "
+                f"email={CONFIG.get('admin_email','?')}")
+        except Exception as e:
+            print(f"[CONFIG] _sync_config_from_auth error: {e}")
 
     def _disable_recursive(self, widget, restricted_list):
         """Helper to find buttons recursively"""
@@ -6022,6 +6150,54 @@ class ProIntegrityGUI:
             print(f"Close error: {e}")
             self.root.destroy()
             sys.exit(0)
+
+
+    def _clear_stale_lockdown_on_startup(self):
+        """
+        Wipe lockdown files left over from a previous session.
+
+        Safe-mode should NEVER silently survive a fresh authenticated login —
+        the user just provided valid credentials, so we reset and let them
+        manually re-arm the Killswitch if the threat is still active.
+
+        This fixes the symptom: monitor starts, then stops 1 second later
+        because the periodic _check_safe_mode_status() finds a stale flag.
+        """
+        try:
+            from core.utils import get_app_data_dir
+            app_data = get_app_data_dir()
+
+            candidates = [
+                os.path.join(app_data, "lockdown.flag"),
+                os.path.join(app_data, ".lockdown"),
+                os.path.join(os.getcwd(), ".lockdown"),   # CWD-relative (old bug)
+                ".lockdown",                               # bare relative (old bug)
+            ]
+            cleared = False
+            for p in candidates:
+                try:
+                    if os.path.exists(p):
+                        os.remove(p)
+                        cleared = True
+                        print(f"[STARTUP] Removed stale lockdown file: {p}")
+                except Exception:
+                    pass
+
+            # Reset the in-memory + persisted safe-mode state
+            try:
+                if safe_mode and safe_mode.is_safe_mode_enabled():
+                    safe_mode.disable_safe_mode("Auto-cleared stale state on new login")
+                    cleared = True
+            except Exception:
+                pass
+
+            if cleared:
+                self._append_log(
+                    "ℹ️  Stale safe-mode files cleared on login. "
+                    "Re-arm Killswitch if the threat is still active.")
+
+        except Exception as e:
+            print(f"[STARTUP] Lockdown cleanup error (non-critical): {e}")
 
     def _check_safe_mode_status(self):
         """Check if backend triggered Safe Mode"""

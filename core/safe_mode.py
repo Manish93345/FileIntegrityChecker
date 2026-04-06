@@ -28,6 +28,7 @@ SAFE_MODE_STATE_FILE = os.path.join(APP_DATA, "logs", "safe_mode_state.json")
 LOG_FILE = os.path.join(APP_DATA, "logs", "integrity_log.txt")
 LOG_SIG_FILE = os.path.join(APP_DATA, "logs", "integrity_log.sig")
 LOCKDOWN_FLAG = os.path.join(APP_DATA, "lockdown.flag") # The critical flag
+DOT_LOCKDOWN    = os.path.join(APP_DATA, ".lockdown")
 
 def _log_direct(message, severity="INFO"):
     """
@@ -189,13 +190,13 @@ class SafeModeManager:
         return self.active
     
     def get_status(self):
-        """Get safe mode status information"""
         return {
             'active': self.active,
             'reason': self.reason,
             'start_time': self.start_time,
             'duration': self._get_duration(),
-            'lockdown_file': os.path.exists(".lockdown") or os.path.exists("lockdown.flag")
+            # ← was os.path.exists(".lockdown") — relative path bug
+            'lockdown_file': os.path.exists(LOCKDOWN_FLAG) or os.path.exists(DOT_LOCKDOWN)
         }
     
     def _get_duration(self):
@@ -286,7 +287,7 @@ class SafeModeManager:
             pass
     
     def _create_lockdown_file(self, reason, file_path):
-        """Create a lockdown flag file"""
+        """Create lockdown flag files (always use absolute AppData paths)."""
         try:
             lockdown_data = {
                 'active': True,
@@ -295,24 +296,35 @@ class SafeModeManager:
                 'timestamp': datetime.now().isoformat(),
                 'message': "SYSTEM LOCKED - Safe Mode Active"
             }
-            
             with open(LOCKDOWN_FLAG, 'w') as f:
                 json.dump(lockdown_data, f, indent=2)
-            
-            # Also create a simple .lockdown file for quick detection
-            with open(".lockdown", 'w') as f:
+
+            # Previously this used a bare ".lockdown" (relative CWD) — now absolute
+            with open(DOT_LOCKDOWN, 'w') as f:
                 f.write(f"LOCKDOWN ACTIVE\nReason: {reason}\nTime: {datetime.now()}")
-                
+
         except Exception as e:
             print(f"Error creating lockdown file: {e}")
-    
+
     def _remove_lockdown_file(self):
-        """Remove lockdown flag files"""
-        try:
-            if os.path.exists(LOCKDOWN_FLAG):
-                os.remove(LOCKDOWN_FLAG)
-        except:
-            pass
+        """Remove ALL lockdown files including stale CWD-relative ones from old versions."""
+        # Standard absolute paths
+        for path in (LOCKDOWN_FLAG, DOT_LOCKDOWN):
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+            except Exception:
+                pass
+        # Clean up any CWD-relative .lockdown files left by previous versions
+        for cwd_path in (
+            os.path.join(os.getcwd(), ".lockdown"),
+            ".lockdown",
+        ):
+            try:
+                if os.path.exists(cwd_path):
+                    os.remove(cwd_path)
+            except Exception:
+                pass
 
 # Global safe mode manager instance
 _safe_mode_manager = None

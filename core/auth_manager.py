@@ -20,34 +20,39 @@ class AuthManager:
         return hashlib.sha256((password + salt).encode('utf-8')).hexdigest(), salt
 
     def _load_users(self):
+        print(f"[AUTH] Loading users from: {USERS_DB_FILE}  exists={os.path.exists(USERS_DB_FILE)}")
         if not os.path.exists(USERS_DB_FILE):
-            self._save_db()
+            # Only save if we actually have users in memory
+            if self.users:
+                self._save_db()
             return
+            
         data = crypto_manager.decrypt_json(USERS_DB_FILE)
+        
         if data is None:
-            # Decryption failed — key mismatch.
-            # DO NOT silently start fresh here.
-            # The startup patch above will handle this case properly
-            # by showing a warning and clearing data only when a new
-            # key was genuinely generated (not just temporarily missing).
             print("[AUTH] SECURITY: users.dat could not be decrypted.")
             print("[AUTH] If this is unexpected, check key recovery status.")
-            self.users = {}
-            # Do NOT call _save_db() here — that would overwrite with empty!
+            # 🚨 FIX: DO NOT wipe self.users = {} here! 
+            # If a temporary read error happens, we keep your active session in memory.
         else:
             self.users = data
+            print(f"[AUTH] Loaded {len(self.users)} user(s).")
 
     def _save_db(self):
-        # 🚨 FIX 1: PREVENT CRASH & WIPE 
-        # Do not attempt to save an empty database if the key isn't downloaded yet!
-        if crypto_manager.fernet is None:
-            return 
-            
+        """Saves the user database to disk, triggering key generation if needed."""
         try:
-            os.makedirs(os.path.dirname(USERS_DB_FILE), exist_ok=True)
+            from core.encryption_manager import crypto_manager
+            
+            # 🚨 THE MASTER FIX: Force the key to generate BEFORE we even touch the file!
+            if crypto_manager.fernet is None:
+                crypto_manager.attempt_cloud_recovery_if_needed(user_consented=False)
+            
+            # Now that we guarantee the key exists, save the data safely
             crypto_manager.encrypt_json(self.users, USERS_DB_FILE)
+            print(f"[AUTH] Saved {len(self.users)} user(s) to the secure database.")
+            
         except Exception as e:
-            print(f"Error saving auth db: {e}")
+            print(f"[AUTH] Error saving database: {e}")
 
     # 🚨 FIX 2: Add this method so we can force it to refresh after cloud recovery!
     def reload(self):

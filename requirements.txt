@@ -5,3 +5,4 @@ reportlab>=4.0.0
 matplotlib
 seaborn
 pip install pystray Pillow
+pip install pywin32

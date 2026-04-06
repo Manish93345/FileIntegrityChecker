@@ -22,6 +22,54 @@ from core.lockdown_manager import lockdown  # <-- NEW: Import the Killswitch
 import requests
 from core.email_service import email_service
 
+# --- SAFE WIN32 IMPORTS ---
+try:
+    import win32file
+    import win32con
+    WIN32_AVAILABLE = True
+except ImportError:
+    WIN32_AVAILABLE = False
+    print("pywin32 not installed. Folder locking disabled.")
+
+class FolderLockManager:
+    """Safely locks the root folder to prevent deletion without triggering watchdog panics."""
+    def __init__(self):
+        self._locked_handles = {}
+
+    def lock_folder(self, folder_path: str):
+        if not WIN32_AVAILABLE or not os.path.exists(folder_path):
+            return False
+        if folder_path in self._locked_handles:
+            return True # Already locked
+            
+        try:
+            # Omit FILE_SHARE_DELETE so attackers/ransomware cannot delete the root folder
+            share_mode = win32con.FILE_SHARE_READ | win32con.FILE_SHARE_WRITE
+            handle = win32file.CreateFile(
+                folder_path,
+                win32con.GENERIC_READ,
+                share_mode,
+                None,
+                win32con.OPEN_EXISTING,
+                win32file.FILE_FLAG_BACKUP_SEMANTICS,
+                None
+            )
+            self._locked_handles[folder_path] = handle
+            print(f"🛡️ [ROOT SHIELD] Secured against deletion: {folder_path}")
+            return True
+        except Exception as e:
+            print(f"❌ [ROOT SHIELD] Lock failed: {e}")
+            return False
+
+    def unlock_folder(self, folder_path: str):
+        if folder_path in self._locked_handles:
+            try:
+                handle = self._locked_handles.pop(folder_path)
+                win32file.CloseHandle(handle)
+                print(f"🔓 [ROOT SHIELD] Unlocked: {folder_path}")
+            except Exception as e:
+                print(f"❌ [ROOT SHIELD] Unlock failed: {e}")
+
 # --- THE UNIVERSAL BRAIN ---
 # This forces the app to ALWAYS look in your Windows AppData folder
 # No matter if it's run by you, the Watchdog, or Inno Setup.
@@ -1435,7 +1483,8 @@ class FileIntegrityMonitor:
         self.handler = None
         self.verifier_thread = None
         self.running = False
-        self.current_watch_folders = [] # Changed to plural
+        self.current_watch_folders = [] 
+        self.folder_locker = FolderLockManager() # 🚨 NEW: Initialize the locker
 
     def start_monitoring(self, watch_folders=None, event_callback=None):
         if not load_config():
@@ -1455,11 +1504,6 @@ class FileIntegrityMonitor:
 
         self.current_watch_folders = valid_folders 
 
-        # if not os.path.exists(LOG_FILE):
-        #     atomic_write_text(LOG_FILE, f"{now_pretty()} - Log started\n")
-        # if not os.path.exists(LOG_SIG_FILE):
-        #     atomic_write_text(LOG_SIG_FILE, "")
-
         self.observer = Observer()
         self.handler = IntegrityHandler(watch_folders=valid_folders, callback=event_callback)
         
@@ -1473,10 +1517,20 @@ class FileIntegrityMonitor:
         self.verifier_thread = threading.Thread(target=self._periodic_verifier_loop, daemon=True)
         self.verifier_thread.start()
 
+        # 🚨 NEW: Lock the folders ONLY AFTER watchdog is safely running!
+        # if CONFIG.get("active_defense", False) and CONFIG.get("is_pro_user", False):
+        for folder in valid_folders:
+            self.folder_locker.lock_folder(folder)
+
         return True
 
     def stop_monitoring(self):
         self.running = False
+        
+        # 🚨 NEW: Safely unlock the folders before shutting down
+        for folder in self.current_watch_folders:
+            self.folder_locker.unlock_folder(folder)
+            
         if self.observer:
             self.observer.stop()
             self.observer.join()
@@ -1534,7 +1588,11 @@ class FileIntegrityMonitor:
 # Add 'import shutil' at the top of the file if not present
 
 def archive_session():
+    """
+    Archive logs and reset safely with SIGNATURES and ENCRYPTION.
+    """
     try:
+        # 1. Setup paths
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         history_base = os.path.join(DATA_ROOT, "config", "history")
         if not os.path.exists(history_base):
@@ -1544,33 +1602,18 @@ def archive_session():
         if not os.path.exists(session_folder):
             os.makedirs(session_folder)
 
+        # --- FIX 1: Update file extensions to look for the new encrypted .dat files ---
         files_to_archive = [
-            "integrity_log.dat",
+            "integrity_log.dat",      # Updated from .txt
             "integrity_log.sig",
-            "hash_records.dat",
+            "hash_records.dat",       # Updated from .json
             "hash_records.sig",
-            "report_summary.txt",
+            "report_summary.txt",     # Added missing summary file
             "detailed_reports.txt",
             "report_data.json",
             "severity_counters.json"
         ]
 
-        # ── ADD THIS BLOCK ─────────────────────────────────────────────
-        # Cloud-backup current logs BEFORE moving them, so Drive always has
-        # the latest session even when the user archives locally.
-        try:
-            if CONFIG.get("is_pro_user", False):
-                from core.cloud_sync import cloud_sync
-                from core.encryption_manager import crypto_manager
-                if cloud_sync.is_active:
-                    mid = crypto_manager.get_machine_id()
-                    result = cloud_sync.backup_logs_and_forensics(mid)
-                    print(f"[ARCHIVE] Pre-archive cloud sync: "
-                          f"{result.get('uploaded', 0)} files uploaded.")
-        except Exception as _ce:
-            print(f"[ARCHIVE] Pre-archive cloud sync skipped (non-critical): {_ce}")
-        # ── END ADDED BLOCK ────────────────────────────────────────────
-        
         # 2. Move files
         for filename in files_to_archive:
             src = os.path.join(log_dir, filename)
