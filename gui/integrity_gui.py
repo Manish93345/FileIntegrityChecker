@@ -3715,6 +3715,40 @@ class ProIntegrityGUI:
             from tkinter import messagebox
             messagebox.showerror("Configuration Error", f"Windows blocked saving the folder settings.\n\nError: {e}\n\nPlease run the app as Administrator.")
 
+
+    def _show_key_recovery_dialog(self, parent_win):
+        """Securely requests a lost key via the blind-recovery endpoint."""
+        email = simpledialog.askstring(
+            "Recover License Key",
+            "Enter the email address you used to purchase FMSecure PRO:",
+            parent=parent_win
+        )
+        
+        if not email or "@" not in email:
+            return
+
+        import requests
+        try:
+            # Connect to your new secure Railway endpoint
+            url = "https://fmsecure-c2-server-production.up.railway.app/api/license/recover_key"
+            
+            # We don't need to wait for a specific success boolean because 
+            # the server uses Blind Responses for security.
+            requests.post(url, json={"email": email.strip()}, timeout=10)
+
+            messagebox.showinfo(
+                "Recovery Requested",
+                "If that email is registered in our system, your license key has been sent to your inbox.\n\n"
+                "Please check your spam/junk folder as well.",
+                parent=parent_win
+            )
+        except Exception as e:
+            messagebox.showerror(
+                "Connection Error", 
+                f"Could not reach the license server.\n\n{e}",
+                parent=parent_win
+            )
+
     # ══════════════════════════════════════════════════════════════════════════════
     #  PATCH 2 — Replace _show_activation_dialog with this version
     #  Adds "Transfer License" flow when device_mismatch is returned.

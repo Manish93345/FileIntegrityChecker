@@ -269,7 +269,5 @@ New server endpoint `POST /api/license/recover_key` — looks up all active non-
 pyinstaller --onedir --noconsole --name WinSysHost sys_watchdog.py
 
 # Compile the Main Agent
-pyinstaller run.py --onedir --noconsole --name SecureFIM ^
-  --icon=assets/icons/app_icon.ico ^
-  --add-data "assets;assets" --clean
+pyinstaller run.py --onedir --noconsole --name SecureFIM --icon=assets/icons/app_icon.ico --add-data "assets;assets" --clean
 ```

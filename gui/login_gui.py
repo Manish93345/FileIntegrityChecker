@@ -260,26 +260,32 @@ class LoginWindow:
         self.root = ctk.CTk()
         self.root.title("FMSecure v2.0 - Security Portal")
 
-        # ── KEY RESILIENCE: Phase 2 cloud recovery ──────────────────
+        # ── KEY RESILIENCE: Phase 1 local-only init ──────────────────
+        # NOTE: We deliberately do NOT call attempt_cloud_recovery_if_needed() here.
+        # Cloud recovery requires user consent and a working cloud_sync module.
+        # Both of those only come AFTER the detection UI runs.
+        #
+        # What we DO here: if there are existing users but the local key is missing
+        # (and cloud didn't auto-recover during encryption_manager __init__), that's
+        # a genuine key-loss scenario for an existing install — warn and clear.
+        #
+        # Fresh installs (no users) are routed through _check_for_reinstall_backup,
+        # which handles the "connect Drive / restore backup" flow properly.
         from core.encryption_manager import crypto_manager
-        key_recovered = crypto_manager.attempt_cloud_recovery_if_needed()
-        if not key_recovered:
-            # Check if this is a brand new install by looking for existing users
-            is_fresh_install = not auth.has_users()
-            
-            # Only show the scary warning if an EXISTING user just lost their key
-            if not is_fresh_install:
-                import tkinter.messagebox as mb
-                mb.showwarning(
-                    "Encryption Key Lost",
-                    "Your encryption key could not be recovered from any backup.\n\n"
-                    "A new key has been generated. For security, all previous data\n"
-                    "(accounts, logs) has been cleared.\n\n"
-                    "Please create a new admin account to continue."
-                )
-                
-            # Clear the corrupt/unreadable data files so the app starts clean
+        if not crypto_manager._local_ok and auth.has_users():
+            # Key is gone but there ARE registered users — something went wrong.
+            # At this point cloud_sync hasn't loaded yet, so we can't recover.
+            # Clear corrupt data so the app doesn't crash on every login attempt.
+            import tkinter.messagebox as mb
+            mb.showwarning(
+                "Encryption Key Lost",
+                "Your local encryption key could not be loaded.\n\n"
+                "If you have a Google Drive backup, you can restore it from the "
+                "next screen.\n\nOtherwise a new key will be generated and you "
+                "will need to create a new admin account."
+            )
             _clear_unreadable_data()
+            auth._load_users()   # reload so has_users() reflects the cleared state
         # ────────────────────────────────────────────────────────────
         
         # --- 🚨 INJECT THE WINDOWS TASKBAR ICON ---
@@ -1297,73 +1303,193 @@ class LoginWindow:
     def _check_for_reinstall_backup(self):
         """
         Called after splash on a fresh install (no local users.dat).
-    
-        PATTERN: show the loading screen synchronously (zero network calls),
-        then probe Google Drive in a daemon thread. Routes to detection UI
-        or registration UI when the probe completes.
+
+        PATTERN (industry-standard, WhatsApp-style):
+          1. If a cached OAuth token exists  → probe Drive silently (no user friction).
+          2. If NO token                     → show a gateway screen offering the
+             user the choice to connect Google Drive OR skip and create a new account.
+             This handles the "full AppData wipe" scenario cleanly.
+
+        Never silently fall through to register without giving the user the chance
+        to recover their cloud backup.
         """
         from core.utils import get_app_data_dir
-    
-        # Not a fresh install — nothing to detect
+
+        # Existing users present — nothing to detect, show login UI directly
         if auth.has_users():
             self._build_login_ui()
             return
-    
-        # No cached OAuth token → can't reach Drive without user interaction
+
         token_path = os.path.join(get_app_data_dir(), "token.pickle")
-        if not os.path.exists(token_path):
-            self._build_register_ui()
-            return
-    
-        # Show the loading screen BEFORE touching the network
-        self._build_cloud_probe_ui()
-    
-        # Probe Drive in background — never block the main thread
+        if os.path.exists(token_path):
+            # Token cached — probe Drive silently, no user friction
+            self._build_cloud_probe_ui()
+            self._start_drive_probe()
+        else:
+            # No cached token — show gateway: connect Drive or skip
+            self._build_cloud_gateway_ui()
+
+    def _start_drive_probe(self):
+        """Background Drive probe — called when token.pickle already exists."""
         def _probe():
             try:
                 from core.cloud_sync import cloud_sync
                 from core.encryption_manager import crypto_manager
 
                 if not cloud_sync.is_active:
-                    self.root.after(0, self._build_register_ui)
+                    # Token exists but auth failed (expired/revoked) — offer gateway
+                    self.root.after(0, self._build_cloud_gateway_ui)
                     return
 
-                machine_id = crypto_manager.get_machine_id()
-
-                # Fetch BOTH the active backup and all archives in parallel.
-                # Industry pattern: always show the user everything available,
-                # never silently discard backups because only one "layer" was checked.
-                backup_info = cloud_sync.check_backup_exists(machine_id)
-                archives    = cloud_sync.list_archives(machine_id)
-
-                # Build a unified list: active backup first (if present), then archives
-                all_options = []
-                if backup_info:
-                    # Tag it so the UI can label it "Current backup"
-                    backup_info["_is_active"] = True
-                    backup_info["archived_at"] = backup_info.get("last_sync", "Current")
-                    all_options.append(backup_info)
-                for a in archives:
-                    a["_is_active"] = False
-                    all_options.append(a)
-
-                if not all_options:
-                    self.root.after(0, self._build_register_ui)
-                elif len(all_options) == 1:
-                    # Only one option — go straight to the single-backup screen
-                    self.root.after(0, lambda: self._build_reinstall_detection_ui(
-                        all_options[0], machine_id))
-                else:
-                    # Multiple options — show the picker so user chooses which one
-                    self.root.after(0, lambda: self._build_archive_picker_ui(
-                        all_options, machine_id))
+                self._run_backup_probe(cloud_sync, crypto_manager)
 
             except Exception as e:
-                print(f"[LOGIN] Reinstall check error (non-critical): {e}")
+                print(f"[LOGIN] Drive probe error (non-critical): {e}")
                 self.root.after(0, self._build_register_ui)
 
         import threading
         threading.Thread(target=_probe, daemon=True).start()
+
+    def _run_backup_probe(self, cloud_sync, crypto_manager):
+        """
+        Core probe logic — shared by both the silent path (token cached) and
+        the interactive path (user just authenticated). Runs on a background thread;
+        schedules all UI updates via root.after().
+        """
+        try:
+            machine_id  = crypto_manager.get_machine_id()
+            backup_info = cloud_sync.check_backup_exists(machine_id)
+            archives    = cloud_sync.list_archives(machine_id)
+
+            all_options = []
+            if backup_info:
+                backup_info["_is_active"] = True
+                backup_info["archived_at"] = backup_info.get("last_sync", "Current")
+                all_options.append(backup_info)
+            for a in archives:
+                a["_is_active"] = False
+                all_options.append(a)
+
+            if not all_options:
+                self.root.after(0, self._build_register_ui)
+            elif len(all_options) == 1:
+                self.root.after(0, lambda: self._build_reinstall_detection_ui(
+                    all_options[0], machine_id))
+            else:
+                self.root.after(0, lambda: self._build_archive_picker_ui(
+                    all_options, machine_id))
+
+        except Exception as e:
+            print(f"[LOGIN] Backup probe error: {e}")
+            self.root.after(0, self._build_register_ui)
+
+    def _build_cloud_gateway_ui(self):
+        """
+        Gateway screen shown when there is no cached OAuth token.
+        Gives the user a clear choice: connect Drive to check for a backup,
+        or skip and create a new account.
+        Industry pattern: never silently skip past potential data recovery.
+        """
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
+        card.pack(expand=True, fill="both", padx=30, pady=30)
+
+        # Header
+        ctk.CTkLabel(card, text="☁", font=("Segoe UI", 48),
+                     text_color="#00a8ff").pack(pady=(28, 8))
+        ctk.CTkLabel(card, text="Check for Previous Installation",
+                     font=("Segoe UI", 18, "bold"), text_color="#ffffff").pack()
+        ctk.CTkLabel(card,
+                     text="If you had FMSecure installed before, your data may\n"
+                          "be recoverable from your Google Drive backup.",
+                     font=("Segoe UI", 10), text_color="#a0a0a0",
+                     justify="center").pack(pady=(6, 20))
+
+        # Info box
+        info = ctk.CTkFrame(card, fg_color="#002233", corner_radius=8)
+        info.pack(fill="x", padx=30, pady=(0, 20))
+        ctk.CTkLabel(info,
+                     text="ℹ  Connecting Google Drive lets FMSecure look for\n"
+                          "     your encrypted backup, accounts, logs, and settings.",
+                     font=("Segoe UI", 9), text_color="#00ccff",
+                     justify="left").pack(padx=14, pady=12)
+
+        # Status label (updated during auth)
+        self._gw_status_var = ctk.StringVar(value="")
+        status_lbl = ctk.CTkLabel(card, textvariable=self._gw_status_var,
+                                   font=("Segoe UI", 9), text_color="#ff6b6b")
+        status_lbl.pack(pady=(0, 8))
+
+        # Primary CTA
+        connect_btn = ctk.CTkButton(
+            card, text="🌐  Connect Google Drive & Check",
+            command=lambda: self._gateway_connect_drive(connect_btn, skip_btn),
+            font=("Segoe UI", 12, "bold"),
+            fg_color="#00a8ff", hover_color="#0077cc",
+            corner_radius=8, height=44)
+        connect_btn.pack(fill="x", padx=30, pady=(0, 10))
+
+        # Secondary: skip
+        skip_btn = ctk.CTkButton(
+            card, text="Skip — Create a New Account",
+            command=self._build_register_ui,
+            font=("Segoe UI", 11),
+            fg_color="#2b2b2b", hover_color="#3a3a3a",
+            text_color="#aaaaaa", corner_radius=8, height=38)
+        skip_btn.pack(fill="x", padx=30, pady=(0, 4))
+
+        ctk.CTkLabel(
+            card,
+            text="Skipping will not delete any cloud backups.\n"
+                 "You can still restore them later from within the app.",
+            font=("Segoe UI", 9), text_color="#555555",
+            justify="center").pack(pady=(0, 20))
+
+    def _gateway_connect_drive(self, connect_btn, skip_btn):
+        """
+        Triggered by the gateway 'Connect Google Drive' button.
+        Opens the OAuth browser flow, then runs the backup probe.
+        """
+        connect_btn.configure(state="disabled", text="⏳  Connecting…")
+        skip_btn.configure(state="disabled")
+        self._gw_status_var.set("")
+
+        def _auth_and_probe():
+            try:
+                from core.cloud_sync import cloud_sync
+                from core.encryption_manager import crypto_manager
+
+                # Force interactive OAuth — this will open the browser
+                cloud_sync.force_authenticate()
+
+                if not cloud_sync.is_active:
+                    def _fail():
+                        connect_btn.configure(state="normal",
+                                              text="🌐  Connect Google Drive & Check")
+                        skip_btn.configure(state="normal")
+                        self._gw_status_var.set(
+                            "Google Drive authentication failed or was cancelled.")
+                    self.root.after(0, _fail)
+                    return
+
+                # Auth succeeded — now probe for backups
+                # Show the spinner UI while probing
+                self.root.after(0, self._build_cloud_probe_ui)
+                self._run_backup_probe(cloud_sync, crypto_manager)
+
+            except Exception as e:
+                print(f"[LOGIN] Gateway auth error: {e}")
+                def _err():
+                    connect_btn.configure(state="normal",
+                                          text="🌐  Connect Google Drive & Check")
+                    skip_btn.configure(state="normal")
+                    self._gw_status_var.set(f"Error: {e}")
+                self.root.after(0, _err)
+
+        import threading
+        threading.Thread(target=_auth_and_probe, daemon=True).start()
 
     
     def _build_cloud_probe_ui(self):
