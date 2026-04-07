@@ -343,6 +343,9 @@ class LoginWindow:
             self._build_login_ui()
             self._show_splash_screen()
 
+        self._apply_icon()
+        
+
     def _show_splash_screen(self, on_complete=None):
         """Displays a professional full-screen branding splash before the app loads."""
         splash = tk.Toplevel(self.root)
@@ -438,6 +441,22 @@ class LoginWindow:
         x = (self.root.winfo_screenwidth() // 2) - (width // 2)
         y = (self.root.winfo_screenheight() // 2) - (height // 2)
         self.root.geometry(f'{width}x{height}+{x}+{y}')
+
+    # Fixing icon
+    def _apply_icon(self, window=None):
+        """Set the FMSecure icon on the root or any Toplevel."""
+        import sys, os
+        try:
+            if getattr(sys, 'frozen', False):
+                base = sys._MEIPASS
+            else:
+                base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            icon_path = os.path.join(base, "assets", "icons", "app_icon.ico")
+            if os.path.exists(icon_path):
+                target = window or self.root
+                target.iconbitmap(icon_path)
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Custom dialog helpers
@@ -545,11 +564,22 @@ class LoginWindow:
         self.login_btn.pack(fill="x", padx=25, pady=(0, 10))
 
         # Forgot password
-        self.forgot_btn = ctk.CTkButton(admin_card, text="Forgot Password?",
-                                         command=self._build_forgot_pass_ui,
-                                         fg_color="transparent", text_color="#00ccff",
-                                         font=("Segoe UI", 10, "underline"), hover=False)
-        self.forgot_btn.pack(pady=(0, 15))
+        forgot_row = ctk.CTkFrame(admin_card, fg_color="transparent")
+        forgot_row.pack(pady=(0, 15))
+
+        self.forgot_btn = ctk.CTkButton(forgot_row, text="Forgot Password?",
+                                        command=self._build_forgot_pass_ui,
+                                        fg_color="transparent", text_color="#00ccff",
+                                        font=("Segoe UI", 10, "underline"), hover=False)
+        self.forgot_btn.pack(side="left", padx=(0, 10))
+
+        ctk.CTkLabel(forgot_row, text="|", text_color="#444444",
+                    font=("Segoe UI", 10)).pack(side="left", padx=4)
+
+        ctk.CTkButton(forgot_row, text="Forgot Username?",
+                    command=self._build_forgot_username_ui,
+                    fg_color="transparent", text_color="#00ccff",
+                    font=("Segoe UI", 10, "underline"), hover=False).pack(side="left")
 
         # Google SSO
         google_btn = ctk.CTkButton(admin_card, text="🌐  Continue with Google",
@@ -735,6 +765,7 @@ class LoginWindow:
         y = self.root.winfo_y() + (self.root.winfo_height() // 2) - 40
         loader.geometry(f"200x80+{x}+{y}")
         loader.configure(fg_color="#1e1e1e")
+        self._apply_icon(loader)
 
         ctk.CTkLabel(
             loader,
@@ -832,6 +863,208 @@ class LoginWindow:
         ctk.CTkButton(main_card, text="Cancel & Go Back", command=self._build_register_ui,
                       font=("Segoe UI", 11), fg_color="transparent", text_color="#a0a0a0",
                       hover=False).pack(pady=(0, 30))
+
+    def _build_forgot_username_ui(self):
+        """Recover username by looking it up against the registered email."""
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
+        main_card.pack(expand=True, fill="both", padx=40, pady=40)
+
+        ctk.CTkLabel(main_card, text="👤", font=("Segoe UI", 48),
+                    text_color="#00a8ff").pack(pady=(30, 10))
+        ctk.CTkLabel(main_card, text="Recover Your Username",
+                    font=("Segoe UI", 22, "bold"), text_color="#ffffff").pack()
+        ctk.CTkLabel(main_card,
+                    text="Enter the email address you registered with.\nWe'll tell you the username linked to that email.",
+                    font=("Segoe UI", 11), text_color="#a0a0a0",
+                    justify="center").pack(pady=(6, 20))
+
+        email_frame = ctk.CTkFrame(main_card, fg_color="transparent")
+        email_frame.pack(fill="x", padx=40, pady=5)
+        ctk.CTkLabel(email_frame, text="REGISTERED EMAIL",
+                    font=("Segoe UI", 10, "bold"),
+                    text_color="#aaaaaa").pack(anchor="w")
+        self._fu_email_entry = ctk.CTkEntry(
+            email_frame, font=("Segoe UI", 13),
+            fg_color="#2b2b2b", border_color="#3c3c3c",
+            placeholder_text="you@example.com")
+        self._fu_email_entry.pack(fill="x", pady=(4, 0))
+        self._fu_email_entry.focus()
+
+        self._fu_status = ctk.CTkLabel(main_card, text="",
+                                        font=("Segoe UI", 10),
+                                        text_color="#ff4444", wraplength=340)
+        self._fu_status.pack(pady=(8, 0))
+
+        def _lookup():
+            email = self._fu_email_entry.get().strip().lower()
+            if not email or "@" not in email:
+                self._fu_status.configure(text="Please enter a valid email address.",
+                                        text_color="#ff4444")
+                return
+
+            found_username = None
+            for username, data in auth.users.items():
+                if data.get("registered_email", "").lower() == email:
+                    found_username = username
+                    break
+
+            if not found_username:
+                self._fu_status.configure(
+                    text="No account found with that email.\n"
+                        "Double-check the address or contact support.",
+                    text_color="#ff4444")
+                return
+
+            # Found — send OTP to confirm identity before revealing username
+            lookup_btn.configure(state="disabled", text="Sending code…")
+            self._fu_status.configure(text="", text_color="#aaaaaa")
+
+            def _send_otp():
+                success, msg = email_service.send_otp_email(email, "verification")
+
+                def _after():
+                    lookup_btn.configure(state="normal", text="Look Up Username")
+                    if success:
+                        self._build_username_otp_ui(found_username, email)
+                    else:
+                        self._fu_status.configure(
+                            text=f"Could not send verification code:\n{msg}",
+                            text_color="#ff4444")
+
+                self.root.after(0, _after)
+
+            import threading
+            threading.Thread(target=_send_otp, daemon=True).start()
+
+        lookup_btn = ctk.CTkButton(
+            main_card, text="Look Up Username",
+            command=_lookup,
+            font=("Segoe UI", 13, "bold"),
+            fg_color="#00a8ff", hover_color="#0077cc",
+            corner_radius=8, height=44)
+        lookup_btn.pack(fill="x", padx=40, pady=(18, 10))
+
+        ctk.CTkButton(main_card, text="< Back to Login",
+                    command=self._build_login_ui,
+                    font=("Segoe UI", 11), fg_color="transparent",
+                    text_color="#a0a0a0", hover=False).pack(pady=(0, 30))
+
+        self.root.bind('<Return>', lambda e: _lookup())
+
+
+    def _build_username_otp_ui(self, username: str, email: str):
+        """OTP confirmation screen before revealing the username."""
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
+        main_card.pack(expand=True, fill="both", padx=40, pady=40)
+
+        ctk.CTkLabel(main_card, text="📧", font=("Segoe UI", 48),
+                    text_color="#00a8ff").pack(pady=(30, 10))
+        ctk.CTkLabel(main_card, text="Verify Your Identity",
+                    font=("Segoe UI", 22, "bold"), text_color="#ffffff").pack()
+        ctk.CTkLabel(main_card,
+                    text=f"Enter the 6-digit code sent to:\n{email}",
+                    font=("Segoe UI", 11), text_color="#a0a0a0",
+                    justify="center").pack(pady=(6, 20))
+
+        self._fu_otp_entry = ctk.CTkEntry(
+            main_card, font=("Segoe UI", 22, "bold"),
+            justify="center", width=180,
+            placeholder_text="000000")
+        self._fu_otp_entry.pack(pady=5)
+        self._fu_otp_entry.focus()
+
+        self._fu_otp_status = ctk.CTkLabel(main_card, text="",
+                                            font=("Segoe UI", 10),
+                                            text_color="#ff4444")
+        self._fu_otp_status.pack(pady=(6, 0))
+
+        def _verify():
+            otp = self._fu_otp_entry.get().strip()
+            if not otp:
+                self._fu_otp_status.configure(text="Please enter the OTP.")
+                return
+
+            is_valid, msg = email_service.verify_otp(email, otp)
+
+            if is_valid:
+                # OTP passed — show the username in a success screen
+                self._build_username_revealed_ui(username, email)
+            else:
+                self._fu_otp_status.configure(text=msg, text_color="#ff4444")
+                self._fu_otp_entry.delete(0, "end")
+
+        ctk.CTkButton(main_card, text="Verify & Show Username",
+                    command=_verify,
+                    font=("Segoe UI", 13, "bold"),
+                    fg_color="#00a8ff", hover_color="#0077cc",
+                    corner_radius=8, height=44).pack(
+            fill="x", padx=40, pady=(18, 10))
+
+        ctk.CTkButton(main_card, text="< Back",
+                    command=self._build_forgot_username_ui,
+                    font=("Segoe UI", 11), fg_color="transparent",
+                    text_color="#a0a0a0", hover=False).pack(pady=(0, 30))
+
+        self.root.bind('<Return>', lambda e: _verify())
+
+
+    def _build_username_revealed_ui(self, username: str, email: str):
+        """Show the recovered username and offer to go straight to login."""
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
+        main_card.pack(expand=True, fill="both", padx=40, pady=40)
+
+        ctk.CTkLabel(main_card, text="✅", font=("Segoe UI", 52),
+                    text_color="#00cc66").pack(pady=(30, 10))
+        ctk.CTkLabel(main_card, text="Username Found",
+                    font=("Segoe UI", 22, "bold"), text_color="#ffffff").pack()
+        ctk.CTkLabel(main_card,
+                    text=f"The account registered to\n{email}\n\nis:",
+                    font=("Segoe UI", 11), text_color="#a0a0a0",
+                    justify="center").pack(pady=(8, 12))
+
+        # Big username display box
+        name_box = ctk.CTkFrame(main_card, fg_color="#002233",
+                                corner_radius=10)
+        name_box.pack(padx=40, pady=(0, 20))
+        ctk.CTkLabel(name_box, text=username,
+                    font=("Consolas", 26, "bold"),
+                    text_color="#00ccff").pack(padx=30, pady=16)
+
+        # Copy to clipboard button
+        def _copy():
+            self.root.clipboard_clear()
+            self.root.clipboard_append(username)
+            copy_btn.configure(text="✔  Copied!")
+            self.root.after(2000, lambda: copy_btn.configure(text="📋  Copy Username"))
+
+        copy_btn = ctk.CTkButton(main_card, text="📋  Copy Username",
+                                command=_copy,
+                                font=("Segoe UI", 11),
+                                fg_color="#2b2b2b", hover_color="#3a3a3a",
+                                text_color="#00ccff",
+                                corner_radius=8, height=36)
+        copy_btn.pack(fill="x", padx=60, pady=(0, 10))
+
+        ctk.CTkButton(main_card, text="Go to Login →",
+                    command=self._build_login_ui,
+                    font=("Segoe UI", 13, "bold"),
+                    fg_color="#00a8ff", hover_color="#0077cc",
+                    corner_radius=8, height=44).pack(
+            fill="x", padx=40, pady=(6, 10))
+
+        ctk.CTkButton(main_card, text="Forgot Password Too?",
+                    command=self._build_forgot_pass_ui,
+                    font=("Segoe UI", 10), fg_color="transparent",
+                    text_color="#888888", hover=False).pack(pady=(0, 30))
 
     # ------------------------------------------------------------------
     # Login attempts
@@ -931,6 +1164,7 @@ class LoginWindow:
             ctk.CTkLabel(loader, text="⏳ Routing Secure OTP...",
                          font=("Consolas", 11, "bold"), text_color="#00ff00").pack(expand=True)
             loader.update()
+            self._apply_icon(loader)
 
             def _send_reset_task():
                 success, msg = email_service.send_otp_email(email, "reset")

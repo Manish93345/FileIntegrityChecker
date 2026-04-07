@@ -387,7 +387,12 @@ class ProIntegrityGUI:
         self.user_role = user_role
         self.username = username
 
-        self.root.title('FMSecure v2.0 — Enterprise EDR')
+        try:
+            from version import APP_VERSION
+            self.root.title(f'FMSecure v{APP_VERSION} — Enterprise EDR')
+        except ImportError:
+            self.root.title('FMSecure — Enterprise EDR')
+            
         # --- 🚨 INJECT THE WINDOWS TASKBAR ICON ---
         try:
             if getattr(sys, 'frozen', False):
@@ -546,6 +551,21 @@ class ProIntegrityGUI:
 
         self._configure_styles()
         self._build_widgets()
+        # ── Auto-icon hook — catches every Toplevel opened anywhere ──────────
+        _orig_toplevel_init = tk.Toplevel.__init__
+        _gui_ref = self           # capture self for the closure
+
+        def _patched_toplevel_init(win_self, *args, **kwargs):
+            _orig_toplevel_init(win_self, *args, **kwargs)
+            try:
+                icon = _gui_ref._get_icon_path()
+                if os.path.exists(icon):
+                    win_self.after(10, lambda: win_self.iconbitmap(icon))
+            except Exception:
+                pass
+
+        tk.Toplevel.__init__ = _patched_toplevel_init
+        # ─────────────────────────────────────────────────────────────────────
         self._create_side_menu()
         self._apply_permissions()
         self._create_alert_panel()
@@ -7168,58 +7188,112 @@ class ProIntegrityGUI:
     # ─────────────────────────────────────────
     
     def _check_for_updates(self):
-        """Silently checks GitHub Gist for a newer version on a background thread."""
-        CURRENT_VERSION = 2.0
-        # REPLACE THIS with your actual Raw Gist URL from Step 1
-        import time
-        UPDATE_URL = f"https://gist.githubusercontent.com/Manish93345/f339aeaae5ef231abf2be28bb750e4d8/raw/fmsecure_version.json?nocache={int(time.time())}"
-        
-        def fetch_version():
+        """
+        Checks Railway server for a newer version.
+        Version is read from version.py — never hardcoded in the GUI.
+        """
+        try:
+            from version import APP_VERSION, UPDATE_SERVER
+        except ImportError:
+            return   # version.py missing — skip silently
+
+        def _fetch():
             try:
-                import requests
-                # 3-second timeout so it never freezes the app if offline
-                response = requests.get(UPDATE_URL, timeout=3) 
-                if response.status_code == 200:
-                    data = response.json()
-                    latest = float(data.get("latest_version", 2.0))
-                    
-                    if latest > CURRENT_VERSION:
-                        url = data.get("download_url", "")
-                        # Push UI updates back to the main thread
-                        self.root.after(1000, lambda: self._show_update_banner(latest, url))
+                import requests as _req
+                url = f"{UPDATE_SERVER}/version.json?nocache={int(time.time())}"
+                r   = _req.get(url, timeout=4)
+                if r.status_code != 200:
+                    return
+                data          = r.json()
+                latest        = data.get("latest_version", APP_VERSION)
+                notes         = data.get("release_notes", "")
+                download_url  = data.get("download_url",
+                    f"{UPDATE_SERVER}/download")
+                changelog_url = data.get("changelog_url",
+                    f"{UPDATE_SERVER}/changelog")
+
+                # Semantic version comparison: "2.5.0" vs "2.6.0"
+                def _ver_tuple(v):
+                    try:
+                        return tuple(int(x) for x in str(v).split("."))
+                    except Exception:
+                        return (0,)
+
+                if _ver_tuple(latest) > _ver_tuple(APP_VERSION):
+                    self.root.after(1500, lambda: self._show_update_banner(
+                        latest, APP_VERSION, notes,
+                        download_url, changelog_url))
+
             except Exception as e:
-                print(f"Update check skipped (Offline or unreachable): {e}")
+                print(f"[UPDATE] Check skipped: {e}")
 
-        # Run immediately without blocking the Splash Screen or GUI load
-        threading.Thread(target=fetch_version, daemon=True).start()
+        threading.Thread(target=_fetch, daemon=True).start()
 
-    def _show_update_banner(self, latest_version, download_url):
-        """Injects a sleek update banner right below the top navigation bar."""
+
+    def _show_update_banner(self, latest_ver, current_ver,
+                            release_notes, download_url, changelog_url):
         import webbrowser
-        
-        banner = tk.Frame(self.root, bg=self.colors['accent_primary'], height=40)
-        # Place it exactly under the 56px top bar
-        banner.place(x=0, y=56, relwidth=1.0) 
+        C = self.colors
+
+        banner = tk.Frame(self.root, bg="#1a3a1a", height=48)
+        banner.place(x=0, y=56, relwidth=1.0)
         banner.pack_propagate(False)
-        
-        tk.Label(banner, text=f"🚀 UPDATE AVAILABLE", 
-                 bg=self.colors['accent_primary'], fg="#ffffff", 
-                 font=('Segoe UI', 9, 'bold')).pack(side=tk.LEFT, padx=(20, 5), pady=10)
-                 
-        tk.Label(banner, text=f"FMSecure v{latest_version} is now available.", 
-                 bg=self.colors['accent_primary'], fg="#ffffff", 
-                 font=('Segoe UI', 9)).pack(side=tk.LEFT, pady=10)
-                 
-        close_btn = tk.Button(banner, text="✕", command=banner.destroy,
-                              bg=self.colors['accent_primary'], fg="#ffffff", bd=0, 
-                              font=('Segoe UI', 12), cursor="hand2", activebackground=self.colors['accent_primary'])
-        close_btn.pack(side=tk.RIGHT, padx=15)
-        
-        dl_btn = tk.Button(banner, text="Download Update", 
-                           command=lambda: webbrowser.open(download_url) if download_url else None,
-                           bg="#ffffff", fg=self.colors['accent_primary'], bd=0,
-                           font=('Segoe UI', 9, 'bold'), cursor="hand2", padx=15, pady=4)
-        dl_btn.pack(side=tk.RIGHT, padx=10, pady=7)
+
+        left = tk.Frame(banner, bg="#1a3a1a")
+        left.pack(side=tk.LEFT, padx=(16, 0), pady=8)
+
+        tk.Label(left, text="🚀", font=("Segoe UI", 14),
+                bg="#1a3a1a", fg="#ffffff").pack(side=tk.LEFT, padx=(0, 8))
+        tk.Label(left,
+                text=f"FMSecure v{latest_ver} available  —  you have v{current_ver}",
+                font=("Segoe UI", 10, "bold"),
+                bg="#1a3a1a", fg="#ffffff").pack(side=tk.LEFT)
+
+        if release_notes:
+            tk.Label(left, text=f"    {release_notes[:68]}",
+                    font=("Segoe UI", 9),
+                    bg="#1a3a1a", fg="#aaffaa").pack(side=tk.LEFT)
+
+        right = tk.Frame(banner, bg="#1a3a1a")
+        right.pack(side=tk.RIGHT, padx=12, pady=8)
+
+        tk.Button(right, text="What's New",
+                command=lambda: webbrowser.open(changelog_url),
+                font=("Segoe UI", 9), bg="#2a5a2a", fg="#aaffaa",
+                bd=0, padx=10, pady=4, cursor="hand2",
+                activebackground="#3a6a3a").pack(side=tk.LEFT, padx=(0, 6))
+
+        tk.Button(right, text="Download Now →",
+                command=lambda: (webbrowser.open(download_url), banner.destroy()),
+                font=("Segoe UI", 9, "bold"), bg="#00aa44", fg="#ffffff",
+                bd=0, padx=14, pady=4, cursor="hand2",
+                activebackground="#00cc55").pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Button(right, text="✕", command=banner.destroy,
+                font=("Segoe UI", 11), bg="#1a3a1a", fg="#888888",
+                bd=0, cursor="hand2",
+                activebackground="#2a4a2a").pack(side=tk.LEFT)
+
+    
+    @staticmethod
+    def _get_icon_path() -> str:
+        """Resolve .ico path for both script and PyInstaller EXE."""
+        import sys, os
+        if getattr(sys, 'frozen', False):
+            base = sys._MEIPASS
+        else:
+            # project_root/assets/icons/app_icon.ico
+            base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        return os.path.join(base, "assets", "icons", "app_icon.ico")
+
+    def _set_window_icon(self, window):
+        """Apply the app icon to any Toplevel/CTkToplevel window."""
+        try:
+            icon_path = self._get_icon_path()
+            if os.path.exists(icon_path):
+                window.iconbitmap(icon_path)
+        except Exception:
+            pass   # never crash over an icon
 
 # ---------- Run ----------
 # ---------- Run ----------
