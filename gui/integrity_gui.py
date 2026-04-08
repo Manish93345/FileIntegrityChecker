@@ -392,7 +392,7 @@ class ProIntegrityGUI:
             self.root.title(f'FMSecure v{APP_VERSION} — Enterprise EDR')
         except ImportError:
             self.root.title('FMSecure — Enterprise EDR')
-            
+
         # --- 🚨 INJECT THE WINDOWS TASKBAR ICON ---
         try:
             if getattr(sys, 'frozen', False):
@@ -1857,15 +1857,28 @@ class ProIntegrityGUI:
             return False
 
     def _append_log(self, msg):
+        """
+        Write to the integrity log file AND show immediately in the UI.
+        Writing to file ensures _tail_log_loop never erases this line on re-render.
+        """
+        # 1. Immediate UI display (user sees it instantly)
         try:
-            ts = datetime.now().strftime('%H:%M:%S')
+            ts   = datetime.now().strftime('%H:%M:%S')
             line = f'[{ts}]  {msg}\n'
             self.log_box.configure(state='normal')
             self.log_box.insert(tk.END, line)
             self.log_box.see(tk.END)
             self.log_box.configure(state='disabled')
-        except Exception as e:
-            print(f'Log error: {e}')
+        except Exception:
+            pass
+
+        # 2. Persist to file so re-renders never lose this line
+        try:
+            if integrity_core and hasattr(integrity_core, 'append_log_line'):
+                integrity_core.append_log_line(
+                    f"[GUI] {msg}", event_type="GUI_EVENT", severity="INFO")
+        except Exception:
+            pass
 
     # Stub methods for vault/cloud tab buttons — bridge to existing core methods
     def _open_vault_viewer(self):
@@ -2332,6 +2345,23 @@ class ProIntegrityGUI:
                   bg=C['button_bg'], fg=C['text_secondary'],
                   bd=0, padx=8, pady=4, cursor='hand2').pack(
             side=tk.LEFT, padx=(6, 0))
+
+        # ADD THIS RIGHT AFTER the browse button pack() call:
+        # Store refs for the trace
+        _browse_btn  = new_loc_row.winfo_children()[-1]  # the Browse button
+        _dest_entry  = new_loc_entry
+
+        def _on_dest_mode_change(*args):
+            """Enable browse+entry only when 'new location' is selected."""
+            is_new = dest_mode.get() == "new"
+            state  = "normal" if is_new else "disabled"
+            _dest_entry.configure(state=state)
+            _browse_btn.configure(state=state,
+                                fg=C['text_primary'] if is_new else C['text_muted'],
+                                cursor="hand2" if is_new else "arrow")
+
+        dest_mode.trace_add("write", _on_dest_mode_change)
+        _on_dest_mode_change()   # apply immediately (default is "original" → disabled)
  
         # ── Progress label ────────────────────────────────────────────────────
         tk.Frame(right, height=1, bg=C['divider']).pack(fill=tk.X, pady=(8, 0))
@@ -5696,16 +5726,167 @@ class ProIntegrityGUI:
                   font=('Segoe UI', 10)).pack(pady=10)
 
     def _open_crypto_tools(self):
-        """Open cryptographic tools panel"""
         self.toggle_menu()
-        # Implementation for crypto tools
-        self._append_log("Launching cryptographic toolkit...")
+        C   = self.colors
+        win = tk.Toplevel(self.root)
+        win.title("Cryptographic Health — FMSecure")
+        win.geometry("560x480")
+        win.configure(bg=C['bg'])
+        win.transient(self.root)
+
+        # Header
+        hdr = tk.Frame(win, bg=C['accent_secondary'], height=4)
+        hdr.pack(fill=tk.X)
+        tk.Label(win, text="🔐  Cryptographic Key Health",
+                font=('Segoe UI', 14, 'bold'),
+                bg=C['bg'], fg=C['text_primary']).pack(anchor='w', padx=24, pady=(18, 4))
+        tk.Label(win, text="AES-256 Fernet · Hardware-derived KEK · PBKDF2-SHA256",
+                font=('Segoe UI', 9),
+                bg=C['bg'], fg=C['text_muted']).pack(anchor='w', padx=24)
+        tk.Frame(win, height=1, bg=C['divider']).pack(fill=tk.X, padx=24, pady=(12, 0))
+
+        # Fetch key status
+        try:
+            from core.encryption_manager import crypto_manager
+            status = crypto_manager.get_key_status()
+        except Exception:
+            status = {}
+
+        card = tk.Frame(win, bg=C['card_bg'],
+                        highlightbackground=C['card_border'], highlightthickness=1)
+        card.pack(fill=tk.X, padx=24, pady=16)
+
+        rows = [
+            ("Primary key (sys.key)",
+            "✅  Present" if status.get("primary_exists") else "❌  Missing",
+            C['accent_success'] if status.get("primary_exists") else C['accent_danger']),
+            ("Shadow backup (.sys_backup.key)",
+            "✅  Present" if status.get("shadow_exists")  else "❌  Missing",
+            C['accent_success'] if status.get("shadow_exists")  else C['accent_danger']),
+            ("Key loaded in memory",
+            "✅  Active"  if status.get("in_memory")      else "❌  Not loaded",
+            C['accent_success'] if status.get("in_memory")      else C['accent_danger']),
+            ("Cloud escrow (Google Drive)",
+            "✅  PRO — keys backed up" if (status.get("in_memory") and
+                hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists())
+            else "⚠️  Free plan — local only",
+            C['accent_success'] if (hasattr(self, 'pro_badge') and
+                self.pro_badge.winfo_exists()) else C['accent_warning']),
+            ("Machine ID",
+            status.get("machine_id", "Unknown"),
+            C['text_secondary']),
+        ]
+
+        for label, value, color in rows:
+            row = tk.Frame(card, bg=C['card_bg'])
+            row.pack(fill=tk.X, padx=16, pady=6)
+            tk.Label(row, text=label, font=('Segoe UI', 10),
+                    bg=C['card_bg'], fg=C['text_secondary'],
+                    width=30, anchor='w').pack(side=tk.LEFT)
+            tk.Label(row, text=value, font=('Segoe UI', 10, 'bold'),
+                    bg=C['card_bg'], fg=color, anchor='w').pack(side=tk.LEFT)
+
+        tk.Frame(win, height=1, bg=C['divider']).pack(fill=tk.X, padx=24, pady=(0, 8))
+
+        # Actions
+        btn_row = tk.Frame(win, bg=C['bg'])
+        btn_row.pack(fill=tk.X, padx=24, pady=8)
+
+        def _force_backup():
+            try:
+                from core.encryption_manager import crypto_manager
+                ok, msg = crypto_manager.force_key_backup()
+                tk.messagebox.showinfo("Key Backup", msg)
+            except Exception as e:
+                tk.messagebox.showerror("Error", str(e))
+
+        def _copy_machine_id():
+            mid = status.get("machine_id", "")
+            if mid:
+                win.clipboard_clear()
+                win.clipboard_append(mid)
+                tk.messagebox.showinfo("Copied", "Machine ID copied to clipboard.")
+
+        from gui.integrity_gui import _ActionButton
+        _ActionButton(btn_row, "☁  Force Key Backup to Cloud",
+                    _force_backup, C['accent_primary'], font_size=9).pack(
+            side=tk.LEFT, padx=(0, 8))
+        _ActionButton(btn_row, "📋  Copy Machine ID",
+                    _copy_machine_id, C['button_bg'],
+                    fg=C['text_secondary'], font_size=9).pack(side=tk.LEFT)
+
+        tk.Button(win, text="Close", command=win.destroy,
+                font=('Segoe UI', 10), bg=C['button_bg'],
+                fg=C['text_secondary'], bd=0, padx=20, pady=8,
+                cursor='hand2').pack(pady=(8, 20))
 
     def _open_firewall_settings(self):
-        """Open firewall settings panel"""
         self.toggle_menu()
-        # Implementation for firewall settings
-        self._append_log("Accessing firewall configuration...")
+        C   = self.colors
+        win = tk.Toplevel(self.root)
+        win.title("Network & Device Policy — FMSecure")
+        win.geometry("520x360")
+        win.configure(bg=C['bg'])
+        win.transient(self.root)
+
+        tk.Frame(win, bg=C['accent_info'], height=4).pack(fill=tk.X)
+        tk.Label(win, text="🛡️  Network & Device Policy",
+                font=('Segoe UI', 14, 'bold'),
+                bg=C['bg'], fg=C['text_primary']).pack(anchor='w', padx=24, pady=(18, 4))
+
+        # Current USB status (already implemented)
+        from core.integrity_core import CONFIG
+        usb_locked = CONFIG.get("usb_readonly", False)
+
+        card = tk.Frame(win, bg=C['card_bg'],
+                        highlightbackground=C['card_border'], highlightthickness=1)
+        card.pack(fill=tk.X, padx=24, pady=(12, 8))
+
+        usb_row = tk.Frame(card, bg=C['card_bg'])
+        usb_row.pack(fill=tk.X, padx=16, pady=10)
+        tk.Label(usb_row, text="USB Write Protection",
+                font=('Segoe UI', 10, 'bold'),
+                bg=C['card_bg'], fg=C['text_primary']).pack(side=tk.LEFT)
+        tk.Label(usb_row,
+                text="LOCKED" if usb_locked else "ALLOWED",
+                font=('Segoe UI', 9, 'bold'),
+                bg=C['accent_danger'] if usb_locked else C['accent_success'],
+                fg='#ffffff', padx=10, pady=2).pack(side=tk.RIGHT)
+
+        # Coming soon features
+        coming_soon = [
+            ("🌐", "Outbound Webhook Filtering",
+            "Control which external URLs the agent can reach"),
+            ("📡", "Network Isolation Mode",
+            "Cut outbound network on CRITICAL event (cloud & email exempt)"),
+            ("🔒", "Process Allow-listing",
+            "Whitelist trusted processes; block unknown write attempts"),
+        ]
+
+        for icon, title, desc in coming_soon:
+            f = tk.Frame(card, bg=C['card_bg'])
+            f.pack(fill=tk.X, padx=16, pady=5)
+            tk.Label(f, text=icon, font=('Segoe UI', 14),
+                    bg=C['card_bg'], fg=C['text_muted']).pack(side=tk.LEFT, padx=(0, 10))
+            col = tk.Frame(f, bg=C['card_bg'])
+            col.pack(side=tk.LEFT, fill=tk.X, expand=True)
+            tk.Label(col, text=title, font=('Segoe UI', 10, 'bold'),
+                    bg=C['card_bg'], fg=C['text_muted']).pack(anchor='w')
+            tk.Label(col, text=desc, font=('Segoe UI', 8),
+                    bg=C['card_bg'], fg=C['text_muted']).pack(anchor='w')
+            tk.Label(f, text="Coming soon",
+                    font=('Segoe UI', 8), bg=C['tag_bg'],
+                    fg=C['text_muted'], padx=8, pady=2).pack(side=tk.RIGHT)
+
+        tk.Label(win,
+                text="USB policy is managed from the Active Defense toggle in the main panel.",
+                font=('Segoe UI', 9), bg=C['bg'], fg=C['text_muted'],
+                wraplength=460).pack(padx=24, pady=(4, 0))
+
+        tk.Button(win, text="Close", command=win.destroy,
+                font=('Segoe UI', 10), bg=C['button_bg'],
+                fg=C['text_secondary'], bd=0, padx=20, pady=8,
+                cursor='hand2').pack(pady=16)
 
     def _emergency_lockdown(self):
         """Initiate emergency lockdown"""
@@ -5818,54 +5999,114 @@ class ProIntegrityGUI:
         self.root.after(0, lambda: self._show_alert(title, message, severity))
 
     def archive_and_reset(self):
-        """Archive current logs and reset UI"""
-        self.toggle_menu()  # Close the menu
-        
-        # Safety Check
+        """Archive current logs and reset — runs in background thread, never blocks UI."""
+        self.toggle_menu()
+
         if self.monitor_running:
-            messagebox.showwarning("Monitor Running", "Please Stop the Monitor before archiving.")
+            tk.messagebox.showwarning(
+                "Monitor Running",
+                "Please Stop the Monitor before archiving.")
             return
 
-        # Confirmation
-        confirm = messagebox.askyesno(
-            "Confirm Archive & Reset", 
+        if not tk.messagebox.askyesno(
+            "Confirm Archive & Reset",
             "Are you sure?\n\n"
             "1. All current logs and reports will be moved to 'config/history'.\n"
             "2. The current dashboard will be cleared.\n"
-            "3. You can start fresh with a new folder."
-        )
-        
-        if confirm:
+            "3. You can start fresh with a new session.\n\n"
+            "This runs in the background and will take a few seconds."
+        ):
+            return
+
+        # ── Show a non-blocking progress window ──────────────────────────
+        C    = self.colors
+        prog = tk.Toplevel(self.root)
+        prog.title("Archiving…")
+        prog.geometry("340x130")
+        prog.resizable(False, False)
+        prog.configure(bg=C['card_bg'])
+        prog.transient(self.root)
+        prog.grab_set()
+
+        # Center it
+        prog.update_idletasks()
+        px = self.root.winfo_x() + (self.root.winfo_width()  // 2) - 170
+        py = self.root.winfo_y() + (self.root.winfo_height() // 2) - 65
+        prog.geometry(f'+{px}+{py}')
+
+        tk.Label(prog, text="📦  Archiving Session Data",
+                font=('Segoe UI', 12, 'bold'),
+                bg=C['card_bg'], fg=C['text_primary']).pack(pady=(20, 6))
+
+        status_var = tk.StringVar(value="Moving log files…")
+        tk.Label(prog, textvariable=status_var,
+                font=('Segoe UI', 9),
+                bg=C['card_bg'], fg=C['text_secondary']).pack()
+
+        try:
+            import customtkinter as ctk
+            bar = ctk.CTkProgressBar(prog, width=280, mode="indeterminate")
+            bar.pack(pady=12)
+            bar.start()
+        except Exception:
+            bar = None
+
+        def _run_archive():
             try:
-                # Call Backend
+                status_var.set("Moving log files…")
                 success, msg = integrity_core.archive_session()
-                
+
                 if success:
-                    # Reset UI Elements
-                    self.log_box.configure(state="normal")
-                    self.log_box.delete("1.0", tk.END)
-                    self.log_box.insert(tk.END, f"[{datetime.now().strftime('%H:%M:%S')}] Session archived.\n")
-                    self.log_box.insert(tk.END, f"[{datetime.now().strftime('%H:%M:%S')}] Ready for new task.\n")
-                    self.log_box.configure(state="disabled")
-                    
-                    # Reset Severity Counters
-                    self.reset_severity_counters()
-                    
-                    # Reset Session Stats
-                    self.reset_session_counts()
-                    self.total_files_var.set("0")
-                    
-                    # Reset Tamper Indicators
-                    self.tamper_records_var.set("UNKNOWN")
-                    self.tamper_logs_var.set("UNKNOWN")
-                    self._update_tamper_indicators()
-                    
-                    messagebox.showinfo("Success", f"System Reset Complete.\n\nOld files saved in:\n{msg}")
-                    self._append_log("System reset successfully.")
+                    def _finish_ok():
+                        if bar:
+                            try:
+                                bar.stop()
+                            except Exception:
+                                pass
+                        prog.destroy()
+
+                        # Reset UI
+                        self.log_box.configure(state="normal")
+                        self.log_box.delete("1.0", tk.END)
+                        self.log_box.insert(
+                            tk.END,
+                            f"[{datetime.now().strftime('%H:%M:%S')}] Session archived.\n"
+                            f"[{datetime.now().strftime('%H:%M:%S')}] Ready for new task.\n")
+                        self.log_box.configure(state="disabled")
+
+                        self.reset_severity_counters()
+                        self.reset_session_counts()
+                        self.total_files_var.set("0")
+                        self.tamper_records_var.set("UNKNOWN")
+                        self.tamper_logs_var.set("UNKNOWN")
+                        self._update_tamper_indicators()
+
+                        tk.messagebox.showinfo(
+                            "Archive Complete",
+                            f"Session archived successfully.\n\n{msg}")
+                        self._append_log("Session archived and reset successfully.")
+
+                    self.root.after(0, _finish_ok)
+
                 else:
-                    messagebox.showerror("Error", f"Failed to archive: {msg}")
+                    def _finish_err():
+                        if bar:
+                            try: bar.stop()
+                            except Exception: pass
+                        prog.destroy()
+                        tk.messagebox.showerror("Archive Failed", f"Error: {msg}")
+
+                    self.root.after(0, _finish_err)
+
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to archive: {e}")
+                def _finish_exc(err=str(e)):
+                    try: prog.destroy()
+                    except Exception: pass
+                    tk.messagebox.showerror("Archive Error", err)
+                self.root.after(0, _finish_exc)
+
+        import threading
+        threading.Thread(target=_run_archive, daemon=True).start()
 
     # ===== SYSTEM TRAY AND OTHER METHODS =====
     
@@ -7188,42 +7429,33 @@ class ProIntegrityGUI:
     # ─────────────────────────────────────────
     
     def _check_for_updates(self):
-        """
-        Checks Railway server for a newer version.
-        Version is read from version.py — never hardcoded in the GUI.
-        """
         try:
-            from version import APP_VERSION, UPDATE_SERVER
+            from version import APP_VERSION, UPDATE_SERVER, DOWNLOAD_PAGE_URL, CHANGELOG_URL
         except ImportError:
-            return   # version.py missing — skip silently
+            return
 
         def _fetch():
             try:
                 import requests as _req
-                url = f"{UPDATE_SERVER}/version.json?nocache={int(time.time())}"
-                r   = _req.get(url, timeout=4)
+                r = _req.get(
+                    f"{UPDATE_SERVER}/version.json?nocache={int(time.time())}",
+                    timeout=4)
                 if r.status_code != 200:
                     return
-                data          = r.json()
-                latest        = data.get("latest_version", APP_VERSION)
-                notes         = data.get("release_notes", "")
-                download_url  = data.get("download_url",
-                    f"{UPDATE_SERVER}/download")
-                changelog_url = data.get("changelog_url",
-                    f"{UPDATE_SERVER}/changelog")
+                data   = r.json()
+                latest = data.get("latest_version", APP_VERSION)
+                notes  = data.get("release_notes", "")
+                # Server can override; falls back to version.py values
+                dl_url = data.get("download_url",  DOWNLOAD_PAGE_URL)
+                cl_url = data.get("changelog_url", CHANGELOG_URL)
 
-                # Semantic version comparison: "2.5.0" vs "2.6.0"
-                def _ver_tuple(v):
-                    try:
-                        return tuple(int(x) for x in str(v).split("."))
-                    except Exception:
-                        return (0,)
+                def _ver(v):
+                    try: return tuple(int(x) for x in str(v).split("."))
+                    except: return (0,)
 
-                if _ver_tuple(latest) > _ver_tuple(APP_VERSION):
+                if _ver(latest) > _ver(APP_VERSION):
                     self.root.after(1500, lambda: self._show_update_banner(
-                        latest, APP_VERSION, notes,
-                        download_url, changelog_url))
-
+                        latest, APP_VERSION, notes, dl_url, cl_url))
             except Exception as e:
                 print(f"[UPDATE] Check skipped: {e}")
 

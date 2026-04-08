@@ -239,7 +239,9 @@ SEVERITY_COUNTER_FILE = os.path.join(log_dir, "severity_counters.json")
 CONFIG = dict(DEFAULT_CONFIG)
 
 # Additional temp patterns to ignore (lowercase)
-TEMP_PATTERNS = [".tmp", ".part", ".crdownload", ".ds_store", ".swp", ".bak", "~", ".~", ".pyc", "__pycache__", ".git"]
+TEMP_PATTERNS = [".tmp", ".part", ".crdownload", ".ds_store", ".swp", ".bak",
+                 "~", ".~", ".pyc", "__pycache__", ".git", ".restore_tmp",
+                 ".cloud_tmp"]
 
 
 def get_severity(event_type):
@@ -965,6 +967,9 @@ class IntegrityHandler(FileSystemEventHandler):
         self.recent_events = []
         self.burst_threshold = 5
         self.burst_time_window = 10
+        # ── Restore cooldown: prevents the same file being re-restored within 10s ──
+        # key = absolute path, value = timestamp of last restore
+        self._restore_cooldown: dict = {}
 
     def _notify_gui(self, event_type, path, severity):
         """
@@ -1212,30 +1217,39 @@ class IntegrityHandler(FileSystemEventHandler):
             
             # --- THE INFINITE LOOP FIX: ACTIVE DEFENSE INTERCEPT ---
             if old_content and old_content != new_content:
-                # 🚨 FIX: Double-check PRO status here as well
                 if CONFIG.get("active_defense", False) and CONFIG.get("is_pro_user", False):
+                    # Cooldown: same file cannot be re-restored within 10 seconds
+                    now       = time.time()
+                    last_time = self._restore_cooldown.get(path, 0)
+                    if now - last_time < 10.0:
+                        return   # already handling this file
+                    self._restore_cooldown[path] = now
+
                     from core.vault_manager import vault
                     success, msg = vault.restore_file(path)
                     if success:
-                        append_log_line(f"RESTORED: {path} (Malware modification reverted!)", event_type="RESTORED", severity="INFO")
+                        append_log_line(
+                            f"RESTORED: {path} (Malware modification reverted!)",
+                            event_type="RESTORED", severity="INFO")
                         self._notify_gui("RESTORED", path, "INFO")
-                        
-                        time.sleep(0.5) 
+
+                        time.sleep(0.5)
                         restored_details = generate_file_hash(path)
                         if restored_details:
                             self.records[path] = {
-                                "hash": restored_details["hash"], 
-                                "content": restored_details["content"], 
-                                "attrs": restored_details["attrs"], 
+                                "hash":         restored_details["hash"],
+                                "content":      restored_details["content"],
+                                "attrs":        restored_details["attrs"],
                                 "last_checked": now_pretty()
                             }
                             self.save_records()
-                            
-                        self._check_burst_operations("MODIFY", path)
-                        return 
+                        # Do NOT call _check_burst_operations — restore is not an attack
+                        return
                     else:
-                        # 🚨 FIX: Log modification restore failures
-                        append_log_line(f"ACTIVE DEFENSE FAILED: Could not restore {path} ({msg})", severity="HIGH")
+                        self._restore_cooldown.pop(path, None)
+                        append_log_line(
+                            f"ACTIVE DEFENSE FAILED: Could not restore {path} ({msg})",
+                            severity="HIGH")
 
             # ... (Existing log_detail logic for metadata or normal modifications)
             log_detail = ""
@@ -1260,9 +1274,15 @@ class IntegrityHandler(FileSystemEventHandler):
             self._notify_gui("MODIFIED", path, "MEDIUM")
 
     def on_deleted(self, event):
-        if event.is_directory: return
+        # Directories are handled by the heartbeat thread, not here.
+        # On Windows, the Observer stops receiving events when a watched
+        # folder is deleted, so on_deleted for directories is unreliable.
+        if event.is_directory:
+            return
+
         path = os.path.abspath(event.src_path)
-        if is_ignored_filename(os.path.basename(path)): return
+        if is_ignored_filename(os.path.basename(path)):
+            return
 
         # --- 🚨 HONEYPOT TRIPWIRE 🚨 ---
         if os.path.basename(path).lower() == "secret_passwords.txt":
@@ -1271,18 +1291,33 @@ class IntegrityHandler(FileSystemEventHandler):
         
         # 1. ACTIVE DEFENSE INTERCEPT (Heals the file instantly)
         if path in self.records:
-            # 🚨 FIX: Force backend to verify PRO status, preventing config tampering
             if CONFIG.get("active_defense", False) and CONFIG.get("is_pro_user", False):
+                # ── Cooldown guard: one restore attempt per file per 10 seconds ──
+                now       = time.time()
+                last_time = self._restore_cooldown.get(path, 0)
+                if now - last_time < 10.0:
+                    # Already attempted a restore for this file recently — skip silently
+                    # to prevent the infinite restore loop and false killswitch triggers.
+                    return
+                self._restore_cooldown[path] = now
+                # ────────────────────────────────────────────────────────────────
+
                 from core.vault_manager import vault
                 success, msg = vault.restore_file(path)
+
                 if success:
-                    append_log_line(f"RESTORED: {path} (Malicious deletion reverted!)", event_type="RESTORED", severity="INFO")
+                    append_log_line(
+                        f"RESTORED: {path} (Malicious deletion reverted!)",
+                        event_type="RESTORED", severity="INFO")
                     self._notify_gui("RESTORED", path, "INFO")
-                    self._check_burst_operations("DELETE", path)
-                    return 
+                    # ↑ Do NOT call _check_burst_operations here.
+                    #   A vault restore is a defensive action, not an attack signal.
+                    return
                 else:
-                    # 🚨 FIX: Log failures instead of silently allowing the deletion
-                    append_log_line(f"ACTIVE DEFENSE FAILED: Vault empty for {path}", severity="HIGH") 
+                    self._restore_cooldown.pop(path, None)   # allow retry later
+                    append_log_line(
+                        f"ACTIVE DEFENSE FAILED: Vault empty for {path} ({msg})",
+                        severity="HIGH") 
             
             # 2. NORMAL DELETION (Remove from database)
             self.records.pop(path, None)
@@ -1472,6 +1507,7 @@ class FileIntegrityMonitor:
         self.running = True
         self.verifier_thread = threading.Thread(target=self._periodic_verifier_loop, daemon=True)
         self.verifier_thread.start()
+        self._start_folder_heartbeat(valid_folders, event_callback)
 
         return True
 
@@ -1483,6 +1519,166 @@ class FileIntegrityMonitor:
             self.observer = None
         self.handler = None
         append_log_line("MONITOR_STOPPED")
+
+    def _start_folder_heartbeat(self, watch_folders: list, event_callback=None):
+        """
+        Active folder protection heartbeat — runs every 2 seconds.
+
+        When a watched folder is deleted (entire tree gone):
+        1. Recreate the directory immediately
+        2. Restore every tracked file from vault (Active Defense + PRO)
+        3. Fall back to cloud vault for any file missing locally
+        4. Re-schedule the Observer so monitoring resumes on recreated folder
+        5. Log CRITICAL + send webhook + notify GUI
+
+        This is the only reliable protection on Windows because the watchdog
+        Observer silently stops when the watched ROOT is deleted — on_deleted
+        events for files inside it never fire.
+        """
+        import threading
+
+        def _restore_all_files_in_folder(folder: str) -> tuple:
+            """
+            Attempt vault restoration for every file under `folder`
+            that was tracked in self.handler.records at time of deletion.
+            Returns (restored_count, failed_list).
+            """
+            if not self.handler:
+                return 0, []
+            if not (CONFIG.get("active_defense", False) and
+                    CONFIG.get("is_pro_user", False)):
+                return 0, []
+
+            try:
+                from core.vault_manager import vault
+            except Exception:
+                return 0, []
+
+            folder_abs = os.path.abspath(folder) + os.sep
+            restored   = 0
+            failed     = []
+
+            # Snapshot the records so we don't iterate a changing dict
+            records_snapshot = dict(self.handler.records)
+
+            for file_path in records_snapshot:
+                if not os.path.abspath(file_path).startswith(folder_abs):
+                    continue   # not under this folder
+
+                # Skip files that already exist (partial deletion scenario)
+                if os.path.exists(file_path):
+                    continue
+
+                # Ensure parent directories exist before restoring
+                try:
+                    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                except Exception:
+                    pass
+
+                success, msg = vault.restore_file(file_path)
+                if success:
+                    restored += 1
+                    append_log_line(
+                        f"RESTORED (folder recovery): {file_path}",
+                        event_type="RESTORED",
+                        severity="INFO")
+                else:
+                    failed.append(os.path.basename(file_path))
+                    append_log_line(
+                        f"RESTORE FAILED (folder recovery): "
+                        f"{os.path.basename(file_path)} — {msg}",
+                        event_type="RESTORE_FAILED",
+                        severity="HIGH")
+
+            return restored, failed
+
+        def _heartbeat():
+            while self.running:
+                try:
+                    for folder in watch_folders:
+                        if os.path.exists(folder):
+                            continue   # healthy — nothing to do
+
+                        # ── Folder is gone ──────────────────────────────────────
+                        folder_name = os.path.basename(folder)
+                        print(f"[HEARTBEAT] ⚠️  Watched folder deleted: {folder}")
+
+                        # Step 1 — Recreate the directory tree
+                        try:
+                            os.makedirs(folder, exist_ok=True)
+                        except Exception as mkdir_err:
+                            append_log_line(
+                                f"CRITICAL: Could not recreate watched folder "
+                                f"'{folder}': {mkdir_err}",
+                                event_type="WATCHED_FOLDER_DELETE_FAILED",
+                                severity="CRITICAL")
+                            continue
+
+                        # Step 2 — Restore all tracked files from vault
+                        restored, failed = _restore_all_files_in_folder(folder)
+
+                        # Step 3 — Build alert message
+                        if restored > 0 or failed:
+                            detail = (f"Folder '{folder_name}' deleted and recreated. "
+                                    f"Files restored: {restored}. "
+                                    f"Failed: {len(failed)}.")
+                            if failed:
+                                detail += (f" Could not restore: "
+                                        f"{', '.join(failed[:5])}"
+                                        f"{'…' if len(failed) > 5 else ''}")
+                        else:
+                            ad_on = (CONFIG.get("active_defense", False) and
+                                    CONFIG.get("is_pro_user", False))
+                            detail = (
+                                f"Watched folder '{folder_name}' was deleted "
+                                f"and recreated (empty). "
+                                + ("No vault entries found for its files."
+                                if ad_on else
+                                "Enable Active Defense (PRO) to auto-restore files.")
+                            )
+
+                        severity = "CRITICAL"
+                        msg_full = f"⚠️  WATCHED FOLDER DELETED: {detail}"
+
+                        append_log_line(
+                            msg_full,
+                            event_type="WATCHED_FOLDER_DELETED",
+                            severity=severity)
+                        send_webhook_safe(
+                            "WATCHED_FOLDER_DELETED", msg_full,
+                            filepath=folder, severity=severity)
+
+                        if event_callback:
+                            try:
+                                event_callback(
+                                    "WATCHED_FOLDER_DELETED", folder, severity)
+                            except Exception:
+                                pass
+
+                        # Step 4 — Re-schedule observer so monitoring resumes
+                        if self.observer and self.handler:
+                            try:
+                                self.observer.schedule(
+                                    self.handler, folder, recursive=True)
+                                print(f"[HEARTBEAT] ✅ Observer re-scheduled "
+                                    f"for: {folder}")
+                            except Exception as oe:
+                                print(f"[HEARTBEAT] Re-schedule failed "
+                                    f"(non-critical): {oe}")
+
+                except Exception as outer_err:
+                    # Never let heartbeat thread crash
+                    print(f"[HEARTBEAT] Unexpected error (non-critical): "
+                        f"{outer_err}")
+
+                time.sleep(2)
+
+        t = threading.Thread(
+            target=_heartbeat,
+            daemon=True,
+            name="FMSecure-FolderHeartbeat")
+        t.start()
+        print("[HEARTBEAT] Folder protection heartbeat started.")
 
     def _periodic_verifier_loop(self):
         while self.running:
