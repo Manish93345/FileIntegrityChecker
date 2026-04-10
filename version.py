@@ -16,7 +16,7 @@ UPDATE_SERVER = "https://fmsecure-c2-server-production.up.railway.app"
 # When you upload a new EXE to Drive, copy its ID here.
 # The ID is the long string in the Drive share URL:
 #   https://drive.google.com/file/d/THIS_PART_HERE/view
-DRIVE_FILE_ID = "1UgvEKLqzlx_CdpsLUQTDV-f4qmSYvjBg"   # ← only line to change
+DRIVE_FILE_ID = "1tAadU5gjgkH26Hs-WM_VDKQUo0-TT8-e"   # ← only line to change
 
 # ── Auto-derived URLs (do not edit these) ────────────────────────────
 DOWNLOAD_PAGE_URL = f"{UPDATE_SERVER}/download"          # product/pricing page

@@ -338,7 +338,7 @@ class LoginWindow:
         # self._configure_styles()
 
         if not auth.has_users():
-            self._show_splash_screen(on_complete=self._check_for_reinstall_backup)
+            self._show_splash_screen(on_complete=self._check_tenant_then_reinstall)
         else:
             self._build_login_ui()
             self._show_splash_screen()
@@ -1532,6 +1532,272 @@ class LoginWindow:
         ).pack(pady=(0, 20))
  
         self.root.bind('<Return>', lambda e: _verify_pin())
+
+
+    # ── ADD these four methods to the LoginWindow class ───────────────────────────
+    
+    
+    def _check_tenant_then_reinstall(self):
+        """
+        Entry point after splash on a fresh install (no local users).
+    
+        Priority order:
+        1. FMSECURE_TENANT_KEY env var set → silent auto-enroll, skip wizard
+        2. tenant.json already exists → already enrolled, go to reinstall check
+        3. Neither → show enrollment gateway (ask: org key or personal install?)
+        """
+        from core import tenant_manager
+    
+        # ── Path 1: IT admin pre-configured the env variable ─────────────────────
+        env_key = os.environ.get("FMSECURE_TENANT_KEY", "").strip()
+        if env_key and not tenant_manager.is_enrolled():
+            self._auto_enroll_from_env(env_key)
+            return
+    
+        # ── Path 2: Already enrolled from a previous install ─────────────────────
+        if tenant_manager.is_enrolled():
+            # Tenant config exists — go straight to cloud restore check
+            self._check_for_reinstall_backup()
+            return
+    
+        # ── Path 3: No tenant config — show the enrollment gateway ───────────────
+        self._build_tenant_gateway_ui()
+    
+    
+    def _auto_enroll_from_env(self, env_key: str):
+        """
+        Silent enrollment from FMSECURE_TENANT_KEY environment variable.
+        Used when IT admin pre-configures machines before deployment.
+        Shows a brief status screen, validates the key, saves, then continues.
+        """
+        from core import tenant_manager
+    
+        # Show a minimal status screen so the user sees something
+        for widget in self.root.winfo_children():
+            widget.destroy()
+    
+        card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
+        card.pack(expand=True, fill="both", padx=40, pady=80)
+    
+        ctk.CTkLabel(card, text="🏢", font=("Segoe UI", 42),
+                    text_color="#00a8ff").pack(pady=(30, 8))
+        ctk.CTkLabel(card, text="Enrolling in Organisation",
+                    font=("Segoe UI", 18, "bold"),
+                    text_color="#ffffff").pack()
+        status_var = ctk.StringVar(value="Validating organisation key…")
+        ctk.CTkLabel(card, textvariable=status_var,
+                    font=("Segoe UI", 11), text_color="#a0a0a0").pack(pady=(8, 0))
+    
+        def _do_enroll():
+            ok, tenant_name = tenant_manager.validate_key(env_key)
+            if ok:
+                tenant_manager.save(env_key,
+                    "https://fmsecure-c2-server-production.up.railway.app",
+                    tenant_name)
+                self.root.after(0, lambda: status_var.set(
+                    f"✅ Enrolled in: {tenant_name or 'organisation'}"))
+                self.root.after(1200, self._check_for_reinstall_backup)
+            else:
+                # Key invalid — fall through to normal install (don't block the user)
+                self.root.after(0, lambda: status_var.set(
+                    "⚠️  Organisation key invalid — continuing as personal install."))
+                self.root.after(1800, self._check_for_reinstall_backup)
+    
+        import threading
+        threading.Thread(target=_do_enroll, daemon=True).start()
+    
+    
+    def _build_tenant_gateway_ui(self):
+        """
+        Gateway screen shown on a fresh personal install.
+        Asks: "Is this an organisation-managed machine, or a personal install?"
+    
+        - Organisation → shows the key enrollment wizard
+        - Personal      → existing reinstall/register flow (unchanged)
+        """
+        for widget in self.root.winfo_children():
+            widget.destroy()
+    
+        card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
+        card.pack(expand=True, fill="both", padx=30, pady=24)
+    
+        ctk.CTkLabel(card, text="⚡", font=("Segoe UI", 42),
+                    text_color="#2f81f7").pack(pady=(28, 8))
+        ctk.CTkLabel(card, text="Welcome to FMSecure",
+                    font=("Segoe UI", 20, "bold"),
+                    text_color="#ffffff").pack()
+        ctk.CTkLabel(card,
+                    text="How is this installation being set up?",
+                    font=("Segoe UI", 12), text_color="#a0a0a0").pack(pady=(6, 24))
+    
+        # Option A — Organisation
+        org_frame = ctk.CTkFrame(card, fg_color="#0d1424",
+                                border_color="#2f81f7", border_width=1,
+                                corner_radius=10)
+        org_frame.pack(fill="x", padx=28, pady=(0, 12))
+    
+        org_inner = ctk.CTkFrame(org_frame, fg_color="transparent")
+        org_inner.pack(fill="x", padx=20, pady=16)
+    
+        ctk.CTkLabel(org_inner, text="🏢  Organisation Managed",
+                    font=("Segoe UI", 13, "bold"),
+                    text_color="#e6edf3").pack(anchor="w")
+        ctk.CTkLabel(org_inner,
+                    text="Your IT admin provided an organisation key.\n"
+                        "This machine will report to your organisation's security dashboard.",
+                    font=("Segoe UI", 10), text_color="#8b949e",
+                    justify="left").pack(anchor="w", pady=(4, 10))
+        ctk.CTkButton(org_inner, text="Enter Organisation Key →",
+                    command=self._build_tenant_enrollment_ui,
+                    font=("Segoe UI", 12, "bold"),
+                    fg_color="#2f81f7", hover_color="#4f96ff",
+                    corner_radius=8, height=38).pack(anchor="w")
+    
+        # Option B — Personal
+        personal_frame = ctk.CTkFrame(card, fg_color="#111111",
+                                    border_color="#30363d", border_width=1,
+                                    corner_radius=10)
+        personal_frame.pack(fill="x", padx=28, pady=(0, 8))
+    
+        personal_inner = ctk.CTkFrame(personal_frame, fg_color="transparent")
+        personal_inner.pack(fill="x", padx=20, pady=16)
+    
+        ctk.CTkLabel(personal_inner, text="👤  Personal Install",
+                    font=("Segoe UI", 13, "bold"),
+                    text_color="#e6edf3").pack(anchor="w")
+        ctk.CTkLabel(personal_inner,
+                    text="Standard installation for personal or standalone use.\n"
+                        "No organisation key required.",
+                    font=("Segoe UI", 10), text_color="#8b949e",
+                    justify="left").pack(anchor="w", pady=(4, 10))
+        ctk.CTkButton(personal_inner, text="Continue as Personal Install",
+                    command=self._check_for_reinstall_backup,
+                    font=("Segoe UI", 12),
+                    fg_color="#21262d", hover_color="#30363d",
+                    text_color="#a0a0a0",
+                    corner_radius=8, height=38).pack(anchor="w")
+    
+        ctk.CTkLabel(card,
+                    text="Your choice can be changed later from within the app.",
+                    font=("Segoe UI", 9), text_color="#484f58").pack(
+            pady=(8, 20))
+    
+    
+    def _build_tenant_enrollment_ui(self):
+        """
+        Organisation key enrollment wizard.
+        Validates the key against the server before saving it.
+        """
+        from core import tenant_manager
+    
+        for widget in self.root.winfo_children():
+            widget.destroy()
+    
+        card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
+        card.pack(expand=True, fill="both", padx=30, pady=20)
+    
+        ctk.CTkLabel(card, text="🔑", font=("Segoe UI", 40),
+                    text_color="#2f81f7").pack(pady=(28, 8))
+        ctk.CTkLabel(card, text="Enter Organisation Key",
+                    font=("Segoe UI", 20, "bold"),
+                    text_color="#ffffff").pack()
+        ctk.CTkLabel(card,
+                    text="Your IT administrator provided this key when they\n"
+                        "registered your organisation with FMSecure.",
+                    font=("Segoe UI", 11), text_color="#a0a0a0",
+                    justify="center").pack(pady=(6, 20))
+    
+        # Key entry
+        ctk.CTkLabel(card, text="ORGANISATION KEY",
+                    font=("Segoe UI", 10, "bold"),
+                    text_color="#8b949e").pack(anchor="w", padx=36)
+    
+        key_var = ctk.StringVar()
+        key_entry = ctk.CTkEntry(
+            card, textvariable=key_var,
+            placeholder_text="fms-tenant-xxxxxxxxxxxxxxxxxxxx",
+            font=("Consolas", 13),
+            fg_color="#0d1117", border_color="#30363d",
+            text_color="#2f81f7", height=44)
+        key_entry.pack(fill="x", padx=36, pady=(4, 0))
+        key_entry.focus()
+    
+        # Status label
+        status_lbl = ctk.CTkLabel(card, text="",
+                                font=("Segoe UI", 10),
+                                text_color="#ff4444",
+                                wraplength=340)
+        status_lbl.pack(pady=(8, 0))
+    
+        # Progress bar (hidden until validating)
+        prog = ctk.CTkProgressBar(card, width=320, mode="indeterminate")
+    
+        def _do_enroll():
+            key = key_var.get().strip()
+            if not key:
+                status_lbl.configure(text="Please enter the organisation key.",
+                                    text_color="#ff4444")
+                return
+            if not key.startswith("fms-tenant-"):
+                status_lbl.configure(
+                    text="That doesn't look like an FMSecure organisation key.\n"
+                        "It should start with  fms-tenant-",
+                    text_color="#ff4444")
+                return
+    
+            # Disable UI, show progress
+            enroll_btn.configure(state="disabled", text="Validating…")
+            status_lbl.configure(text="Connecting to FMSecure server…",
+                                text_color="#8b949e")
+            prog.pack(pady=(6, 0))
+            prog.start()
+    
+            def _validate_in_thread():
+                ok, result = tenant_manager.validate_key(key)
+    
+                def _finish():
+                    prog.stop()
+                    prog.pack_forget()
+                    enroll_btn.configure(state="normal",
+                                        text="Enroll This Machine →")
+    
+                    if ok:
+                        # Save and move on
+                        tenant_manager.save(
+                            key,
+                            "https://fmsecure-c2-server-production.up.railway.app",
+                            result   # result = tenant slug/name on success
+                        )
+                        status_lbl.configure(
+                            text=f"✅ Enrolled in: {result or 'organisation'}",
+                            text_color="#3fb950")
+                        # Brief pause so user sees success, then continue
+                        self.root.after(1200, self._check_for_reinstall_backup)
+                    else:
+                        status_lbl.configure(text=result, text_color="#ff4444")
+    
+                self.root.after(0, _finish)
+    
+            import threading
+            threading.Thread(target=_validate_in_thread, daemon=True).start()
+    
+        enroll_btn = ctk.CTkButton(
+            card, text="Enroll This Machine →",
+            command=_do_enroll,
+            font=("Segoe UI", 13, "bold"),
+            fg_color="#2f81f7", hover_color="#4f96ff",
+            corner_radius=8, height=44)
+        enroll_btn.pack(fill="x", padx=36, pady=(16, 8))
+    
+        ctk.CTkButton(
+            card, text="← Back",
+            command=self._build_tenant_gateway_ui,
+            font=("Segoe UI", 11), fg_color="transparent",
+            text_color="#8b949e", hover=False).pack(pady=(0, 24))
+    
+        key_entry.bind("<Return>", lambda e: _do_enroll())
+        self.root.bind("<Escape>", lambda e: self._build_tenant_gateway_ui())
+    
 
 
     def _check_for_reinstall_backup(self):

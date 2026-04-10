@@ -737,6 +737,22 @@ def send_webhook_safe(event_type, message, filepath=None, severity="INFO"):
     elif not admin_email:
         print(f"\n[ 📧 EMAIL THREAD ] ⚠️ Skipped: No 'admin_email' configured in Settings.")
 
+    # ── CHANNEL 3: Tenant C2 Server (multi-tenancy) ──────────────────────────
+    if severity in ("CRITICAL", "HIGH"):
+        try:
+            from core import tenant_manager as _tm
+            import socket as _sock
+            _tm.push_alert(
+                machine_id = _tm._get_machine_id(),
+                hostname   = _sock.gethostname(),
+                severity   = severity,
+                event_type = event_type,
+                message    = message[:500],
+                file_path  = filepath or "",
+            )
+        except Exception:
+            pass   # never block the existing alert pipeline
+
 # ------------------ Verification & Summary ------------------
 def verify_all_files_and_update(records=None, watch_folders=None):
     """
@@ -1243,7 +1259,9 @@ class IntegrityHandler(FileSystemEventHandler):
                                 "last_checked": now_pretty()
                             }
                             self.save_records()
-                        # Do NOT call _check_burst_operations — restore is not an attack
+                            
+                        # 🚨 THE FIX: Tell the Killswitch about the ransomware encryption attempt!
+                        self._check_burst_operations("MALICIOUS_MODIFICATION", path)
                         return
                     else:
                         self._restore_cooldown.pop(path, None)
@@ -1262,7 +1280,12 @@ class IntegrityHandler(FileSystemEventHandler):
                         state = "Hidden" if is_hidden else "Unhidden"
                         log_detail = f" (Property changed: File marked as {state})"
                     else:
-                        log_detail = " (Properties/Metadata changed)"
+                        # 🚨 FIX: If content is identical and hidden status hasn't changed, 
+                        # this is just the OS updating the timestamp after a restore. 
+                        # Silently absorb the new metadata and abort the alert!
+                        self.records[path]["attrs"] = new_attrs
+                        self.save_records()
+                        return
             elif old_content and old_content != new_content:
                 log_detail = " (Content modified)"
             
@@ -1310,8 +1333,9 @@ class IntegrityHandler(FileSystemEventHandler):
                         f"RESTORED: {path} (Malicious deletion reverted!)",
                         event_type="RESTORED", severity="INFO")
                     self._notify_gui("RESTORED", path, "INFO")
-                    # ↑ Do NOT call _check_burst_operations here.
-                    #   A vault restore is a defensive action, not an attack signal.
+                    
+                    # 🚨 THE FIX: Tell the Killswitch that a malicious deletion just happened!
+                    self._check_burst_operations("MALICIOUS_DELETION", path)
                     return
                 else:
                     self._restore_cooldown.pop(path, None)   # allow retry later

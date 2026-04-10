@@ -261,6 +261,111 @@ New server endpoint `POST /api/license/recover_key` — looks up all active non-
 - ML Heuristics — isolation forest for anomaly detection replacing static burst threshold
 - Memory Scanning — API hooking for fileless malware detection
 
+# FMSecure — Development Changelog
+
+All notable changes to FMSecure are documented here.  
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) conventions.  
+Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+---
+
+## [2.5.0] — April 2026
+
+### ✨ New Features
+
+#### Account & Authentication
+- **Username Recovery** — Users who forget their username can now recover it via registered email with OTP verification. A clean 3-step flow (email entry → OTP verification → username display with copy button) was added to the login screen alongside the existing password recovery path.
+- **Google SSO Device PIN** — Returning Google SSO users now verify physical presence on the device using a 4-digit PIN set at first login. PIN change is available from the admin panel. The PIN is stored hashed (PBKDF2-SHA256) alongside the Google account record.
+- **License Transfer Flow** — Users who reinstall FMSecure on the same hardware can transfer their PRO license to the new device via a 2-step OTP verification against their purchase email. Server-side machine_id column is updated on success.
+
+#### Active Defense — Major Hardening
+- **Watched Folder Protection** — Deleting the entire monitored directory (not just files inside it) is now detected and countered. A heartbeat thread polls every 2 seconds independently of the watchdog Observer (which silently stops on Windows when the watched root is deleted). On detection: directory is recreated, all tracked files are restored from vault individually, observer is re-scheduled, and a CRITICAL alert is sent.
+- **Full Folder Content Restoration** — When an entire watched folder is deleted at once, individual `on_deleted` events for files inside do not fire on Windows. The heartbeat handles mass restoration by iterating vault records for every tracked file under the deleted path and restoring them in sequence.
+- **Ghost Event Suppression** — Vault restoration writes temporary files (`.restore_tmp`) to disk during the restore process. These temporary files previously triggered new watchdog events, causing a cascade of repeated restore attempts and false killswitch triggers. All restoration temporaries are now ignored at the pattern level.
+- **Per-File Restore Cooldown** — A 10-second cooldown per file path prevents the same file from triggering repeated restore attempts within a burst window. Defensive restore actions are explicitly excluded from ransomware burst detection.
+
+#### Cloud Disaster Recovery
+- **Restore From Cloud (Fixed)** — The "Restore from Cloud" button now correctly downloads vault `.enc` files from the user's Google Drive `vault/` subfolder with live per-file progress feedback. Previously the button silently did nothing.
+- **Pre-Archive Cloud Sync** — When a user archives their session (System Backup), logs and forensics are now synced to Google Drive before being moved to local history. Previously, archived files were invisible to the cloud backup scheduler.
+- **PRO Status Resilience** — Cloud sync, vault backup, and all PRO-gated operations now query the live authentication tier directly when `CONFIG["is_pro_user"]` has been reset by a `load_config()` call. PRO status is re-asserted into CONFIG before every critical operation.
+
+#### Update System
+- **In-App Update Banner** — The desktop app now checks the FMSecure server on every launch for a newer version. If a newer version is published, a dismissible banner appears below the top navigation bar with "What's New" and "Download Now →" buttons.
+- **Centralised Version Management** — A single `version.py` file controls `APP_VERSION`, `DRIVE_FILE_ID`, `DOWNLOAD_PAGE_URL`, and `CHANGELOG_URL`. Updating to a new release requires changing one file on the client and one entry on the server dashboard.
+- **Server Version Management** — Admin dashboard includes a "Publish New Version" panel. Publishing a new version updates all running desktop clients within seconds of their next launch.
+
+#### Server — Public Pages
+- **`/download` Page** — Public download page showing the latest version number, release notes, direct download button, and a feature overview grid. Linked from the in-app update banner.
+- **`/changelog` Page** — Full public version history with a timeline layout. Each release shows version, publish date, release notes, and a per-version download link.
+- **`/version.json` Endpoint** — Machine-readable version metadata served with `Cache-Control: no-store` headers. Read by every desktop client on launch.
+
+#### Developer Tooling
+- **Crypto Tools Panel** — Available from the side menu. Shows live key health: primary key status, shadow backup status, in-memory Fernet state, cloud escrow status (PRO), machine ID. Action buttons: Force Key Backup, Copy Machine ID.
+- **Network & Device Policy Panel** — Available from the side menu. Shows current USB write protection state. Lists upcoming network isolation and process allow-listing features as designed tiles.
+
+---
+
+### 🛠 Bug Fixes
+
+| ID | Area | Description |
+|---|---|---|
+| BUG-001 | UI | Vault tab width reflowed on every cloud progress update due to recursive `<Configure>` binding |
+| BUG-002 | UI | Reinstall restore screen was a blank unresponsive window with no progress indication |
+| BUG-003 | Cloud | Session archive logs were moved locally before cloud sync ran, making them invisible to Drive |
+| BUG-004 | Cloud | "Restore from Cloud" button silently did nothing — called a legacy stub method |
+| BUG-005 | Config | `CONFIG["is_pro_user"]` and `CONFIG["admin_email"]` reset to defaults on every `load_config()` call, breaking all PRO features mid-session |
+| BUG-006 | Cloud | `IndentationError` on `cloud_sync.py:143` crashed all cloud operations after OAuth cancel patch |
+| BUG-007 | Auth | No username recovery path — users who forgot their username were permanently locked out |
+| BUG-008 | UI | Popup windows and Toplevel dialogs showed the default Python/Tk icon instead of the FMSecure logo |
+| BUG-009 | Auth | App crashed with unhandled exception when OAuth browser was closed without completing sign-in |
+| BUG-010 | Defense | Vault file restoration triggered ghost watchdog events, causing 4–5 duplicate RESTORED log entries and false ransomware killswitch triggers |
+| BUG-011 | Defense | Watched folder deletion went undetected — watchdog Observer silently stops on Windows when the watched root is removed |
+| BUG-012 | Defense | Watched folder was recreated by heartbeat but remained empty — file restoration was not part of the recovery sequence |
+| BUG-013 | UI | System Backup / archive blocked the main UI thread for several seconds causing visible freeze |
+| BUG-014 | Server | Update banner never appeared — `NameError` on server line 2004 was silently swallowed, causing `/version.json` to always return the hardcoded fallback version |
+| BUG-015 | DX | No single place to update the download link — required changes in multiple files across server and client |
+
+---
+
+### 🏗 Architecture Changes
+
+- **Heartbeat Thread** — `FileIntegrityMonitor` now starts a `FMSecure-FolderHeartbeat` daemon thread alongside the watchdog Observer. The heartbeat is the authoritative source for watched folder existence; the Observer handles file-level events within existing folders.
+- **Two-Tier PRO Verification** — PRO checks now use a fast path (CONFIG) with an authoritative fallback (live auth query). CONFIG is healed on every authoritative check so subsequent fast-path checks succeed.
+- **`version.py` as Single Source of Truth** — All version-related constants (`APP_VERSION`, `DRIVE_FILE_ID`, all URLs) live in one importable file. Every component (GUI title bar, update checker, banner) reads from it.
+- **`versions` Database Table** — Server now maintains a `versions` table with full publish history. `is_current=TRUE` marks the active version. Publishing a new version marks all previous rows `FALSE`.
+
+---
+
+## [2.0.0] — Initial Release
+
+- File integrity monitoring with SHA-256 + metadata hashing
+- Real-time watchdog-based file event detection (create, modify, delete, rename)
+- AES-256 encrypted audit logs with per-line HMAC signatures
+- Encrypted hash record database
+- Active Defense vault with auto-restore on delete or modification
+- Ransomware burst detection with OS-level folder killswitch (icacls)
+- Honeypot file tripwire (`secret_passwords.txt`)
+- Google Drive cloud backup with machine-ID-based folder structure
+- PRO licensing via Razorpay + Railway-hosted license server
+- Google SSO login
+- Email OTP for registration and password reset
+- USB write protection via Windows Registry policy
+- Forensic incident snapshots (AES-encrypted, indexed)
+- PDF report export
+- Discord/Slack webhook integration for real-time alerts
+- Admin email alert with encrypted forensic attachment
+- Demo simulation mode
+- System tray integration with background monitoring
+- Light/dark theme with live toggle
+- CustomTkinter professional UI
+- Multi-folder monitoring support (PRO)
+- Folder structure backup to Google Drive (PRO)
+- Archive browser for previous installation backups
+- Auto-backup scheduler (logs every 15 min, AppData every 6 hours, keys every 24 hours)
+- Remote emergency lockdown via C2 server command
+- OTA update checking via server version endpoint
+
+
 ---
 
 ## 🛠️ Build Commands

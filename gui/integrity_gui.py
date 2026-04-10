@@ -576,6 +576,7 @@ class ProIntegrityGUI:
         self._clear_stale_lockdown_on_startup()   # ← ADD THIS LINE
         self._check_safe_mode_status()
         # self._start_telemetry_heartbeat()
+        self._start_heartbeat() 
         self._setup_tray_icon()
         self._check_for_updates()
 
@@ -4458,45 +4459,70 @@ class ProIntegrityGUI:
 
         email_ent.bind('<Return>', lambda e: _do_recover())
         dlg.bind('<Escape>', lambda e: dlg.destroy())
-        """Silently pings the FastAPI C2 Server every 10 seconds"""
+
+        """Silently pings the FMSecure C2 Server every 10 seconds.
+        
+        Tenant-aware: if tenant.json exists, adds x-tenant-key header
+        and the server records the heartbeat against the tenant's account.
+        Falls back to legacy x-api-key if not enrolled.
+        """
         def heartbeat_loop():
-            # Generate a unique hardware ID and get the PC name
+            import socket
             machine_id = str(uuid.getnode())
-            hostname = socket.gethostname()
-            c2_url = "https://fmsecure-c2-server-production.up.railway.app/api/heartbeat"
-            
+            hostname   = socket.gethostname()
+            c2_url     = "https://fmsecure-c2-server-production.up.railway.app/api/heartbeat"
+ 
+            # Load tenant key once (cached after first call)
+            try:
+                from core import tenant_manager as _tm
+            except ImportError:
+                _tm = None
+ 
             while True:
                 try:
-                    # 1. Gather Live Data
                     tier = "FREE"
                     if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
                         tier = "PRO"
-                        
+ 
+                    from core.integrity_core import CONFIG
+                    try:
+                        from version import APP_VERSION
+                    except ImportError:
+                        APP_VERSION = "2.5.0"
+ 
                     payload = {
-                        "machine_id": machine_id,
-                        "hostname": hostname,
-                        "username": self.username,
-                        "tier": tier,
-                        "is_armed": getattr(self, 'monitor_running', False)
+                        "machine_id":    machine_id,
+                        "hostname":      hostname,
+                        "username":      self.username,
+                        "tier":          tier,
+                        "is_armed":      getattr(self, 'monitor_running', False),
+                        "agent_version": APP_VERSION,
                     }
-                    
-                    # 2. Send to Cloud & Read Response
-                    headers = {"x-api-key": "fmsecure-enterprise-key-99"}
-                    response = requests.post(c2_url, json=payload, headers=headers, timeout=5)
+ 
+                    # ── Tenant path ────────────────────────────────────────────
+                    if _tm and _tm.is_enrolled():
+                        headers = {"x-tenant-key": _tm.get_key()}
+                        server  = _tm.get_server()
+                        hb_url  = f"{server}/api/heartbeat"
+                    else:
+                        # ── Legacy single-user path ────────────────────────────
+                        headers = {"x-api-key": "fmsecure-enterprise-key-99"}
+                        hb_url  = c2_url
+ 
+                    response = requests.post(
+                        hb_url, json=payload, headers=headers, timeout=5)
+ 
                     if response.status_code == 200:
                         server_data = response.json()
-                        # --- NEW: EXECUTE CLOUD COMMANDS ---
                         if server_data.get("command") == "LOCKDOWN":
                             print("🚨 CLOUD COMMAND RECEIVED: EXECUTING LOCKDOWN!")
-                            # Must use .after() to safely interact with the GUI from a background thread
                             self.root.after(0, self._execute_remote_lockdown)
+ 
                 except Exception:
-                    pass # If the server is offline, fail silently and try again later
-                    
-                # 3. Sleep for 10 seconds (Industry standard is 30s-60s)
+                    pass   # server offline — silent retry
+ 
                 time.sleep(10)
-
-        # Start as a daemon thread so it runs invisibly and dies when the app closes
+ 
         threading.Thread(target=heartbeat_loop, daemon=True).start()
 
     def _execute_remote_lockdown(self):
@@ -4526,6 +4552,76 @@ class ProIntegrityGUI:
             "Your IT Administrator has remotely triggered an emergency Ransomware lockdown on your device. All file access has been revoked.", 
             "critical"
         )
+
+    def _start_heartbeat(self):
+        """
+        Starts the C2 heartbeat on app launch.
+        Tenant-aware: uses x-tenant-key if tenant.json exists,
+        falls back to legacy x-api-key for single-user installs.
+        Interval: 10 seconds (industry standard is 30-60s but 10 works for dev).
+        """
+        try:
+            from core import tenant_manager as _tm
+        except ImportError:
+            _tm = None
+
+        def _heartbeat_loop():
+            import socket as _sock
+            _hostname   = _sock.gethostname()
+            _machine_id = str(uuid.getnode())
+            _c2_url     = ("https://fmsecure-c2-server-production"
+                        ".up.railway.app/api/heartbeat")
+
+            while True:
+                try:
+                    tier = "FREE"
+                    if hasattr(self, 'pro_badge'):
+                        try:
+                            if self.pro_badge.winfo_exists():
+                                tier = "PRO"
+                        except Exception:
+                            pass
+
+                    try:
+                        from version import APP_VERSION
+                    except ImportError:
+                        APP_VERSION = "2.5.0"
+
+                    payload = {
+                        "machine_id":    _machine_id,
+                        "hostname":      _hostname,
+                        "username":      self.username,
+                        "tier":          tier,
+                        "is_armed":      getattr(self, 'monitor_running', False),
+                        "agent_version": APP_VERSION,
+                    }
+
+                    if _tm and _tm.is_enrolled():
+                        # ── Tenant path ────────────────────────────────────────
+                        headers = {"x-tenant-key": _tm.get_key()}
+                        url     = f"{_tm.get_server()}/api/heartbeat"
+                    else:
+                        # ── Legacy single-user path ────────────────────────────
+                        # API_KEY env var on Railway must match this value.
+                        headers = {"x-api-key": "fmsecure-enterprise-key-99"}
+                        url     = _c2_url
+
+                    resp = requests.post(url, json=payload,
+                                        headers=headers, timeout=5)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        if data.get("command") == "LOCKDOWN":
+                            print("🚨 CLOUD COMMAND: LOCKDOWN")
+                            self.root.after(0, self._execute_remote_lockdown)
+
+                except Exception:
+                    pass   # server offline — silent
+
+                time.sleep(10)
+
+        threading.Thread(target=_heartbeat_loop, daemon=True,
+                        name="FMSecure-Heartbeat").start()
+        print("[HEARTBEAT] C2 heartbeat started.")
 
     def start_monitor(self):
         self._sync_config_from_auth()
