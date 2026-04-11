@@ -579,6 +579,7 @@ class ProIntegrityGUI:
         self._start_heartbeat() 
         self._setup_tray_icon()
         self._check_for_updates()
+        self._apply_tenant_config()
 
         from core.cloud_backup_scheduler import start_auto_backup
         start_auto_backup(username=self.username)
@@ -7601,6 +7602,93 @@ class ProIntegrityGUI:
                 font=("Segoe UI", 11), bg="#1a3a1a", fg="#888888",
                 bd=0, cursor="hand2",
                 activebackground="#2a4a2a").pack(side=tk.LEFT)
+
+    def _apply_tenant_config(self):
+        """
+        Phase 3: Pull tenant policy from server and apply to CONFIG.
+ 
+        Option B (industry standard): tenant config overrides local config.
+        Only overrides keys that the IT admin has actually set (non-empty).
+        Runs in a background thread so it never delays app startup.
+ 
+        If seat limit is exceeded, shows a warning banner and disables
+        the Start button to prevent monitoring from running.
+        """
+        try:
+            from core import tenant_manager as _tm
+        except ImportError:
+            return   # tenant_manager not available — skip
+ 
+        if not _tm.is_enrolled():
+            return   # single-user mode — nothing to do
+ 
+        def _pull_and_apply():
+            tenant_cfg = _tm.pull_config()
+ 
+            if not tenant_cfg:
+                return   # server offline or no policy set — keep local config
+ 
+            # ── Seat limit check ──────────────────────────────────────────────
+            if tenant_cfg.get("_seat_limit_exceeded"):
+                def _show_seat_warning():
+                    try:
+                        self._append_log(
+                            "⚠️  SEAT LIMIT: This machine cannot enroll — "
+                            "your organisation has reached its agent limit. "
+                            "Contact your IT administrator.")
+                        # Show a persistent warning banner
+                        import tkinter as _tk
+                        C = self.colors
+                        banner = _tk.Frame(self.root,
+                                          bg="#3d1a00", height=44)
+                        banner.place(x=0, y=56, relwidth=1.0)
+                        banner.pack_propagate(False)
+                        _tk.Label(
+                            banner,
+                            text="⚠  Seat limit reached — monitoring disabled. "
+                                 "Contact your IT administrator.",
+                            font=("Segoe UI", 10, "bold"),
+                            bg="#3d1a00", fg="#f0883e"
+                        ).pack(expand=True)
+                    except Exception:
+                        pass
+                self.root.after(0, _show_seat_warning)
+                return
+ 
+            # ── Apply policy to CONFIG ────────────────────────────────────────
+            def _apply():
+                try:
+                    from core.integrity_core import CONFIG, save_config
+ 
+                    changed_keys = []
+                    for key, value in tenant_cfg.items():
+                        if key.startswith("_"):
+                            continue   # skip internal flags
+                        if value not in (None, "", [], {}):
+                            CONFIG[key] = value
+                            changed_keys.append(key)
+ 
+                    if changed_keys:
+                        save_config()
+                        self._append_log(
+                            f"[TENANT POLICY] Applied from server: "
+                            f"{', '.join(changed_keys)}")
+ 
+                        # If verify_interval changed, it takes effect on
+                        # next periodic verification loop iteration
+                        # (the loop reads CONFIG["verify_interval"] each cycle)
+ 
+                except Exception as e:
+                    print(f"[TENANT] Config apply error: {e}")
+ 
+            self.root.after(0, _apply)
+ 
+        import threading
+        threading.Thread(
+            target=_pull_and_apply,
+            daemon=True,
+            name="FMSecure-TenantConfigPull"
+        ).start()
 
     
     @staticmethod

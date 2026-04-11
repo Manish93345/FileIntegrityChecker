@@ -241,3 +241,52 @@ def _get_machine_id() -> str:
         import hashlib
         hw = f"{platform.node()}-{platform.machine()}-{platform.processor()}"
         return "FM-" + hashlib.sha256(hw.encode()).hexdigest()[:24].upper()
+
+
+
+def pull_config() -> dict:
+    """
+    Fetch tenant policy config from the server and return it as a dict.
+ 
+    Called on app startup. The caller applies the returned values to
+    CONFIG (integrity_core.CONFIG), overriding local config.json.
+    This implements Option B — IT admin controls policy centrally.
+ 
+    Returns an empty dict if:
+      - Not enrolled (single-user mode — no change to behaviour)
+      - Server offline (fail open — keep local config)
+      - Tenant config not yet set on server
+ 
+    Never raises — safe to call from any thread.
+    """
+    if not is_enrolled():
+        return {}
+ 
+    try:
+        import requests as _req
+        url     = f"{get_server()}/agent/config"
+        headers = {"x-tenant-key": get_key()}
+        r = _req.get(url, headers=headers, timeout=6)
+ 
+        if r.status_code == 200:
+            data = r.json()
+            cfg  = data.get("config", {})
+            name = data.get("tenant_name", "")
+            if cfg:
+                print(f"[TENANT] Policy pulled from server "
+                      f"({name}): {list(cfg.keys())}")
+            return cfg
+ 
+        elif r.status_code == 402:
+            # Seat limit exceeded — let the GUI know
+            print("[TENANT] ⚠️  Seat limit reached. "
+                  "This machine cannot enroll. Contact your administrator.")
+            return {"_seat_limit_exceeded": True}
+ 
+        else:
+            print(f"[TENANT] Config pull returned HTTP {r.status_code}")
+            return {}
+ 
+    except Exception as e:
+        print(f"[TENANT] Config pull failed (non-critical, using local): {e}")
+        return {}

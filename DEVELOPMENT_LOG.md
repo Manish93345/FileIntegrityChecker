@@ -376,3 +376,5 @@ pyinstaller --onedir --noconsole --name WinSysHost sys_watchdog.py
 # Compile the Main Agent
 pyinstaller run.py --onedir --noconsole --name SecureFIM --icon=assets/icons/app_icon.ico --add-data "assets;assets" --clean
 ```
+
+hiii
