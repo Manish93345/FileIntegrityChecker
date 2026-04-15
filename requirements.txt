@@ -6,3 +6,5 @@ matplotlib
 seaborn
 pip install pystray Pillow
 pip install pywin32
+pip install nuitka zstandard
+pip install psutil pywin32 requests

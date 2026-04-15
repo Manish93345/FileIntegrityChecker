@@ -90,6 +90,46 @@ except Exception:
     print("Missing dependency: watchdog. Install with `pip install watchdog`.")
     raise
 
+# ── Gap 1: Process Attribution ───────────────────────────────────────
+try:
+    from core.process_monitor import attribute_file_event, get_attribution_dict
+    PROCESS_ATTRIBUTION_AVAILABLE = True
+except Exception:
+    PROCESS_ATTRIBUTION_AVAILABLE = False
+    def attribute_file_event(fp): return ''
+    def get_attribution_dict(fp): return None
+ 
+# ── Gap 2: System Path Protection ────────────────────────────────────
+try:
+    from core.system_paths import (
+        get_paths_only, is_system_critical,
+        classify_file_risk, is_executable
+    )
+    SYSTEM_PATHS_AVAILABLE = True
+except Exception:
+    SYSTEM_PATHS_AVAILABLE = False
+    def get_paths_only(level='balanced'): return []
+    def is_system_critical(fp): return None
+    def classify_file_risk(fp): return {}
+    def is_executable(fp): return False
+ 
+# ── Gap 3: Registry Monitor ───────────────────────────────────────────
+try:
+    from core.registry_monitor import start_registry_monitoring, stop_registry_monitoring
+    REGISTRY_MONITOR_AVAILABLE = True
+except Exception:
+    REGISTRY_MONITOR_AVAILABLE = False
+    def start_registry_monitoring(**kwargs): return False
+    def stop_registry_monitoring(): pass
+ 
+# ── Gap 4: Threat Intel ───────────────────────────────────────────────
+try:
+    from core.threat_intel import check_file_threat, get_engine as get_threat_engine
+    THREAT_INTEL_AVAILABLE = True
+except Exception:
+    THREAT_INTEL_AVAILABLE = False
+    def check_file_threat(*args, **kwargs): pass
+
 try:
     import requests
 except Exception:
@@ -306,7 +346,13 @@ def load_config(path=None):
         "active_defense": False, 
         "vault_max_size_mb": 10,
         "vault_allowed_exts": [".txt", ".json", ".py", ".html", ".js", ".css", ".php", ".ini", ".conf", ".jsx"],
-        "ransomware_killswitch": False
+        "ransomware_killswitch": False,
+        "system_path_protection": False,   # PRO feature — monitor Windows critical paths
+        "system_path_level": "balanced",   # 'minimal' | 'balanced' | 'aggressive'
+        "threat_intel_enabled": False,     # PRO feature — MalwareBazaar hash check
+        "virustotal_api_key": "",          # Optional VT API key
+        "process_attribution": True,       # Enable WHO modified tracking
+        "registry_monitoring": False      # PRO feature — persistence detection
     }
     CONFIG.update(defaults)
 
@@ -896,6 +942,30 @@ def write_report_summary(summary):
         print(f"Error writing reports: {e}")
         traceback.print_exc()
 
+
+class _SystemPathRateLimiter:
+    """
+    Prevents system path events from flooding the event queue.
+    Allows at most 1 event per path per 3 seconds.
+    Events that arrive faster are silently dropped (they're almost always
+    OS background activity, not attacks).
+    """
+    def __init__(self, min_interval: float = 3.0):
+        self._last_event: dict = {}
+        self._lock = threading.Lock()
+        self._min_interval = min_interval
+ 
+    def should_process(self, path: str) -> bool:
+        now = time.time()
+        with self._lock:
+            last = self._last_event.get(path, 0)
+            if now - last < self._min_interval:
+                return False
+            self._last_event[path] = now
+            return True
+ 
+_sys_path_limiter = _SystemPathRateLimiter(min_interval=3.0)
+
 # ------------------ Watchdog event handler ------------------
 class IntegrityHandler(FileSystemEventHandler):
     def __init__(self, watch_folders=None, callback=None):  # Changed to watch_folders
@@ -1133,6 +1203,10 @@ class IntegrityHandler(FileSystemEventHandler):
         if event.is_directory: return
         path = os.path.abspath(event.src_path)
         if is_ignored_filename(os.path.basename(path)): return
+        # Rate-limit events from system paths to prevent flooding
+        from core.system_paths import is_system_critical as _isc
+        if _isc(path) and not _sys_path_limiter.should_process(path):
+            return  # Too many events from this system path, skip
         
         details = generate_file_hash(path)
         if details:
@@ -1162,15 +1236,50 @@ class IntegrityHandler(FileSystemEventHandler):
                                   CONFIG.get("vault_max_size_mb", 10), 
                                   _allowed)
                                   
-            append_log_line(f"CREATED: {path}", event_type="CREATED", severity="INFO")
-            send_webhook_safe("CREATED", "New file created", path)
-            self._notify_gui("CREATED", path, "INFO")
+            # ── Gap 1: Process Attribution ───────────────────────────────────
+            # attr_str = ''
+            if CONFIG.get('process_attribution', True) and PROCESS_ATTRIBUTION_AVAILABLE:
+                    attribute_file_event(path, log_fn=append_log_line)
+        
+            # ── Gap 2: Escalate severity for system paths ─────────────────────
+            final_severity = "INFO"
+            sys_badge      = ''
+            if SYSTEM_PATHS_AVAILABLE:
+                sys_sev = is_system_critical(path)
+                if sys_sev in ('CRITICAL', 'HIGH'):
+                    final_severity = sys_sev
+                    sys_badge      = f' [⚠ SYSTEM PATH: {sys_sev}]'
+        
+            # log_msg = f"CREATED: {path}{sys_badge}"
+            # if attr_str:
+            #     log_msg += f"  by {attr_str}"
+            log_msg = f"CREATED: {path}{sys_badge}"
+        
+            append_log_line(log_msg, event_type="CREATED", severity=final_severity)
+        
+            # ── Gap 4: Threat Intel hash check ───────────────────────────────
+            if CONFIG.get('threat_intel_enabled', False) and THREAT_INTEL_AVAILABLE:
+                content_hash = details.get('content', '')
+                if content_hash:
+                    get_threat_engine().configure(CONFIG)
+                    check_file_threat(
+                        path, content_hash,
+                        log_fn=append_log_line,
+                        alert_callback=self._notify_gui
+                    )
+        
+            send_webhook_safe("CREATED", "New file created", path, severity=final_severity)
+            self._notify_gui("CREATED", path, final_severity)
 
     def on_modified(self, event):
         """Catches modification events and queues them to prevent spam during file transfers"""
         if event.is_directory: return
         path = os.path.abspath(event.src_path)
         if is_ignored_filename(os.path.basename(path)): return
+        # Rate-limit events from system paths to prevent flooding
+        from core.system_paths import is_system_critical as _isc
+        if _isc(path) and not _sys_path_limiter.should_process(path):
+            return  # Too many events from this system path, skip
 
         # --- 🚨 NEW: HONEYPOT TRIPWIRE 🚨 ---
         if os.path.basename(path).lower() == "secret_passwords.txt":
@@ -1292,9 +1401,55 @@ class IntegrityHandler(FileSystemEventHandler):
             self.records[path] = {"hash": h, "content": new_content, "attrs": new_attrs, "last_checked": now_pretty()}
             self.save_records()
             
-            append_log_line(f"MODIFIED: {path}{log_detail}", event_type="MODIFIED", severity="MEDIUM")
-            send_webhook_safe("MODIFIED", f"File modified{log_detail}", path)
-            self._notify_gui("MODIFIED", path, "MEDIUM")
+            # ── Gap 1: Process Attribution ────────────────────────────────────
+            # attr_str = ''
+            if CONFIG.get('process_attribution', True) and PROCESS_ATTRIBUTION_AVAILABLE:
+                    attribute_file_event(path, log_fn=append_log_line)
+        
+            # ── Gap 2: Escalate severity for system paths ─────────────────────
+            final_severity = "MEDIUM"
+            sys_badge      = ''
+            if SYSTEM_PATHS_AVAILABLE:
+                sys_sev = is_system_critical(path)
+                if sys_sev == 'CRITICAL':
+                    final_severity = 'CRITICAL'
+                    sys_badge      = ' [⚠ SYSTEM BINARY MODIFIED]'
+                elif sys_sev == 'HIGH':
+                    final_severity = 'HIGH'
+                    sys_badge      = ' [⚠ SYSTEM PATH]'
+                # Executable dropped in Temp = HIGH at minimum
+                if is_executable(path) and final_severity == 'MEDIUM':
+                    from core.system_paths import is_in_temp
+                    if is_in_temp(path):
+                        final_severity = 'HIGH'
+                        sys_badge      = ' [⚠ EXECUTABLE IN TEMP]'
+        
+            # log_msg = f"MODIFIED: {path}{log_detail}{sys_badge}"
+            # if attr_str:
+            #     log_msg += f"  by {attr_str}"
+            log_msg = f"MODIFIED: {path}{sys_badge}"
+        
+            append_log_line(log_msg, event_type="MODIFIED", severity=final_severity)
+        
+            # ── Gap 4: Threat Intel (check modified file hash) ────────────────
+            if CONFIG.get('threat_intel_enabled', False) and THREAT_INTEL_AVAILABLE:
+                content_hash = details.get('content', '') if 'details' in dir() else ''
+                if not content_hash:
+                    try:
+                        d = generate_file_hash(path)
+                        content_hash = d.get('content', '') if d else ''
+                    except Exception:
+                        pass
+                if content_hash:
+                    get_threat_engine().configure(CONFIG)
+                    check_file_threat(
+                        path, content_hash,
+                        log_fn=append_log_line,
+                        alert_callback=self._notify_gui
+                    )
+        
+            send_webhook_safe("MODIFIED", f"File modified{log_detail}", path, severity=final_severity)
+            self._notify_gui("MODIFIED", path, final_severity)
 
     def on_deleted(self, event):
         # Directories are handled by the heartbeat thread, not here.
@@ -1306,6 +1461,10 @@ class IntegrityHandler(FileSystemEventHandler):
         path = os.path.abspath(event.src_path)
         if is_ignored_filename(os.path.basename(path)):
             return
+        # Rate-limit events from system paths to prevent flooding
+        from core.system_paths import is_system_critical as _isc
+        if _isc(path) and not _sys_path_limiter.should_process(path):
+            return  # Too many events from this system path, skip
 
         # --- 🚨 HONEYPOT TRIPWIRE 🚨 ---
         if os.path.basename(path).lower() == "secret_passwords.txt":
@@ -1326,8 +1485,37 @@ class IntegrityHandler(FileSystemEventHandler):
                 # ────────────────────────────────────────────────────────────────
 
                 from core.vault_manager import vault
+ 
+                # Do NOT restore files that were just created in this session
+                # (< 10 seconds old in records). Notepad's atomic save creates
+                # + deletes the file — restoring here fights the user's own save.
+                record_age = 0
+                if path in self.records:
+                    try:
+                        from datetime import datetime as _dt
+                        ts_str = self.records[path].get("last_checked", "")
+                        if ts_str:
+                            checked = _dt.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
+                            record_age = (
+                                _dt.now() - checked).total_seconds()
+                    except Exception:
+                        record_age = 999  # unknown → allow restore
+ 
+                if record_age < 10:
+                    # File was added to monitoring less than 10s ago.
+                    # This is almost certainly an editor atomic save, not malware.
+                    # Let the file system settle; the editor will recreate it.
+                    self.records.pop(path, None)
+                    self.save_records()
+                    append_log_line(
+                        f"DELETED (new file — skipping vault restore): "
+                        f"{path}",
+                        event_type="DELETED", severity="MEDIUM")
+                    self._notify_gui("DELETED", path, "MEDIUM")
+                    return
+ 
                 success, msg = vault.restore_file(path)
-
+ 
                 if success:
                     append_log_line(
                         f"RESTORED: {path} (Malicious deletion reverted!)",
@@ -1440,7 +1628,26 @@ class IntegrityHandler(FileSystemEventHandler):
         # --- BRANCH B: NORMAL FILE DELETION ---
         else:
             for path in casualties:
-                append_log_line(f"DELETED: {path}", event_type="DELETED", severity="MEDIUM")
+                # ── Gap 1: Process Attribution ────────────────────────────────────
+                # attr_str = ''
+                if CONFIG.get('process_attribution', True) and PROCESS_ATTRIBUTION_AVAILABLE:
+                    attribute_file_event(path, log_fn=append_log_line)
+            
+                # ── Gap 2: System path severity escalation ────────────────────────
+                final_severity = "MEDIUM"
+                sys_badge      = ''
+                if SYSTEM_PATHS_AVAILABLE:
+                    sys_sev = is_system_critical(path)
+                    if sys_sev in ('CRITICAL', 'HIGH'):
+                        final_severity = sys_sev
+                        sys_badge      = f' [⚠ SYSTEM PATH DELETION: {sys_sev}]'
+            
+                # log_msg = f"DELETED: {path}{sys_badge}"
+                # if attr_str:
+                #     log_msg += f"  by {attr_str}"
+                log_msg = f"DELETED: {path}{sys_badge}"
+            
+                append_log_line(log_msg, event_type="DELETED", severity=final_severity)
                 send_webhook_safe("DELETED", "File deleted", path, severity="MEDIUM")
 
     
@@ -1529,6 +1736,51 @@ class FileIntegrityMonitor:
 
         self.observer.start()
         self.running = True
+        # Gap 2: Add system-critical paths (RATE-LIMITED, non-recursive only)
+        if CONFIG.get('system_path_protection', False) and SYSTEM_PATHS_AVAILABLE:
+            level     = CONFIG.get('system_path_level', 'balanced')
+            sys_paths = get_paths_only(level)
+            added     = 0
+            for sys_path in sys_paths:
+                if os.path.exists(sys_path) and sys_path not in valid_folders:
+                    try:
+                        # CRITICAL: recursive=False for ALL system paths
+                        # recursive=True on System32 = instant app freeze
+                        self.observer.schedule(
+                            self.handler, sys_path, recursive=False)
+                        append_log_line(
+                            f"SYSTEM PATH PROTECTION: {sys_path}",
+                            event_type="SYSTEM_MONITORING_ADDED",
+                            severity="INFO")
+                        added += 1
+                    except Exception as e:
+                        print(f"[SYSPATH] Could not schedule {sys_path}: {e}")
+            if added:
+                append_log_line(
+                    f"System Path Protection active: {added} critical paths",
+                    event_type="SYSTEM_MONITORING_ACTIVE",
+                    severity="INFO")
+    
+        # ── Gap 3: Start registry persistence monitoring ───────────────────
+        if CONFIG.get('registry_monitoring', False) and REGISTRY_MONITOR_AVAILABLE:
+            start_registry_monitoring(
+                log_fn=append_log_line,
+                alert_callback=event_callback
+            )
+            append_log_line(
+                "Registry persistence monitoring STARTED",
+                event_type="REGISTRY_MONITORING_STARTED",
+                severity="INFO"
+            )
+    
+        # ── Gap 4: Configure threat intelligence engine ───────────────────
+        if CONFIG.get('threat_intel_enabled', False) and THREAT_INTEL_AVAILABLE:
+            get_threat_engine().configure(CONFIG)
+            append_log_line(
+                "Threat intelligence engine ACTIVE",
+                event_type="THREAT_INTEL_STARTED",
+                severity="INFO"
+            )
         self.verifier_thread = threading.Thread(target=self._periodic_verifier_loop, daemon=True)
         self.verifier_thread.start()
         self._start_folder_heartbeat(valid_folders, event_callback)
@@ -1542,6 +1794,9 @@ class FileIntegrityMonitor:
             self.observer.join()
             self.observer = None
         self.handler = None
+        # Stop registry monitoring
+        if REGISTRY_MONITOR_AVAILABLE:
+            stop_registry_monitoring()
         append_log_line("MONITOR_STOPPED")
 
     def _start_folder_heartbeat(self, watch_folders: list, event_callback=None):
@@ -1791,13 +2046,42 @@ def archive_session():
             print(f"[ARCHIVE] Pre-archive cloud sync skipped (non-critical): {_ce}")
         # ── END ADDED BLOCK ────────────────────────────────────────────
         
-        # 2. Move files
+        # 2. Move files (with retry for WinError 32 file-lock race)
+        import time as _time
         for filename in files_to_archive:
             src = os.path.join(log_dir, filename)
-            if os.path.exists(src):
-                dst = os.path.join(session_folder, filename)
-                shutil.move(src, dst)
-                print(f"Archived: {filename}")
+            if not os.path.exists(src):
+                continue
+            dst = os.path.join(session_folder, filename)
+ 
+            # Try shutil.move up to 5 times with 150ms gap
+            moved = False
+            for attempt in range(5):
+                try:
+                    shutil.move(src, dst)
+                    moved = True
+                    print(f"Archived: {filename}")
+                    break
+                except PermissionError:
+                    # File locked by another thread — wait and retry
+                    _time.sleep(0.15)
+                except OSError as _oe:
+                    if getattr(_oe, 'winerror', 0) == 32:
+                        # WinError 32: file in use — wait and retry
+                        _time.sleep(0.15)
+                    else:
+                        raise  # unexpected error, propagate
+ 
+            if not moved:
+                # All move attempts failed — copy + truncate as fallback
+                # (copy never needs an exclusive lock on source)
+                try:
+                    shutil.copy2(src, dst)
+                    # Truncate source to 0 bytes (doesn't need exclusive lock)
+                    open(src, 'w').close()
+                    print(f"Archived (copy+truncate fallback): {filename}")
+                except Exception as _fe:
+                    print(f"Archive fallback also failed for {filename}: {_fe}")
 
         # 3. RE-INITIALIZE SAFELY (Encryption Aware)
         

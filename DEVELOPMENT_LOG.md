@@ -368,6 +368,34 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+
+
+
+---
+
+## 🗓️ Phase E — EDR Engine Expansion (Apr 2026)
+
+### E.1 — Process Attribution
+Every file event now records which process caused it. Attribution runs fully asynchronously — file events log instantly, attribution appears as a follow-up line within seconds. LOLBin detection identifies 25+ known-malicious Windows binaries (PowerShell, certutil, mshta, etc.) with a trusted-parent whitelist that suppresses false positives from IDEs (VS Code, PyCharm) and terminals.
+
+### E.2 — System Path Protection
+Monitoring expanded beyond user-chosen folders to include Windows persistence locations: startup folders (HKCU + All Users), scheduled tasks directory, and hosts file. Events from these paths are automatically escalated — files created or modified in startup folders trigger CRITICAL severity regardless of file type.
+
+### E.3 — Registry Persistence Monitor
+14 Windows Registry keys used by malware families for persistence are now monitored using `RegNotifyChangeKeyValue()` — a kernel-level API that sleeps until a change occurs, using zero CPU when idle. New Run key entries, IFEO debugger hijacks, AppInit DLL modifications, and Winlogon changes trigger CRITICAL alerts with forensic snapshots and dual-channel email/webhook notifications.
+
+### E.4 — Threat Intelligence Engine
+SHA-256 hash of every new or modified file is checked asynchronously against MalwareBazaar (abuse.ch). Results cached locally in SQLite for 7 days — zero network calls on repeat encounters. Optional VirusTotal integration available via API key. Known malware triggers CRITICAL alert with malware name, family, and reference URL.
+
+### E.5 — Performance Fixes
+- Eliminated 15-20 second lag caused by `NtQuerySystemInformation` being called on the event handler thread
+- Removed all per-process API calls (`open_files()`, `io_counters()`) that competed for Windows kernel locks
+- Process snapshot now uses one bulk OS call per cycle — GIL hold reduced from ~200ms to under 1ms
+- Active Defense false-restore bug fixed: files less than 10 seconds old skip vault restoration (prevents conflict with editor atomic-save patterns)
+- Archive session WinError 32 fixed with 5-attempt retry loop + copy+truncate fallback
+
+
+
 ## 🛠️ Build Commands
 ```powershell
 # Compile the invisible Watchdog
@@ -377,4 +405,39 @@ pyinstaller --onedir --noconsole --name WinSysHost sys_watchdog.py
 pyinstaller run.py --onedir --noconsole --name SecureFIM --icon=assets/icons/app_icon.ico --add-data "assets;assets" --clean
 ```
 
-hiii
+
+## 🛠️ Build Commands
+```powershell
+# Compile the invisible Watchdog
+python -m nuitka --standalone --windows-disable-console --output-dir=dist --output-filename=WinSysHost.exe --lto=yes sys_watchdog.py
+
+# Compile the Main Agent
+python -m nuitka --standalone --windows-disable-console --output-dir=dist --output-filename=SecureFIM.exe --windows-icon-from-ico=assets/icons/app_icon.ico --include-data-dir=assets=assets --lto=yes run.py
+```
+
+python -m nuitka --standalone --windows-console-mode=disable --output-dir=dist --output-filename=SecureFIM.exe --windows-icon-from-ico=assets/icons/app_icon.ico --include-data-dir=assets=assets --lto=no --jobs=1 --enable-plugin=tk-inter --show-progress run.py
+
+
+
+python -m nuitka ^
+  --standalone ^
+  --windows-disable-console ^
+  --enable-plugin=tk-inter ^
+  --enable-plugin=anti-bloat ^
+  --output-dir=dist ^
+  --output-filename=SecureFIM.exe ^
+  --windows-icon-from-ico=assets/icons/app_icon.ico ^
+  --include-data-dir=assets=assets ^
+  --include-package=customtkinter ^
+  --include-package=pystray ^
+  --include-package=PIL ^
+  --include-package=cryptography ^
+  --include-package=google ^
+  --include-package=googleapiclient ^
+  --include-package=google_auth_oauthlib ^
+  --include-package=requests ^
+  --include-package=watchdog ^
+  --include-package=core ^
+  --include-package=gui ^
+  --lto=yes ^
+run.py

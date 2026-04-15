@@ -35,6 +35,70 @@ from core.email_service import email_service
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
+# ══════════════════════════════════════════════════════════════════════════════
+# DESIGN SYSTEM — CrowdStrike / SentinelOne Inspired
+# ══════════════════════════════════════════════════════════════════════════════
+class DesignSystem:
+    """Centralized design tokens inspired by CrowdStrike Falcon & SentinelOne"""
+
+    # ── Core Backgrounds ──────────────────────────────────────────────────
+    BG_PRIMARY      = "#0d1117"    # Main app background (GitHub-dark level)
+    BG_SURFACE      = "#161b22"    # Card / panel surface
+    BG_SURFACE_2    = "#1c2333"    # Elevated surface (hover states, modals)
+    BG_SURFACE_3    = "#21262d"    # Tertiary surface
+    BG_INPUT        = "#0d1117"    # Input field background
+    BG_OVERLAY      = "#010409"    # Modal overlays
+
+    # ── Brand Accent (CrowdStrike-inspired blue) ─────────────────────────
+    ACCENT_PRIMARY  = "#2f81f7"    # Primary blue
+    ACCENT_HOVER    = "#58a6ff"    # Hover state
+    ACCENT_MUTED    = "#1a4b8c"    # Muted accent for borders
+    ACCENT_GLOW     = "#2f81f7"    # Glow effects
+
+    # ── Status Colors ────────────────────────────────────────────────────
+    SUCCESS         = "#3fb950"
+    WARNING         = "#d29922"
+    ERROR           = "#f85149"
+    INFO            = "#58a6ff"
+
+    # ── Text Colors ──────────────────────────────────────────────────────
+    TEXT_PRIMARY    = "#e6edf3"     # Primary text
+    TEXT_SECONDARY  = "#8b949e"     # Secondary / muted text
+    TEXT_TERTIARY   = "#484f58"     # Disabled / hint text
+    TEXT_LINK       = "#58a6ff"     # Clickable links
+    TEXT_ON_ACCENT  = "#ffffff"     # Text on accent buttons
+
+    # ── Borders ──────────────────────────────────────────────────────────
+    BORDER          = "#30363d"
+    BORDER_MUTED    = "#21262d"
+    BORDER_FOCUS    = "#2f81f7"
+
+    # ── Typography ───────────────────────────────────────────────────────
+    FONT_FAMILY     = "Segoe UI"
+    FONT_MONO       = "Cascadia Code"  # Fallback: Consolas
+    FONT_HEADING_XL = ("Segoe UI", 26, "bold")
+    FONT_HEADING_LG = ("Segoe UI", 20, "bold")
+    FONT_HEADING_MD = ("Segoe UI", 16, "bold")
+    FONT_HEADING_SM = ("Segoe UI", 13, "bold")
+    FONT_BODY       = ("Segoe UI", 12)
+    FONT_BODY_SM    = ("Segoe UI", 11)
+    FONT_CAPTION    = ("Segoe UI", 10)
+    FONT_TINY       = ("Segoe UI", 9)
+    FONT_MONO_SM    = ("Consolas", 10)
+    FONT_MONO_XS    = ("Consolas", 9)
+
+    # ── Spacing ──────────────────────────────────────────────────────────
+    RADIUS_LG       = 16
+    RADIUS_MD       = 10
+    RADIUS_SM       = 6
+    BTN_HEIGHT      = 42
+    BTN_HEIGHT_SM   = 36
+    INPUT_HEIGHT    = 42
+
+
+DS = DesignSystem  # Alias for convenience
+
+
 def _clear_unreadable_data():
     """
     Remove data files that were encrypted with the old (lost) key.
@@ -57,9 +121,11 @@ def _clear_unreadable_data():
                 print(f"[STARTUP] Cleared unreadable file: {f}")
         except Exception as e:
             print(f"[STARTUP] Could not clear {f}: {e}")
-# ----------------------------------------------------------------------
-# BruteForceGuard (unchanged)
-# ----------------------------------------------------------------------
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BruteForceGuard (unchanged logic)
+# ══════════════════════════════════════════════════════════════════════════════
 class BruteForceGuard:
     def __init__(self, max_attempts=3, lockout_time=30):
         self.max_attempts = max_attempts
@@ -122,46 +188,63 @@ class BruteForceGuard:
                 pass
 
 
-# ----------------------------------------------------------------------
-# Custom Dialogs (replacing tkinter messagebox)
-# ----------------------------------------------------------------------
+# ══════════════════════════════════════════════════════════════════════════════
+# CUSTOM DIALOGS — CrowdStrike / SentinelOne Style
+# ══════════════════════════════════════════════════════════════════════════════
 class CustomDialog:
-    """Base class for custom CTkToplevel dialogs."""
+    """Professional modal dialog with icon, message, and action button."""
     def __init__(self, parent, title, message, dialog_type="info"):
         self.dialog = ctk.CTkToplevel(parent)
         self.dialog.title("")
-        self.dialog.geometry("400x220")
+        self.dialog.geometry("420x230")
         self.dialog.resizable(False, False)
         self.dialog.transient(parent)
         self.dialog.grab_set()
         self.dialog.focus_set()
-        self.dialog.configure(fg_color="#1e1e1e")
+        self.dialog.configure(fg_color=DS.BG_SURFACE)
 
         # Center on parent
         self.dialog.update_idletasks()
-        x = parent.winfo_x() + (parent.winfo_width() // 2) - (self.dialog.winfo_width() // 2)
-        y = parent.winfo_y() + (parent.winfo_height() // 2) - (self.dialog.winfo_height() // 2)
+        x = parent.winfo_x() + (parent.winfo_width() // 2) - 210
+        y = parent.winfo_y() + (parent.winfo_height() // 2) - 115
         self.dialog.geometry(f"+{x}+{y}")
 
-        # Icon and title
-        icon_map = {
-            "info": ("ℹ️", "#00a8ff"),
-            "error": ("⚠️", "#ff4444"),
-            "success": ("✅", "#00cc66"),
-            "warning": ("⚠️", "#ffaa00")
+        # Top accent bar
+        type_config = {
+            "info":    {"icon": "ℹ", "color": DS.ACCENT_PRIMARY, "bar": DS.ACCENT_PRIMARY},
+            "error":   {"icon": "✕", "color": DS.ERROR,          "bar": DS.ERROR},
+            "success": {"icon": "✓", "color": DS.SUCCESS,        "bar": DS.SUCCESS},
+            "warning": {"icon": "!", "color": DS.WARNING,        "bar": DS.WARNING},
         }
-        icon, color = icon_map.get(dialog_type, ("ℹ️", "#00a8ff"))
+        cfg = type_config.get(dialog_type, type_config["info"])
 
-        icon_label = ctk.CTkLabel(self.dialog, text=icon, font=("Segoe UI", 36), text_color=color)
-        icon_label.pack(pady=(20, 5))
+        # Accent strip at top
+        accent_bar = ctk.CTkFrame(self.dialog, fg_color=cfg["bar"], height=3, corner_radius=0)
+        accent_bar.pack(fill="x")
 
-        msg_label = ctk.CTkLabel(self.dialog, text=message, font=("Segoe UI", 12),
-                                  wraplength=350, justify="center")
-        msg_label.pack(pady=(5, 20), padx=20)
+        # Content
+        content = ctk.CTkFrame(self.dialog, fg_color="transparent")
+        content.pack(fill="both", expand=True, padx=28, pady=20)
 
-        btn = ctk.CTkButton(self.dialog, text="OK", command=self.dialog.destroy,
-                            fg_color=color, hover_color=color, width=100)
-        btn.pack(pady=(0, 20))
+        # Icon circle
+        icon_frame = ctk.CTkFrame(content, fg_color=cfg["bar"], width=44, height=44,
+                                   corner_radius=22)
+        icon_frame.pack(pady=(0, 12))
+        icon_frame.pack_propagate(False)
+        ctk.CTkLabel(icon_frame, text=cfg["icon"], font=("Segoe UI", 18, "bold"),
+                     text_color="#ffffff").place(relx=0.5, rely=0.5, anchor="center")
+
+        # Message
+        ctk.CTkLabel(content, text=message, font=DS.FONT_BODY_SM,
+                     text_color=DS.TEXT_PRIMARY, wraplength=360,
+                     justify="center").pack(pady=(0, 20))
+
+        # Button
+        ctk.CTkButton(content, text="OK", command=self.dialog.destroy,
+                      fg_color=cfg["bar"], hover_color=cfg["color"],
+                      text_color="#ffffff", font=DS.FONT_HEADING_SM,
+                      corner_radius=DS.RADIUS_SM, width=120,
+                      height=DS.BTN_HEIGHT_SM).pack()
 
         self.dialog.protocol("WM_DELETE_WINDOW", self.dialog.destroy)
 
@@ -170,75 +253,88 @@ class CustomDialog:
 
 
 class SecurityAlertDialog:
-    """Specialised dialog for security alerts with blinking effect."""
+    """Enterprise-grade security alert dialog with status indicator."""
     def __init__(self, parent, title, message):
         self.dialog = ctk.CTkToplevel(parent)
         self.dialog.title("")
-        self.dialog.geometry("450x280")
+        self.dialog.geometry("460x300")
         self.dialog.resizable(False, False)
         self.dialog.transient(parent)
         self.dialog.grab_set()
         self.dialog.focus_set()
-        self.dialog.configure(fg_color="#0a0a0a")
+        self.dialog.configure(fg_color=DS.BG_SURFACE)
 
         # Center
         self.dialog.update_idletasks()
-        x = parent.winfo_x() + (parent.winfo_width() // 2) - (self.dialog.winfo_width() // 2)
-        y = parent.winfo_y() + (parent.winfo_height() // 2) - (self.dialog.winfo_height() // 2)
+        x = parent.winfo_x() + (parent.winfo_width() // 2) - 230
+        y = parent.winfo_y() + (parent.winfo_height() // 2) - 150
         self.dialog.geometry(f"+{x}+{y}")
 
-        # Header
-        header = ctk.CTkFrame(self.dialog, fg_color="#330000", height=40)
+        # Red accent strip
+        ctk.CTkFrame(self.dialog, fg_color=DS.ERROR, height=3,
+                      corner_radius=0).pack(fill="x")
+
+        # Header bar
+        header = ctk.CTkFrame(self.dialog, fg_color="#1a1215", height=44, corner_radius=0)
         header.pack(fill="x")
         header.pack_propagate(False)
 
-        self.alert_label = ctk.CTkLabel(header, text="⚠ INTRUSION DETECTED ⚠",
-                                        font=("Consolas", 12, "bold"),
-                                        text_color="#ff4444")
-        self.alert_label.pack(expand=True)
+        # Status indicator dot (animated)
+        self._dot_frame = ctk.CTkFrame(header, fg_color="transparent")
+        self._dot_frame.place(relx=0.03, rely=0.5, anchor="w")
+        self._dot = ctk.CTkLabel(self._dot_frame, text="●", font=("Segoe UI", 10),
+                                  text_color=DS.ERROR)
+        self._dot.pack(side="left", padx=(0, 8))
 
-        # Main content
-        content = ctk.CTkFrame(self.dialog, fg_color="#111111")
-        content.pack(fill="both", expand=True, padx=20, pady=20)
+        self.alert_label = ctk.CTkLabel(header, text="SECURITY ALERT",
+                                        font=("Segoe UI", 11, "bold"),
+                                        text_color=DS.ERROR)
+        self.alert_label.place(relx=0.08, rely=0.5, anchor="w")
 
-        title_label = ctk.CTkLabel(content, text=f"> {title} <",
-                                   font=("Consolas", 11, "bold"),
-                                   text_color="#ff4444")
-        title_label.pack(anchor="w", pady=(0, 10))
+        timestamp = time.strftime("%H:%M:%S UTC", time.gmtime())
+        ctk.CTkLabel(header, text=timestamp, font=DS.FONT_MONO_XS,
+                     text_color=DS.TEXT_TERTIARY).place(relx=0.95, rely=0.5, anchor="e")
 
-        msg_label = ctk.CTkLabel(content, text=message,
-                                 font=("Consolas", 10),
-                                 text_color="#ffffff",
-                                 justify="left",
-                                 wraplength=380)
-        msg_label.pack(fill="x", pady=(0, 20))
+        # Content
+        content = ctk.CTkFrame(self.dialog, fg_color="transparent")
+        content.pack(fill="both", expand=True, padx=24, pady=16)
 
-        log_label = ctk.CTkLabel(content,
-                                 text="[SYSTEM LOG]: Unauthorized access attempt recorded",
-                                 font=("Consolas", 8),
-                                 text_color="#888888")
-        log_label.pack(anchor="w", pady=(0, 20))
+        # Alert type
+        ctk.CTkLabel(content, text=title, font=DS.FONT_HEADING_SM,
+                     text_color=DS.TEXT_PRIMARY).pack(anchor="w", pady=(0, 8))
 
-        self.ok_btn = ctk.CTkButton(content, text="[ ACKNOWLEDGE ]",
-                                     command=self.destroy_dialog,
-                                     fg_color="#220000",
-                                     hover_color="#330000",
-                                     text_color="#ff4444",
-                                     font=("Consolas", 10, "bold"))
-        self.ok_btn.pack()
+        # Separator
+        ctk.CTkFrame(content, fg_color=DS.BORDER_MUTED, height=1).pack(fill="x", pady=(0, 8))
 
-        # Start blinking
+        # Message
+        ctk.CTkLabel(content, text=message, font=DS.FONT_BODY_SM,
+                     text_color=DS.TEXT_SECONDARY, justify="left",
+                     wraplength=400, anchor="w").pack(fill="x", pady=(0, 12))
+
+        # Log entry
+        ctk.CTkLabel(content,
+                     text=f"Event logged at {timestamp} — All attempts are monitored",
+                     font=DS.FONT_MONO_XS, text_color=DS.TEXT_TERTIARY).pack(anchor="w")
+
+        # Button
+        ctk.CTkButton(content, text="Acknowledge", command=self.destroy_dialog,
+                      fg_color="#2d1519", hover_color="#3d1f24",
+                      text_color=DS.ERROR, border_color=DS.ERROR, border_width=1,
+                      font=DS.FONT_HEADING_SM, corner_radius=DS.RADIUS_SM,
+                      height=DS.BTN_HEIGHT_SM).pack(pady=(12, 0), fill="x")
+
+        # Pulse animation for dot
         self.blink_after_id = None
-        self._blink()
+        self._pulse()
 
         self.dialog.protocol("WM_DELETE_WINDOW", self.destroy_dialog)
 
-    def _blink(self):
-        current = self.alert_label.cget("text_color")
-        new = "#ffffff" if current == "#ff4444" else "#ff4444"
+    def _pulse(self):
         try:
-            self.alert_label.configure(text_color=new)
-            self.blink_after_id = self.dialog.after(500, self._blink)
+            current = self._dot.cget("text_color")
+            new = DS.TEXT_TERTIARY if current == DS.ERROR else DS.ERROR
+            self._dot.configure(text_color=new)
+            self.blink_after_id = self.dialog.after(600, self._pulse)
         except:
             pass
 
@@ -251,31 +347,105 @@ class SecurityAlertDialog:
         self.dialog.wait_window()
 
 
-# ----------------------------------------------------------------------
-# Main Login Window
-# ----------------------------------------------------------------------
+# ══════════════════════════════════════════════════════════════════════════════
+# REUSABLE UI COMPONENTS
+# ══════════════════════════════════════════════════════════════════════════════
+def create_styled_entry(parent, placeholder="", show="", **kwargs):
+    """Creates a CrowdStrike-style input field."""
+    return ctk.CTkEntry(
+        parent,
+        placeholder_text=placeholder,
+        show=show,
+        font=DS.FONT_BODY,
+        fg_color=DS.BG_INPUT,
+        border_color=DS.BORDER,
+        text_color=DS.TEXT_PRIMARY,
+        placeholder_text_color=DS.TEXT_TERTIARY,
+        corner_radius=DS.RADIUS_SM,
+        height=DS.INPUT_HEIGHT,
+        **kwargs
+    )
+
+
+def create_primary_button(parent, text, command, **kwargs):
+    """Creates a CrowdStrike-blue primary action button."""
+    return ctk.CTkButton(
+        parent, text=text, command=command,
+        font=DS.FONT_HEADING_SM,
+        fg_color=DS.ACCENT_PRIMARY,
+        hover_color=DS.ACCENT_HOVER,
+        text_color=DS.TEXT_ON_ACCENT,
+        corner_radius=DS.RADIUS_SM,
+        height=DS.BTN_HEIGHT,
+        **kwargs
+    )
+
+
+def create_secondary_button(parent, text, command, **kwargs):
+    """Creates a secondary / ghost button."""
+    return ctk.CTkButton(
+        parent, text=text, command=command,
+        font=DS.FONT_BODY_SM,
+        fg_color="transparent",
+        hover_color=DS.BG_SURFACE_3,
+        text_color=DS.TEXT_SECONDARY,
+        border_color=DS.BORDER,
+        border_width=1,
+        corner_radius=DS.RADIUS_SM,
+        height=DS.BTN_HEIGHT,
+        **kwargs
+    )
+
+
+def create_link_button(parent, text, command, color=None):
+    """Creates a text-only link button."""
+    return ctk.CTkButton(
+        parent, text=text, command=command,
+        font=DS.FONT_CAPTION,
+        fg_color="transparent",
+        text_color=color or DS.TEXT_LINK,
+        hover=False, width=0
+    )
+
+
+def create_field_label(parent, text):
+    """Creates a form field label."""
+    return ctk.CTkLabel(parent, text=text, font=DS.FONT_CAPTION,
+                        text_color=DS.TEXT_SECONDARY)
+
+
+def create_divider_with_text(parent, text="or"):
+    """Creates a horizontal divider with centered text — SentinelOne style."""
+    frame = ctk.CTkFrame(parent, fg_color="transparent", height=20)
+    frame.pack(fill="x", pady=16)
+
+    # Left line
+    left_line = ctk.CTkFrame(frame, fg_color=DS.BORDER, height=1)
+    left_line.place(relx=0, rely=0.5, relwidth=0.42, anchor="w")
+
+    # Center text
+    ctk.CTkLabel(frame, text=text.upper(), font=DS.FONT_TINY,
+                 text_color=DS.TEXT_TERTIARY,
+                 fg_color=DS.BG_SURFACE).place(relx=0.5, rely=0.5, anchor="center")
+
+    # Right line
+    right_line = ctk.CTkFrame(frame, fg_color=DS.BORDER, height=1)
+    right_line.place(relx=1.0, rely=0.5, relwidth=0.42, anchor="e")
+
+    return frame
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MAIN LOGIN WINDOW
+# ══════════════════════════════════════════════════════════════════════════════
 class LoginWindow:
     def __init__(self):
-        # self.root = tk.Tk()
         self.root = ctk.CTk()
-        self.root.title("FMSecure v2.0 - Security Portal")
+        self.root.title("FMSecure — Endpoint Detection & Response")
 
-        # ── KEY RESILIENCE: Phase 1 local-only init ──────────────────
-        # NOTE: We deliberately do NOT call attempt_cloud_recovery_if_needed() here.
-        # Cloud recovery requires user consent and a working cloud_sync module.
-        # Both of those only come AFTER the detection UI runs.
-        #
-        # What we DO here: if there are existing users but the local key is missing
-        # (and cloud didn't auto-recover during encryption_manager __init__), that's
-        # a genuine key-loss scenario for an existing install — warn and clear.
-        #
-        # Fresh installs (no users) are routed through _check_for_reinstall_backup,
-        # which handles the "connect Drive / restore backup" flow properly.
+        # ── KEY RESILIENCE ────────────────────────────────────────────────
         from core.encryption_manager import crypto_manager
         if not crypto_manager._local_ok and auth.has_users():
-            # Key is gone but there ARE registered users — something went wrong.
-            # At this point cloud_sync hasn't loaded yet, so we can't recover.
-            # Clear corrupt data so the app doesn't crash on every login attempt.
             import tkinter.messagebox as mb
             mb.showwarning(
                 "Encryption Key Lost",
@@ -285,45 +455,32 @@ class LoginWindow:
                 "will need to create a new admin account."
             )
             _clear_unreadable_data()
-            auth._load_users()   # reload so has_users() reflects the cleared state
-        # ────────────────────────────────────────────────────────────
-        
-        # --- 🚨 INJECT THE WINDOWS TASKBAR ICON ---
+            auth._load_users()
+
+        # --- Taskbar icon ---
         try:
             if getattr(sys, 'frozen', False):
                 icon_path = os.path.join(sys._MEIPASS, "assets", "icons", "app_icon.ico")
             else:
-                project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                icon_path = os.path.join(project_root, "assets", "icons", "app_icon.ico")
+                project_root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                icon_path = os.path.join(project_root_dir, "assets", "icons", "app_icon.ico")
             if os.path.exists(icon_path):
                 self.root.iconbitmap(icon_path)
         except Exception:
             pass
-            
-        # --- START HIDDEN FOR SPLASH SCREEN ---
+
+        # --- START HIDDEN FOR SPLASH ---
         self.root.withdraw()
-        
-        # Dark theme colors
-        self.bg_darker = "#050505"
-        self.bg_panel = "#111111"
-        self.accent_green = "#00ff00"
-        self.accent_cyan = "#00ffff"
-        self.accent_blue = "#0088ff"
-        self.text_primary = "#ffffff"
-        self.text_secondary = "#aaaaaa"
-        self.border_color = "#333333"
-        self.input_bg = "#1a1a1a"
-        self.error_red = "#ff4444"
-        self.root.geometry("450x650") 
-        # self.root.configure(bg="#0a0a0a")
-        self.root.configure(fg_color="#0a0a0a")
+
+        # ── Window Configuration ─────────────────────────────────────────
+        self.root.geometry("500x720")
+        self.root.configure(fg_color=DS.BG_PRIMARY)
         self.root.resizable(False, False)
-        self.bg_dark = "#0a0a0a"
-        
+
         # Initialize Security Guard
         self.guard = BruteForceGuard(max_attempts=3, lockout_time=30)
 
-        # --- 🚨 HOSTILE RECOVERY BYPASS 🚨 ---
+        # --- Recovery bypass ---
         if "--recovery" in sys.argv:
             recovered_user = "admin"
             for user, data in auth.users.items():
@@ -331,11 +488,9 @@ class LoginWindow:
                     recovered_user = user
                     break
             self.root.after(100, lambda: self._launch_main_app('admin', recovered_user))
-            return 
+            return
 
-        # Configure styles & Center Window
         self._center_window()
-        # self._configure_styles()
 
         if not auth.has_users():
             self._show_splash_screen(on_complete=self._check_tenant_then_reinstall)
@@ -344,108 +499,116 @@ class LoginWindow:
             self._show_splash_screen()
 
         self._apply_icon()
-        
 
+    # ══════════════════════════════════════════════════════════════════════
+    # SPLASH SCREEN — Professional Loading Animation
+    # ══════════════════════════════════════════════════════════════════════
     def _show_splash_screen(self, on_complete=None):
-        """Displays a professional full-screen branding splash before the app loads."""
+        """Professional dark splash screen with animated progress."""
         splash = tk.Toplevel(self.root)
         splash.overrideredirect(True)
-        splash.configure(bg="#050505")
-    
-        width, height = 550, 320
-        x = (splash.winfo_screenwidth()  // 2) - (width  // 2)
+        splash.configure(bg=DS.BG_OVERLAY)
+
+        width, height = 520, 300
+        x = (splash.winfo_screenwidth() // 2) - (width // 2)
         y = (splash.winfo_screenheight() // 2) - (height // 2)
         splash.geometry(f"{width}x{height}+{x}+{y}")
-    
+
         canvas = tk.Canvas(splash, width=width, height=height,
-                        bg="#050505", highlightthickness=0)
+                           bg=DS.BG_OVERLAY, highlightthickness=0)
         canvas.pack(fill=tk.BOTH, expand=True)
-    
-        canvas.create_line(0,        0,        width, 0,        fill=self.accent_blue, width=6)
-        canvas.create_line(0,        height-2, width, height-2, fill=self.accent_blue, width=6)
-    
+
+        # Top accent line
+        canvas.create_line(0, 0, width, 0, fill=DS.ACCENT_PRIMARY, width=2)
+
+        # Logo
         from PIL import Image, ImageTk
-        canvas.create_oval(
-            width//2 - 100, height//2 - 100,
-            width//2 + 100, height//2 + 100,
-            fill="#0a0a0a", outline=self.accent_blue, width=2
-        )
-    
-        # Load logo
         try:
             if getattr(sys, 'frozen', False):
                 base_path = sys._MEIPASS
             else:
                 base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    
             logo_path = os.path.join(base_path, "assets", "icons", "app_icon.png")
-            img = Image.open(logo_path)
-            img = img.resize((260, 260))
-            self.logo_img  = ImageTk.PhotoImage(img)
-            canvas.logo_img = self.logo_img   # ← FIX: pin to canvas widget, prevents GC
-            canvas.create_image(width//2, height//2 - 25, image=self.logo_img)
+            img = Image.open(logo_path).resize((80, 80))
+            self.logo_img = ImageTk.PhotoImage(img)
+            canvas.logo_img = self.logo_img
+            canvas.create_image(width // 2, 80, image=self.logo_img)
         except Exception as e:
             print("Logo load error:", e)
-    
-        load_label = tk.Label(splash, text="Initializing cryptographic vault...",
-                            font=('Consolas', 9, 'italic'),
-                            bg="#050505", fg=self.accent_cyan)
-        load_label.place(relx=0.5, rely=0.85, anchor="center")
-    
-        bar_y = height - 25
-        canvas.create_rectangle(60, bar_y, width-60, bar_y+4, fill="#1a1a1a", outline="")
-        progress_bar = canvas.create_rectangle(60, bar_y, 60, bar_y+4,
-                                            fill=self.accent_blue, outline="")
-    
+
+        # Brand text
+        canvas.create_text(width // 2, 140, text="FMSecure",
+                           font=("Segoe UI", 22, "bold"), fill=DS.TEXT_PRIMARY)
+        canvas.create_text(width // 2, 165, text="Endpoint Detection & Response Platform",
+                           font=("Segoe UI", 10), fill=DS.TEXT_SECONDARY)
+
+        # Status label
+        load_label = tk.Label(splash, text="Initializing...",
+                              font=("Segoe UI", 9), bg=DS.BG_OVERLAY,
+                              fg=DS.TEXT_SECONDARY)
+        load_label.place(relx=0.5, rely=0.78, anchor="center")
+
+        # Progress bar
+        bar_y = height - 40
+        bar_x_start, bar_x_end = 80, width - 80
+        canvas.create_rectangle(bar_x_start, bar_y, bar_x_end, bar_y + 3,
+                                fill=DS.BG_SURFACE_3, outline="")
+        progress_bar = canvas.create_rectangle(bar_x_start, bar_y, bar_x_start, bar_y + 3,
+                                               fill=DS.ACCENT_PRIMARY, outline="")
+
+        # Bottom accent
+        canvas.create_line(0, height - 2, width, height - 2,
+                           fill=DS.ACCENT_PRIMARY, width=2)
+
         loading_steps = [
-            ("Loading FileIntegrityMonitor Engine...",  random.randint(500, 1000)),
-            ("Booting Asynchronous Telemetry Server...", random.randint(200,  500)),
-            ("Verifying RSA/AES Encryption Keys...",    random.randint(600, 1200)),
-            ("Injecting CustomTkinter UI Components...", random.randint(300,  700)),
-            ("Securing Local Environment...",           random.randint(200,  500)),
+            ("Loading detection engine...",              random.randint(400, 800)),
+            ("Initializing telemetry services...",       random.randint(200, 500)),
+            ("Verifying encryption subsystem...",        random.randint(500, 900)),
+            ("Loading UI components...",                 random.randint(200, 500)),
+            ("Establishing secure session...",           random.randint(200, 400)),
         ]
-        total_steps       = len(loading_steps)
-        current_step_idx  = [0]
-    
+        total_steps = len(loading_steps)
+        current_step_idx = [0]
+
         def process_next_step():
             if current_step_idx[0] < total_steps:
                 text, duration = loading_steps[current_step_idx[0]]
                 load_label.config(text=text)
-                start_w = 60 + ((width - 120) * (current_step_idx[0]     / total_steps))
-                end_w   = 60 + ((width - 120) * ((current_step_idx[0]+1) / total_steps))
-                frames      = 15
+                start_w = bar_x_start + ((bar_x_end - bar_x_start) * (current_step_idx[0] / total_steps))
+                end_w = bar_x_start + ((bar_x_end - bar_x_start) * ((current_step_idx[0] + 1) / total_steps))
+                frames = 15
                 frame_delay = duration // frames
-    
+
                 def animate_chunk(frame=0):
                     if frame <= frames:
                         cw = start_w + ((end_w - start_w) * (frame / frames))
-                        canvas.coords(progress_bar, 60, bar_y, cw, bar_y+4)
+                        canvas.coords(progress_bar, bar_x_start, bar_y, cw, bar_y + 3)
                         splash.after(frame_delay, lambda: animate_chunk(frame + 1))
                     else:
                         current_step_idx[0] += 1
                         process_next_step()
-    
+
                 animate_chunk()
             else:
                 splash.destroy()
                 self.root.deiconify()
                 if on_complete:
                     on_complete()
-    
+
         process_next_step()
 
+    # ══════════════════════════════════════════════════════════════════════
+    # UTILITY METHODS
+    # ══════════════════════════════════════════════════════════════════════
     def _center_window(self):
         self.root.update_idletasks()
-        width = self.root.winfo_width()
-        height = self.root.winfo_height()
-        x = (self.root.winfo_screenwidth() // 2) - (width // 2)
-        y = (self.root.winfo_screenheight() // 2) - (height // 2)
-        self.root.geometry(f'{width}x{height}+{x}+{y}')
+        w = self.root.winfo_width()
+        h = self.root.winfo_height()
+        x = (self.root.winfo_screenwidth() // 2) - (w // 2)
+        y = (self.root.winfo_screenheight() // 2) - (h // 2)
+        self.root.geometry(f'{w}x{h}+{x}+{y}')
 
-    # Fixing icon
     def _apply_icon(self, window=None):
-        """Set the FMSecure icon on the root or any Toplevel."""
-        import sys, os
         try:
             if getattr(sys, 'frozen', False):
                 base = sys._MEIPASS
@@ -453,14 +616,10 @@ class LoginWindow:
                 base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             icon_path = os.path.join(base, "assets", "icons", "app_icon.ico")
             if os.path.exists(icon_path):
-                target = window or self.root
-                target.iconbitmap(icon_path)
+                (window or self.root).iconbitmap(icon_path)
         except Exception:
             pass
 
-    # ------------------------------------------------------------------
-    # Custom dialog helpers
-    # ------------------------------------------------------------------
     def show_info(self, message):
         CustomDialog(self.root, "Info", message, "info").wait()
 
@@ -476,433 +635,390 @@ class LoginWindow:
     def show_security_alert(self, title, message):
         try:
             SecurityAlertDialog(self.root, title, message).wait()
-            # alert.grab_set()
-            # dialog.wait()
-        except:
+        except Exception as e:
             print(f"[Dialog Error]: {e}")
 
-    # ------------------------------------------------------------------
-    # Login UI (modern, professional)
-    # ------------------------------------------------------------------
+    # ══════════════════════════════════════════════════════════════════════
+    # LOGIN UI — CrowdStrike / SentinelOne Inspired
+    # ══════════════════════════════════════════════════════════════════════
     def _build_login_ui(self):
         for widget in self.root.winfo_children():
             widget.destroy()
 
-        # Main container with subtle gradient effect (simulated by frames)
-        main_container = ctk.CTkFrame(self.root, fg_color="#0f0f0f")
-        main_container.pack(fill="both", expand=True)
+        # ── Outer container ──────────────────────────────────────────────
+        outer = ctk.CTkFrame(self.root, fg_color=DS.BG_PRIMARY)
+        outer.pack(fill="both", expand=True)
 
-        # Scrollable frame for content
-        scroll = ctk.CTkScrollableFrame(main_container, fg_color="#0f0f0f")
-        scroll.pack(fill="both", expand=True, padx=20, pady=20)
+        # ── Centered content wrapper ─────────────────────────────────────
+        wrapper = ctk.CTkFrame(outer, fg_color="transparent", width=380)
+        wrapper.place(relx=0.5, rely=0.5, anchor="center")
 
-        # Header card
-        header_card = ctk.CTkFrame(scroll, fg_color="#1a1a1a", corner_radius=12)
-        header_card.pack(fill="x", pady=(0, 20))
+        # ── Logo / Brand ─────────────────────────────────────────────────
+        brand_frame = ctk.CTkFrame(wrapper, fg_color="transparent")
+        brand_frame.pack(pady=(0, 8))
 
-        # Terminal-style header bar
-        term_bar = ctk.CTkFrame(header_card, fg_color="#002200", height=28, corner_radius=0)
-        term_bar.pack(fill="x")
-        term_bar.pack_propagate(False)
+        # Try to load logo
+        try:
+            from PIL import Image
+            if getattr(sys, 'frozen', False):
+                base_path = sys._MEIPASS
+            else:
+                base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            logo_path = os.path.join(base_path, "assets", "icons", "app_icon.png")
+            img = Image.open(logo_path)
+            self._login_logo = ctk.CTkImage(light_image=img, dark_image=img, size=(48, 48))
+            ctk.CTkLabel(brand_frame, image=self._login_logo, text="").pack(pady=(0, 8))
+        except Exception:
+            # Fallback shield icon
+            ctk.CTkLabel(brand_frame, text="🛡", font=("Segoe UI", 36),
+                         text_color=DS.ACCENT_PRIMARY).pack(pady=(0, 8))
 
-        # Fake window dots
-        dots_frame = ctk.CTkFrame(term_bar, fg_color="#002200")
-        dots_frame.place(relx=0.02, rely=0.5, anchor="w")
-        for color in ["#ff5f56", "#ffbd2e", "#27c93f"]:
-            dot = ctk.CTkLabel(dots_frame, text="●", text_color=color, font=("Segoe UI", 14))
-            dot.pack(side="left", padx=2)
+        ctk.CTkLabel(brand_frame, text="FMSecure",
+                     font=("Segoe UI", 28, "bold"),
+                     text_color=DS.TEXT_PRIMARY).pack()
+        ctk.CTkLabel(brand_frame, text="Endpoint Detection & Response",
+                     font=DS.FONT_CAPTION,
+                     text_color=DS.TEXT_TERTIARY).pack(pady=(2, 0))
 
-        term_label = ctk.CTkLabel(term_bar, text="root@integrity-monitor:~# login_system",
-                                   font=("Consolas", 10), text_color="#00ff00")
-        term_label.place(relx=0.5, rely=0.5, anchor="center")
+        # ── Sign In Card ─────────────────────────────────────────────────
+        card = ctk.CTkFrame(wrapper, fg_color=DS.BG_SURFACE,
+                            corner_radius=DS.RADIUS_LG,
+                            border_color=DS.BORDER_MUTED, border_width=1)
+        card.pack(fill="x", pady=(24, 0), padx=10)
 
-        # Main title
-        title = ctk.CTkLabel(header_card, text="SYSTEM ACCESS PORTAL",
-                              font=("Segoe UI", 22, "bold"), text_color="#00ccff")
-        title.pack(pady=(20, 5))
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(fill="x", padx=32, pady=28)
 
-        subtitle = ctk.CTkLabel(header_card, text="[SECURITY LEVEL: MAXIMUM]",
-                                 font=("Consolas", 10), text_color="#aaaaaa")
-        subtitle.pack(pady=(0, 20))
+        # Heading
+        ctk.CTkLabel(inner, text="Sign in",
+                     font=DS.FONT_HEADING_LG,
+                     text_color=DS.TEXT_PRIMARY).pack(anchor="w", pady=(0, 4))
+        ctk.CTkLabel(inner, text="Access your security console",
+                     font=DS.FONT_BODY_SM,
+                     text_color=DS.TEXT_SECONDARY).pack(anchor="w", pady=(0, 20))
 
-        # Admin login card
-        admin_card = ctk.CTkFrame(scroll, fg_color="#1a1a1a", corner_radius=12)
-        admin_card.pack(fill="x", pady=(0, 15))
-
-        admin_header = ctk.CTkLabel(admin_card, text="▸ ADMINISTRATOR LOGIN ◂",
-                                     font=("Segoe UI", 14, "bold"), text_color="#00ccff")
-        admin_header.pack(anchor="w", padx=25, pady=(20, 10))
-
-        # Username
-        user_label = ctk.CTkLabel(admin_card, text="USERNAME", font=("Segoe UI", 10, "bold"),
-                                   text_color="#aaaaaa")
-        user_label.pack(anchor="w", padx=25)
-
-        self.user_entry = ctk.CTkEntry(admin_card, placeholder_text="Enter your username",
-                                        font=("Consolas", 12), fg_color="#2a2a2a",
-                                        border_color="#3c3c3c", text_color="#00ff00")
-        self.user_entry.pack(fill="x", padx=25, pady=(5, 15))
+        # Username field
+        create_field_label(inner, "Username").pack(anchor="w", pady=(0, 4))
+        self.user_entry = create_styled_entry(inner, placeholder="Enter your username")
+        self.user_entry.pack(fill="x", pady=(0, 14))
         self.user_entry.focus()
 
-        # Password
-        pass_label = ctk.CTkLabel(admin_card, text="PASSWORD", font=("Segoe UI", 10, "bold"),
-                                   text_color="#aaaaaa")
-        pass_label.pack(anchor="w", padx=25)
+        # Password field
+        create_field_label(inner, "Password").pack(anchor="w", pady=(0, 4))
+        self.pass_entry = create_styled_entry(inner, placeholder="Enter your password", show="•")
+        self.pass_entry.pack(fill="x", pady=(0, 6))
 
-        self.pass_entry = ctk.CTkEntry(admin_card, placeholder_text="Enter your password",
-                                        show="•", font=("Consolas", 12),
-                                        fg_color="#2a2a2a", border_color="#3c3c3c",
-                                        text_color="#00ff00")
-        self.pass_entry.pack(fill="x", padx=25, pady=(5, 20))
+        # Forgot links row
+        links_row = ctk.CTkFrame(inner, fg_color="transparent")
+        links_row.pack(fill="x", pady=(0, 18))
 
-        # Login button
-        self.login_btn = ctk.CTkButton(admin_card, text="[ ACCESS TERMINAL ]",
-                                        command=self._attempt_admin_login,
-                                        fg_color="#004d00", hover_color="#006600",
-                                        text_color="#00ff00", font=("Consolas", 12, "bold"),
-                                        corner_radius=8, height=40)
-        self.login_btn.pack(fill="x", padx=25, pady=(0, 10))
+        create_link_button(links_row, "Forgot password?",
+                          self._build_forgot_pass_ui).pack(side="left")
+        ctk.CTkLabel(links_row, text="·", font=DS.FONT_CAPTION,
+                     text_color=DS.TEXT_TERTIARY).pack(side="left", padx=6)
+        create_link_button(links_row, "Forgot username?",
+                          self._build_forgot_username_ui).pack(side="left")
 
-        # Forgot password
-        forgot_row = ctk.CTkFrame(admin_card, fg_color="transparent")
-        forgot_row.pack(pady=(0, 15))
+        # Sign In button
+        self.login_btn = create_primary_button(inner, "Sign In",
+                                                self._attempt_admin_login)
+        self.login_btn.pack(fill="x", pady=(0, 0))
 
-        self.forgot_btn = ctk.CTkButton(forgot_row, text="Forgot Password?",
-                                        command=self._build_forgot_pass_ui,
-                                        fg_color="transparent", text_color="#00ccff",
-                                        font=("Segoe UI", 10, "underline"), hover=False)
-        self.forgot_btn.pack(side="left", padx=(0, 10))
-
-        ctk.CTkLabel(forgot_row, text="|", text_color="#444444",
-                    font=("Segoe UI", 10)).pack(side="left", padx=4)
-
-        ctk.CTkButton(forgot_row, text="Forgot Username?",
-                    command=self._build_forgot_username_ui,
-                    fg_color="transparent", text_color="#00ccff",
-                    font=("Segoe UI", 10, "underline"), hover=False).pack(side="left")
+        # Divider
+        create_divider_with_text(inner, "or")
 
         # Google SSO
-        google_btn = ctk.CTkButton(admin_card, text="🌐  Continue with Google",
-                                    command=self._handle_google_login,
-                                    fg_color="#ffffff", hover_color="#f0f0f0",
-                                    text_color="#4285F4", font=("Segoe UI", 11, "bold"),
-                                    corner_radius=8, height=40)
-        google_btn.pack(fill="x", padx=25, pady=(0, 20))
+        google_btn = ctk.CTkButton(
+            inner, text="   Continue with Google",
+            command=self._handle_google_login,
+            font=DS.FONT_BODY_SM,
+            fg_color="transparent",
+            hover_color=DS.BG_SURFACE_3,
+            text_color=DS.TEXT_PRIMARY,
+            border_color=DS.BORDER,
+            border_width=1,
+            corner_radius=DS.RADIUS_SM,
+            height=DS.BTN_HEIGHT,
+            image=self._load_google_icon()
+        )
+        google_btn.pack(fill="x")
 
-        # Separator
-        sep_frame = ctk.CTkFrame(scroll, fg_color="#0f0f0f", height=20)
-        sep_frame.pack(fill="x")
-        sep_line = ctk.CTkFrame(sep_frame, fg_color="#333333", height=1)
-        sep_line.pack(fill="x", pady=9)
-        sep_text = ctk.CTkLabel(sep_frame, text="║  OR  ║", font=("Consolas", 10),
-                                 text_color="#aaaaaa")
-        sep_text.place(relx=0.5, rely=0.5, anchor="center")
+        # ── Restricted Viewer Section ────────────────────────────────────
+        viewer_frame = ctk.CTkFrame(wrapper, fg_color="transparent")
+        viewer_frame.pack(fill="x", pady=(16, 0), padx=10)
 
-        # Guest card
-        guest_card = ctk.CTkFrame(scroll, fg_color="#1a1a1a", corner_radius=12)
-        guest_card.pack(fill="x", pady=(15, 20))
+        viewer_card = ctk.CTkFrame(viewer_frame, fg_color=DS.BG_SURFACE,
+                                    corner_radius=DS.RADIUS_MD,
+                                    border_color=DS.BORDER_MUTED, border_width=1)
+        viewer_card.pack(fill="x")
 
-        guest_header = ctk.CTkLabel(guest_card, text="▸ RESTRICTED VIEWER ◂",
-                                     font=("Segoe UI", 14, "bold"), text_color="#aaaaaa")
-        guest_header.pack(anchor="w", padx=25, pady=(20, 5))
+        viewer_inner = ctk.CTkFrame(viewer_card, fg_color="transparent")
+        viewer_inner.pack(fill="x", padx=24, pady=16)
 
-        guest_desc = ctk.CTkLabel(guest_card,
-                                   text="Read‑only access · No credentials required",
-                                   font=("Segoe UI", 10), text_color="#888888")
-        guest_desc.pack(anchor="w", padx=25, pady=(0, 15))
+        viewer_text = ctk.CTkFrame(viewer_inner, fg_color="transparent")
+        viewer_text.pack(side="left", fill="x", expand=True)
 
-        self.guest_btn = ctk.CTkButton(guest_card, text="[ READ‑ONLY MODE ]",
-                                        command=self._attempt_guest_login,
-                                        fg_color="#2a2a2a", hover_color="#3a3a3a",
-                                        text_color="#aaaaaa", font=("Consolas", 11),
-                                        corner_radius=8, height=40)
-        self.guest_btn.pack(fill="x", padx=25, pady=(0, 25))
+        ctk.CTkLabel(viewer_text, text="Restricted Viewer",
+                     font=DS.FONT_HEADING_SM,
+                     text_color=DS.TEXT_SECONDARY).pack(anchor="w")
+        ctk.CTkLabel(viewer_text, text="Read-only access · No credentials required",
+                     font=DS.FONT_TINY,
+                     text_color=DS.TEXT_TERTIARY).pack(anchor="w")
 
-        # Info card
-        info_card = ctk.CTkFrame(scroll, fg_color="#002233", corner_radius=8)
-        info_card.pack(fill="x", pady=(0, 20))
+        self.guest_btn = ctk.CTkButton(
+            viewer_inner, text="Enter →",
+            command=self._attempt_guest_login,
+            font=DS.FONT_CAPTION,
+            fg_color=DS.BG_SURFACE_3,
+            hover_color=DS.BORDER,
+            text_color=DS.TEXT_SECONDARY,
+            corner_radius=DS.RADIUS_SM,
+            width=80, height=32
+        )
+        self.guest_btn.pack(side="right")
 
-        info_text = ctk.CTkLabel(info_card,
-                                  text="⚠ NOTE: All login attempts are logged and monitored.\n"
-                                       "Unauthorized access will trigger security protocols.",
-                                  font=("Consolas", 9), text_color="#00ccff", justify="left")
-        info_text.pack(padx=15, pady=15)
-
-        # Status bar
-        status_bar = ctk.CTkFrame(self.root, fg_color="#050505", height=30, corner_radius=0)
+        # ── Status Bar ───────────────────────────────────────────────────
+        status_bar = ctk.CTkFrame(self.root, fg_color=DS.BG_OVERLAY, height=28,
+                                   corner_radius=0)
         status_bar.pack(fill="x", side="bottom")
 
-        status_label = ctk.CTkLabel(status_bar,
-                                     text="System: Online | Security: Active | Connection: Encrypted",
-                                     font=("Consolas", 8), text_color="#00ff00")
-        status_label.pack(side="left", padx=10)
+        # Status dot
+        status_inner = ctk.CTkFrame(status_bar, fg_color="transparent")
+        status_inner.pack(side="left", padx=12)
+        ctk.CTkLabel(status_inner, text="●", font=("Segoe UI", 8),
+                     text_color=DS.SUCCESS).pack(side="left", padx=(0, 6))
+        ctk.CTkLabel(status_inner, text="System Online · Encrypted Connection",
+                     font=DS.FONT_MONO_XS,
+                     text_color=DS.TEXT_TERTIARY).pack(side="left")
 
-        version_label = ctk.CTkLabel(status_bar, text="v1.0.0",
-                                      font=("Consolas", 8), text_color="#aaaaaa")
-        version_label.pack(side="right", padx=10)
+        ctk.CTkLabel(status_bar, text="v2.0.0", font=DS.FONT_MONO_XS,
+                     text_color=DS.TEXT_TERTIARY).pack(side="right", padx=12)
 
         # Bind Enter key
         self.root.bind('<Return>', lambda e: self._attempt_admin_login())
 
-    # ------------------------------------------------------------------
-    # Registration UI (first time)
-    # ------------------------------------------------------------------
+    def _load_google_icon(self):
+        """Try to load a Google icon, return None if not available."""
+        try:
+            from PIL import Image
+            if getattr(sys, 'frozen', False):
+                base = sys._MEIPASS
+            else:
+                base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            gpath = os.path.join(base, "assets", "icons", "google_icon.png")
+            if os.path.exists(gpath):
+                img = Image.open(gpath)
+                self._google_icon = ctk.CTkImage(light_image=img, dark_image=img, size=(18, 18))
+                return self._google_icon
+        except Exception:
+            pass
+        return None
+
+    # ══════════════════════════════════════════════════════════════════════
+    # REGISTRATION UI — First Time Setup
+    # ══════════════════════════════════════════════════════════════════════
     def _build_register_ui(self):
         for widget in self.root.winfo_children():
             widget.destroy()
 
-        # Card-like container
-        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
-        main_card.pack(expand=True, fill="both", padx=40, pady=40)
+        outer = ctk.CTkFrame(self.root, fg_color=DS.BG_PRIMARY)
+        outer.pack(fill="both", expand=True)
 
-        from PIL import Image, ImageTk
-        import sys, os
+        scroll = ctk.CTkScrollableFrame(outer, fg_color=DS.BG_PRIMARY)
+        scroll.pack(fill="both", expand=True, padx=40, pady=30)
 
-        def resource_path(path):
-            if getattr(sys, 'frozen', False):
-                return os.path.join(sys._MEIPASS, path)
-            return os.path.join(os.path.abspath("."), path)
-
+        # Logo
         try:
-            logo_path = resource_path("assets/icons/app_icon.png")
-
+            from PIL import Image
+            if getattr(sys, 'frozen', False):
+                base_path = sys._MEIPASS
+            else:
+                base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            logo_path = os.path.join(base_path, "assets", "icons", "app_icon.png")
             img = Image.open(logo_path)
-            self.register_logo = ctk.CTkImage(
-                light_image=img,
-                dark_image=img,
-                size=(120, 120)
-            )
-            logo_label = ctk.CTkLabel(main_card, image=self.register_logo, text="")
-            logo_label.pack(pady=(30, 10))
+            self.register_logo = ctk.CTkImage(light_image=img, dark_image=img, size=(64, 64))
+            ctk.CTkLabel(scroll, image=self.register_logo, text="").pack(pady=(10, 8))
+        except Exception:
+            ctk.CTkLabel(scroll, text="🛡", font=("Segoe UI", 40),
+                         text_color=DS.ACCENT_PRIMARY).pack(pady=(10, 8))
 
-        except Exception as e:
-            print("Register logo error:", e)
+        ctk.CTkLabel(scroll, text="Create Your Account",
+                     font=DS.FONT_HEADING_LG,
+                     text_color=DS.TEXT_PRIMARY).pack()
+        ctk.CTkLabel(scroll, text="Set up your administrator credentials to get started",
+                     font=DS.FONT_BODY_SM,
+                     text_color=DS.TEXT_SECONDARY).pack(pady=(4, 24))
 
-        title = ctk.CTkLabel(main_card, text="First‑Time Setup",
-                              font=("Segoe UI", 24, "bold"), text_color="#ffffff")
-        title.pack()
+        # Card
+        card = ctk.CTkFrame(scroll, fg_color=DS.BG_SURFACE,
+                            corner_radius=DS.RADIUS_LG,
+                            border_color=DS.BORDER_MUTED, border_width=1)
+        card.pack(fill="x")
 
-        subtitle = ctk.CTkLabel(main_card, text="Register your admin account to continue",
-                                 font=("Segoe UI", 12), text_color="#a0a0a0")
-        subtitle.pack(pady=(0, 25))
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(fill="x", padx=28, pady=24)
 
-        # Input fields
-        self.reg_user_entry = self._create_input(main_card, "Username:", default="admin")
-        self.reg_email_entry = self._create_input(main_card, "Registered Email:")
-        self.reg_pass_entry = self._create_input(main_card, "Password:", is_password=True)
-        self.reg_confirm_entry = self._create_input(main_card, "Confirm Password:", is_password=True)
+        # Fields
+        create_field_label(inner, "Username").pack(anchor="w", pady=(0, 4))
+        self.reg_user_entry = create_styled_entry(inner, placeholder="admin")
+        self.reg_user_entry.insert(0, "admin")
+        self.reg_user_entry.pack(fill="x", pady=(0, 12))
 
-        # Register button (Assigned to self.reg_btn)
-        self.reg_btn = ctk.CTkButton(main_card, text="Create Account", command=self._attempt_register,
-                      font=("Segoe UI", 14, "bold"), fg_color="#00a8ff", hover_color="#0077cc",
-                      corner_radius=8, height=45)
-        self.reg_btn.pack(fill="x", padx=40, pady=(20, 10))
+        create_field_label(inner, "Email Address").pack(anchor="w", pady=(0, 4))
+        self.reg_email_entry = create_styled_entry(inner, placeholder="you@company.com")
+        self.reg_email_entry.pack(fill="x", pady=(0, 12))
 
-        # Google SSO (Assigned to self.google_btn)
-        self.google_btn = ctk.CTkButton(main_card, text="🌐  Sign up with Google",
-                      command=lambda: self._handle_google_login(mode="register"),
-                      fg_color="#ffffff", hover_color="#f0f0f0",
-                      text_color="#4285F4", font=("Segoe UI", 12, "bold"),
-                      corner_radius=8, height=45)
-        self.google_btn.pack(fill="x", padx=40, pady=(0, 30))
+        create_field_label(inner, "Password").pack(anchor="w", pady=(0, 4))
+        self.reg_pass_entry = create_styled_entry(inner, placeholder="Minimum 6 characters", show="•")
+        self.reg_pass_entry.pack(fill="x", pady=(0, 12))
+
+        create_field_label(inner, "Confirm Password").pack(anchor="w", pady=(0, 4))
+        self.reg_confirm_entry = create_styled_entry(inner, placeholder="Re-enter password", show="•")
+        self.reg_confirm_entry.pack(fill="x", pady=(0, 20))
+
+        # Buttons
+        self.reg_btn = create_primary_button(inner, "Create Account",
+                                              self._attempt_register)
+        self.reg_btn.pack(fill="x", pady=(0, 0))
+
+        create_divider_with_text(inner, "or")
+
+        self.google_btn = ctk.CTkButton(
+            inner, text="   Sign up with Google",
+            command=lambda: self._handle_google_login(mode="register"),
+            font=DS.FONT_BODY_SM,
+            fg_color="transparent",
+            hover_color=DS.BG_SURFACE_3,
+            text_color=DS.TEXT_PRIMARY,
+            border_color=DS.BORDER,
+            border_width=1,
+            corner_radius=DS.RADIUS_SM,
+            height=DS.BTN_HEIGHT,
+            image=self._load_google_icon()
+        )
+        self.google_btn.pack(fill="x")
 
     def _create_input(self, parent, label_text, is_password=False, default=""):
         frame = ctk.CTkFrame(parent, fg_color="transparent")
-        frame.pack(fill="x", padx=40, pady=5)
-        lbl = ctk.CTkLabel(frame, text=label_text, font=("Segoe UI", 11), text_color="#a0a0a0")
-        lbl.pack(anchor="w")
-        entry = ctk.CTkEntry(frame, font=("Segoe UI", 13), show="•" if is_password else "",
-                              fg_color="#2b2b2b", border_color="#3c3c3c")
+        frame.pack(fill="x", pady=5)
+        create_field_label(frame, label_text).pack(anchor="w", pady=(0, 4))
+        entry = create_styled_entry(frame, show="•" if is_password else "")
         if default:
             entry.insert(0, default)
-        entry.pack(fill="x", pady=(2, 0))
+        entry.pack(fill="x")
         return entry
 
-    def _attempt_register(self):
-        # 1. Check if already processing BEFORE grabbing values
-        if getattr(self, 'is_processing', False):
-            return
-        self.is_processing = True
-
-        username = self.reg_user_entry.get().strip()
-        email = self.reg_email_entry.get().strip().lower()
-        password = self.reg_pass_entry.get()
-        confirm = self.reg_confirm_entry.get()
-
-        # 2. Mandatory Fields
-        if not username or not email or not password or not confirm:
-            self.show_error("All fields are mandatory.")
-            self.is_processing = False  # Reset flag so they can try again
-            return
-
-        # 3. Email Validation
-        email_pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
-        if not re.match(email_pattern, email):
-            self.show_error("Invalid email format. Use: user@domain.com")
-            self.is_processing = False  # Reset flag
-            return
-
-        # 4. Password Match
-        if password != confirm:
-            self.show_error("Passwords do not match.")
-            self.is_processing = False  # Reset flag
-            return
-
-        # 5. Password Length
-        if len(password) < 6:
-            self.show_error("Password must be at least 6 characters long.")
-            self.is_processing = False  # Reset flag
-            return
-
-        # ✅ Disable UI
-        self._set_ui_state("disabled")
-        self.root.config(cursor="watch")
-
-        # Loader UI
-        loader = ctk.CTkToplevel(self.root)
-        loader.overrideredirect(True)
-        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - 100
-        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - 40
-        loader.geometry(f"200x80+{x}+{y}")
-        loader.configure(fg_color="#1e1e1e")
-        self._apply_icon(loader)
-
-        ctk.CTkLabel(
-            loader,
-            text="⏳ Sending OTP...",
-            font=("Segoe UI", 12, "bold"),
-            text_color="#00a8ff"
-        ).pack(expand=True)
-
-        loader.update()
-
-        # Thread task
-        def _send_email_task():
-            try:
-                success, msg = email_service.send_otp_email(email, "verification")
-            except Exception as e:
-                success = False
-                msg = str(e)
-
-            def _update_gui():
-                self.root.config(cursor="")
-                loader.destroy()
-
-                if success:
-                    self.show_success(f"Verification code sent to:\n{email}")
-
-                    #  IMPORTANT: UI enable mat karo yaha
-                    # kyunki ab OTP screen aa rahi hai
-                    self._build_otp_ui(username, email, password)
-
-                else:
-                    self.show_error(f"Failed to send OTP.\n\n{msg}")
-                    self.is_processing = False
-                    self._set_ui_state("normal")  # ✅ only on failure
-
-            self.root.after(0, _update_gui)
-
-        threading.Thread(target=_send_email_task, daemon=True).start()
-
-    def _set_ui_state(self, state="normal"):
-        """Toggles buttons to prevent double-clicks during processing"""
-        target_state = "normal" if state == "normal" else "disabled"
-        
-        # List of buttons to disable
-        buttons = [
-            "login_btn",
-            "reg_btn",
-            "google_btn",
-            "viewer_btn"
-        ]
-        
-        for btn_name in buttons:
-            if hasattr(self, btn_name):
-                try:
-                    getattr(self, btn_name).configure(state=target_state)
-                except:
-                    pass
-
+    # ══════════════════════════════════════════════════════════════════════
+    # OTP VERIFICATION UI
+    # ══════════════════════════════════════════════════════════════════════
     def _build_otp_ui(self, username, email, password):
         self.is_processing = False
         for widget in self.root.winfo_children():
             widget.destroy()
 
-        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
-        main_card.pack(expand=True, fill="both", padx=40, pady=40)
+        outer = ctk.CTkFrame(self.root, fg_color=DS.BG_PRIMARY)
+        outer.pack(fill="both", expand=True)
 
-        ctk.CTkLabel(main_card, text="📧", font=("Segoe UI", 48), text_color="#00a8ff").pack(pady=(30, 10))
-        ctk.CTkLabel(main_card, text="Verify Your Email",
-                     font=("Segoe UI", 24, "bold"), text_color="#ffffff").pack()
-        ctk.CTkLabel(main_card, text=f"Enter the 6‑digit code sent to\n{email}",
-                     font=("Segoe UI", 12), text_color="#a0a0a0", justify="center").pack(pady=(0, 20))
+        wrapper = ctk.CTkFrame(outer, fg_color="transparent", width=380)
+        wrapper.place(relx=0.5, rely=0.5, anchor="center")
 
-        self.otp_entry = ctk.CTkEntry(main_card, font=("Segoe UI", 20, "bold"),
-                                       justify="center", width=200)
-        self.otp_entry.pack(pady=5)
+        # Icon
+        ctk.CTkLabel(wrapper, text="✉", font=("Segoe UI", 48),
+                     text_color=DS.ACCENT_PRIMARY).pack(pady=(0, 12))
+
+        ctk.CTkLabel(wrapper, text="Verify Your Email",
+                     font=DS.FONT_HEADING_LG,
+                     text_color=DS.TEXT_PRIMARY).pack()
+        ctk.CTkLabel(wrapper, text=f"Enter the 6-digit code sent to\n{email}",
+                     font=DS.FONT_BODY_SM, text_color=DS.TEXT_SECONDARY,
+                     justify="center").pack(pady=(4, 24))
+
+        # OTP Card
+        card = ctk.CTkFrame(wrapper, fg_color=DS.BG_SURFACE,
+                            corner_radius=DS.RADIUS_LG,
+                            border_color=DS.BORDER_MUTED, border_width=1)
+        card.pack(fill="x", padx=10)
+
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(fill="x", padx=28, pady=24)
+
+        create_field_label(inner, "Verification Code").pack(anchor="w", pady=(0, 4))
+        self.otp_entry = ctk.CTkEntry(inner, font=("Segoe UI", 22, "bold"),
+                                       justify="center", fg_color=DS.BG_INPUT,
+                                       border_color=DS.BORDER,
+                                       text_color=DS.TEXT_PRIMARY,
+                                       placeholder_text="000000",
+                                       corner_radius=DS.RADIUS_SM,
+                                       height=52)
+        self.otp_entry.pack(fill="x", pady=(0, 20))
 
         def verify_and_create():
             otp = self.otp_entry.get().strip()
             if not otp:
-                self.show_error("Please enter the OTP.")
+                self.show_error("Please enter the verification code.")
                 return
             is_valid, msg = email_service.verify_otp(email, otp)
             if is_valid:
                 success, auth_msg = auth.register_user(username, email, password, role="admin")
                 if success:
-                    self.show_success("Account created successfully! You can now log in.")
+                    self.show_success("Account created successfully!\nYou can now sign in.")
                     self._build_login_ui()
                 else:
                     self.show_error(auth_msg)
             else:
                 self.show_error(msg)
 
-        ctk.CTkButton(main_card, text="Verify & Create Account", command=verify_and_create,
-                      font=("Segoe UI", 14, "bold"), fg_color="#00a8ff", hover_color="#0077cc",
-                      corner_radius=8, height=45).pack(fill="x", padx=40, pady=(20, 10))
-        ctk.CTkButton(main_card, text="Cancel & Go Back", command=self._build_register_ui,
-                      font=("Segoe UI", 11), fg_color="transparent", text_color="#a0a0a0",
-                      hover=False).pack(pady=(0, 30))
+        create_primary_button(inner, "Verify & Create Account",
+                              verify_and_create).pack(fill="x")
 
+        create_link_button(wrapper, "← Back to registration",
+                          self._build_register_ui).pack(pady=(16, 0))
+
+    # ══════════════════════════════════════════════════════════════════════
+    # FORGOT USERNAME UI
+    # ══════════════════════════════════════════════════════════════════════
     def _build_forgot_username_ui(self):
-        """Recover username by looking it up against the registered email."""
         for widget in self.root.winfo_children():
             widget.destroy()
 
-        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
-        main_card.pack(expand=True, fill="both", padx=40, pady=40)
+        outer = ctk.CTkFrame(self.root, fg_color=DS.BG_PRIMARY)
+        outer.pack(fill="both", expand=True)
 
-        ctk.CTkLabel(main_card, text="👤", font=("Segoe UI", 48),
-                    text_color="#00a8ff").pack(pady=(30, 10))
-        ctk.CTkLabel(main_card, text="Recover Your Username",
-                    font=("Segoe UI", 22, "bold"), text_color="#ffffff").pack()
-        ctk.CTkLabel(main_card,
-                    text="Enter the email address you registered with.\nWe'll tell you the username linked to that email.",
-                    font=("Segoe UI", 11), text_color="#a0a0a0",
-                    justify="center").pack(pady=(6, 20))
+        wrapper = ctk.CTkFrame(outer, fg_color="transparent", width=380)
+        wrapper.place(relx=0.5, rely=0.5, anchor="center")
 
-        email_frame = ctk.CTkFrame(main_card, fg_color="transparent")
-        email_frame.pack(fill="x", padx=40, pady=5)
-        ctk.CTkLabel(email_frame, text="REGISTERED EMAIL",
-                    font=("Segoe UI", 10, "bold"),
-                    text_color="#aaaaaa").pack(anchor="w")
-        self._fu_email_entry = ctk.CTkEntry(
-            email_frame, font=("Segoe UI", 13),
-            fg_color="#2b2b2b", border_color="#3c3c3c",
-            placeholder_text="you@example.com")
-        self._fu_email_entry.pack(fill="x", pady=(4, 0))
+        ctk.CTkLabel(wrapper, text="👤", font=("Segoe UI", 42),
+                     text_color=DS.ACCENT_PRIMARY).pack(pady=(0, 12))
+        ctk.CTkLabel(wrapper, text="Recover Username",
+                     font=DS.FONT_HEADING_LG,
+                     text_color=DS.TEXT_PRIMARY).pack()
+        ctk.CTkLabel(wrapper,
+                     text="Enter your registered email address to\nlook up your username.",
+                     font=DS.FONT_BODY_SM, text_color=DS.TEXT_SECONDARY,
+                     justify="center").pack(pady=(4, 24))
+
+        card = ctk.CTkFrame(wrapper, fg_color=DS.BG_SURFACE,
+                            corner_radius=DS.RADIUS_LG,
+                            border_color=DS.BORDER_MUTED, border_width=1)
+        card.pack(fill="x", padx=10)
+
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(fill="x", padx=28, pady=24)
+
+        create_field_label(inner, "Registered Email").pack(anchor="w", pady=(0, 4))
+        self._fu_email_entry = create_styled_entry(inner, placeholder="you@company.com")
+        self._fu_email_entry.pack(fill="x", pady=(0, 6))
         self._fu_email_entry.focus()
 
-        self._fu_status = ctk.CTkLabel(main_card, text="",
-                                        font=("Segoe UI", 10),
-                                        text_color="#ff4444", wraplength=340)
-        self._fu_status.pack(pady=(8, 0))
+        self._fu_status = ctk.CTkLabel(inner, text="", font=DS.FONT_CAPTION,
+                                        text_color=DS.ERROR, wraplength=320)
+        self._fu_status.pack(pady=(0, 12))
 
         def _lookup():
             email = self._fu_email_entry.get().strip().lower()
             if not email or "@" not in email:
                 self._fu_status.configure(text="Please enter a valid email address.",
-                                        text_color="#ff4444")
+                                          text_color=DS.ERROR)
                 return
 
             found_username = None
@@ -913,14 +1029,12 @@ class LoginWindow:
 
             if not found_username:
                 self._fu_status.configure(
-                    text="No account found with that email.\n"
-                        "Double-check the address or contact support.",
-                    text_color="#ff4444")
+                    text="No account found with that email.\nDouble-check or contact support.",
+                    text_color=DS.ERROR)
                 return
 
-            # Found — send OTP to confirm identity before revealing username
             lookup_btn.configure(state="disabled", text="Sending code…")
-            self._fu_status.configure(text="", text_color="#aaaaaa")
+            self._fu_status.configure(text="", text_color=DS.TEXT_SECONDARY)
 
             def _send_otp():
                 success, msg = email_service.send_otp_email(email, "verification")
@@ -932,149 +1046,138 @@ class LoginWindow:
                     else:
                         self._fu_status.configure(
                             text=f"Could not send verification code:\n{msg}",
-                            text_color="#ff4444")
+                            text_color=DS.ERROR)
 
                 self.root.after(0, _after)
 
-            import threading
             threading.Thread(target=_send_otp, daemon=True).start()
 
-        lookup_btn = ctk.CTkButton(
-            main_card, text="Look Up Username",
-            command=_lookup,
-            font=("Segoe UI", 13, "bold"),
-            fg_color="#00a8ff", hover_color="#0077cc",
-            corner_radius=8, height=44)
-        lookup_btn.pack(fill="x", padx=40, pady=(18, 10))
+        lookup_btn = create_primary_button(inner, "Look Up Username", _lookup)
+        lookup_btn.pack(fill="x")
 
-        ctk.CTkButton(main_card, text="< Back to Login",
-                    command=self._build_login_ui,
-                    font=("Segoe UI", 11), fg_color="transparent",
-                    text_color="#a0a0a0", hover=False).pack(pady=(0, 30))
+        create_link_button(wrapper, "← Back to sign in",
+                          self._build_login_ui).pack(pady=(16, 0))
 
         self.root.bind('<Return>', lambda e: _lookup())
 
-
-    def _build_username_otp_ui(self, username: str, email: str):
-        """OTP confirmation screen before revealing the username."""
+    def _build_username_otp_ui(self, username, email):
         for widget in self.root.winfo_children():
             widget.destroy()
 
-        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
-        main_card.pack(expand=True, fill="both", padx=40, pady=40)
+        outer = ctk.CTkFrame(self.root, fg_color=DS.BG_PRIMARY)
+        outer.pack(fill="both", expand=True)
 
-        ctk.CTkLabel(main_card, text="📧", font=("Segoe UI", 48),
-                    text_color="#00a8ff").pack(pady=(30, 10))
-        ctk.CTkLabel(main_card, text="Verify Your Identity",
-                    font=("Segoe UI", 22, "bold"), text_color="#ffffff").pack()
-        ctk.CTkLabel(main_card,
-                    text=f"Enter the 6-digit code sent to:\n{email}",
-                    font=("Segoe UI", 11), text_color="#a0a0a0",
-                    justify="center").pack(pady=(6, 20))
+        wrapper = ctk.CTkFrame(outer, fg_color="transparent", width=380)
+        wrapper.place(relx=0.5, rely=0.5, anchor="center")
 
-        self._fu_otp_entry = ctk.CTkEntry(
-            main_card, font=("Segoe UI", 22, "bold"),
-            justify="center", width=180,
-            placeholder_text="000000")
-        self._fu_otp_entry.pack(pady=5)
+        ctk.CTkLabel(wrapper, text="✉", font=("Segoe UI", 42),
+                     text_color=DS.ACCENT_PRIMARY).pack(pady=(0, 12))
+        ctk.CTkLabel(wrapper, text="Verify Identity",
+                     font=DS.FONT_HEADING_LG,
+                     text_color=DS.TEXT_PRIMARY).pack()
+        ctk.CTkLabel(wrapper, text=f"Enter the 6-digit code sent to:\n{email}",
+                     font=DS.FONT_BODY_SM, text_color=DS.TEXT_SECONDARY,
+                     justify="center").pack(pady=(4, 24))
+
+        card = ctk.CTkFrame(wrapper, fg_color=DS.BG_SURFACE,
+                            corner_radius=DS.RADIUS_LG,
+                            border_color=DS.BORDER_MUTED, border_width=1)
+        card.pack(fill="x", padx=10)
+
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(fill="x", padx=28, pady=24)
+
+        self._fu_otp_entry = ctk.CTkEntry(inner, font=("Segoe UI", 22, "bold"),
+                                           justify="center", fg_color=DS.BG_INPUT,
+                                           border_color=DS.BORDER,
+                                           text_color=DS.TEXT_PRIMARY,
+                                           placeholder_text="000000",
+                                           corner_radius=DS.RADIUS_SM, height=52)
+        self._fu_otp_entry.pack(fill="x", pady=(0, 6))
         self._fu_otp_entry.focus()
 
-        self._fu_otp_status = ctk.CTkLabel(main_card, text="",
-                                            font=("Segoe UI", 10),
-                                            text_color="#ff4444")
-        self._fu_otp_status.pack(pady=(6, 0))
+        self._fu_otp_status = ctk.CTkLabel(inner, text="", font=DS.FONT_CAPTION,
+                                            text_color=DS.ERROR)
+        self._fu_otp_status.pack(pady=(0, 14))
 
         def _verify():
             otp = self._fu_otp_entry.get().strip()
             if not otp:
-                self._fu_otp_status.configure(text="Please enter the OTP.")
+                self._fu_otp_status.configure(text="Please enter the code.")
                 return
-
             is_valid, msg = email_service.verify_otp(email, otp)
-
             if is_valid:
-                # OTP passed — show the username in a success screen
                 self._build_username_revealed_ui(username, email)
             else:
-                self._fu_otp_status.configure(text=msg, text_color="#ff4444")
+                self._fu_otp_status.configure(text=msg, text_color=DS.ERROR)
                 self._fu_otp_entry.delete(0, "end")
 
-        ctk.CTkButton(main_card, text="Verify & Show Username",
-                    command=_verify,
-                    font=("Segoe UI", 13, "bold"),
-                    fg_color="#00a8ff", hover_color="#0077cc",
-                    corner_radius=8, height=44).pack(
-            fill="x", padx=40, pady=(18, 10))
+        create_primary_button(inner, "Verify & Show Username", _verify).pack(fill="x")
 
-        ctk.CTkButton(main_card, text="< Back",
-                    command=self._build_forgot_username_ui,
-                    font=("Segoe UI", 11), fg_color="transparent",
-                    text_color="#a0a0a0", hover=False).pack(pady=(0, 30))
-
+        create_link_button(wrapper, "← Back",
+                          self._build_forgot_username_ui).pack(pady=(16, 0))
         self.root.bind('<Return>', lambda e: _verify())
 
-
-    def _build_username_revealed_ui(self, username: str, email: str):
-        """Show the recovered username and offer to go straight to login."""
+    def _build_username_revealed_ui(self, username, email):
         for widget in self.root.winfo_children():
             widget.destroy()
 
-        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
-        main_card.pack(expand=True, fill="both", padx=40, pady=40)
+        outer = ctk.CTkFrame(self.root, fg_color=DS.BG_PRIMARY)
+        outer.pack(fill="both", expand=True)
 
-        ctk.CTkLabel(main_card, text="✅", font=("Segoe UI", 52),
-                    text_color="#00cc66").pack(pady=(30, 10))
-        ctk.CTkLabel(main_card, text="Username Found",
-                    font=("Segoe UI", 22, "bold"), text_color="#ffffff").pack()
-        ctk.CTkLabel(main_card,
-                    text=f"The account registered to\n{email}\n\nis:",
-                    font=("Segoe UI", 11), text_color="#a0a0a0",
-                    justify="center").pack(pady=(8, 12))
+        wrapper = ctk.CTkFrame(outer, fg_color="transparent", width=380)
+        wrapper.place(relx=0.5, rely=0.5, anchor="center")
 
-        # Big username display box
-        name_box = ctk.CTkFrame(main_card, fg_color="#002233",
-                                corner_radius=10)
-        name_box.pack(padx=40, pady=(0, 20))
-        ctk.CTkLabel(name_box, text=username,
-                    font=("Consolas", 26, "bold"),
-                    text_color="#00ccff").pack(padx=30, pady=16)
+        # Success icon
+        icon_circle = ctk.CTkFrame(wrapper, fg_color=DS.SUCCESS, width=56, height=56,
+                                    corner_radius=28)
+        icon_circle.pack(pady=(0, 16))
+        icon_circle.pack_propagate(False)
+        ctk.CTkLabel(icon_circle, text="✓", font=("Segoe UI", 24, "bold"),
+                     text_color="#ffffff").place(relx=0.5, rely=0.5, anchor="center")
 
-        # Copy to clipboard button
+        ctk.CTkLabel(wrapper, text="Username Found",
+                     font=DS.FONT_HEADING_LG,
+                     text_color=DS.TEXT_PRIMARY).pack()
+        ctk.CTkLabel(wrapper, text=f"The account registered to {email}",
+                     font=DS.FONT_BODY_SM, text_color=DS.TEXT_SECONDARY,
+                     justify="center").pack(pady=(4, 20))
+
+        # Username display
+        name_card = ctk.CTkFrame(wrapper, fg_color=DS.BG_SURFACE,
+                                  corner_radius=DS.RADIUS_MD,
+                                  border_color=DS.ACCENT_MUTED, border_width=1)
+        name_card.pack(padx=10)
+        ctk.CTkLabel(name_card, text=username,
+                     font=("Segoe UI", 24, "bold"),
+                     text_color=DS.ACCENT_PRIMARY).pack(padx=40, pady=20)
+
         def _copy():
             self.root.clipboard_clear()
             self.root.clipboard_append(username)
-            copy_btn.configure(text="✔  Copied!")
-            self.root.after(2000, lambda: copy_btn.configure(text="📋  Copy Username"))
+            copy_btn.configure(text="✓ Copied!")
+            self.root.after(2000, lambda: copy_btn.configure(text="Copy Username"))
 
-        copy_btn = ctk.CTkButton(main_card, text="📋  Copy Username",
-                                command=_copy,
-                                font=("Segoe UI", 11),
-                                fg_color="#2b2b2b", hover_color="#3a3a3a",
-                                text_color="#00ccff",
-                                corner_radius=8, height=36)
-        copy_btn.pack(fill="x", padx=60, pady=(0, 10))
+        copy_btn = create_secondary_button(wrapper, "Copy Username", _copy)
+        copy_btn.pack(fill="x", padx=50, pady=(16, 8))
 
-        ctk.CTkButton(main_card, text="Go to Login →",
-                    command=self._build_login_ui,
-                    font=("Segoe UI", 13, "bold"),
-                    fg_color="#00a8ff", hover_color="#0077cc",
-                    corner_radius=8, height=44).pack(
-            fill="x", padx=40, pady=(6, 10))
+        create_primary_button(wrapper, "Go to Sign In →",
+                              self._build_login_ui).pack(fill="x", padx=50, pady=(0, 8))
 
-        ctk.CTkButton(main_card, text="Forgot Password Too?",
-                    command=self._build_forgot_pass_ui,
-                    font=("Segoe UI", 10), fg_color="transparent",
-                    text_color="#888888", hover=False).pack(pady=(0, 30))
+        create_link_button(wrapper, "Forgot password too?",
+                          self._build_forgot_pass_ui).pack(pady=(4, 0))
 
-    # ------------------------------------------------------------------
-    # Login attempts
-    # ------------------------------------------------------------------
+    # ══════════════════════════════════════════════════════════════════════
+    # LOGIN ATTEMPTS (same logic, updated dialog text)
+    # ══════════════════════════════════════════════════════════════════════
     def _attempt_admin_login(self):
         is_locked, wait_time = self.guard.is_locked_out()
         if is_locked:
             self.show_security_alert(
-                "SYSTEM LOCKDOWN",
-                f"Too many failed login attempts.\n\nSecurity protocols have locked this terminal.\nPlease wait {wait_time} seconds before retrying."
+                "ACCOUNT LOCKED",
+                f"Too many failed login attempts.\n\n"
+                f"Your account has been temporarily locked.\n"
+                f"Please wait {wait_time} seconds before retrying."
             )
             return
 
@@ -1084,7 +1187,7 @@ class LoginWindow:
         if not username or not password:
             self.show_security_alert(
                 "MISSING CREDENTIALS",
-                "Username and password fields cannot be empty.\nPlease provide valid administrator credentials."
+                "Username and password are required.\nPlease provide valid credentials."
             )
             return
 
@@ -1093,27 +1196,26 @@ class LoginWindow:
         if success:
             if role != 'admin':
                 self.show_security_alert(
-                    "UNAUTHORIZED ROLE",
-                    "This terminal is reserved for ADMINISTRATOR access only.\nYour account does not have sufficient privileges."
+                    "UNAUTHORIZED ACCESS",
+                    "This console requires administrator privileges.\n"
+                    "Your account does not have sufficient permissions."
                 )
                 return
             self.guard.reset()
-            # self.root.quit()
-            # self.root.destroy()
-            self._launch_main_app(role, username)   # Reuse root, no destroy
+            self._launch_main_app(role, username)
         else:
             attempts = self.guard.register_failed_attempt()
             remaining = self.guard.max_attempts - attempts
 
             if remaining > 0:
                 self.show_security_alert(
-                    "ACCESS DENIED",
-                    f"Authentication failed: {msg}\n\nWARNING: {remaining} attempts remaining before system lockdown."
+                    "AUTHENTICATION FAILED",
+                    f"{msg}\n\n{remaining} attempt(s) remaining before lockout."
                 )
             else:
                 self.show_security_alert(
-                    "SECURITY ALERT",
-                    "Maximum attempts reached.\nSystem locked for 30 seconds."
+                    "SECURITY LOCKOUT",
+                    "Maximum attempts reached.\nAccount locked for 30 seconds."
                 )
 
             self.pass_entry.delete(0, tk.END)
@@ -1121,29 +1223,43 @@ class LoginWindow:
     def _attempt_guest_login(self):
         self._launch_main_app(role='user', username='RestrictedViewer')
 
-    # ------------------------------------------------------------------
-    # Forgot password
-    # ------------------------------------------------------------------
+    # ══════════════════════════════════════════════════════════════════════
+    # FORGOT PASSWORD
+    # ══════════════════════════════════════════════════════════════════════
     def _build_forgot_pass_ui(self):
         for widget in self.root.winfo_children():
             widget.destroy()
 
-        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
-        main_card.pack(expand=True, fill="both", padx=40, pady=40)
+        outer = ctk.CTkFrame(self.root, fg_color=DS.BG_PRIMARY)
+        outer.pack(fill="both", expand=True)
 
-        ctk.CTkLabel(main_card, text="🔐", font=("Segoe UI", 48), text_color="#00a8ff").pack(pady=(30, 10))
-        ctk.CTkLabel(main_card, text="Password Recovery",
-                     font=("Segoe UI", 24, "bold"), text_color="#ffffff").pack()
-        ctk.CTkLabel(main_card, text="Enter your registered email address",
-                     font=("Segoe UI", 12), text_color="#a0a0a0").pack(pady=(0, 20))
+        wrapper = ctk.CTkFrame(outer, fg_color="transparent", width=380)
+        wrapper.place(relx=0.5, rely=0.5, anchor="center")
 
-        self.fp_email_entry = ctk.CTkEntry(main_card, font=("Segoe UI", 13), width=300)
-        self.fp_email_entry.pack(pady=5)
+        ctk.CTkLabel(wrapper, text="🔐", font=("Segoe UI", 42),
+                     text_color=DS.ACCENT_PRIMARY).pack(pady=(0, 12))
+        ctk.CTkLabel(wrapper, text="Password Recovery",
+                     font=DS.FONT_HEADING_LG,
+                     text_color=DS.TEXT_PRIMARY).pack()
+        ctk.CTkLabel(wrapper, text="Enter your registered email to receive a reset code",
+                     font=DS.FONT_BODY_SM, text_color=DS.TEXT_SECONDARY).pack(pady=(4, 24))
+
+        card = ctk.CTkFrame(wrapper, fg_color=DS.BG_SURFACE,
+                            corner_radius=DS.RADIUS_LG,
+                            border_color=DS.BORDER_MUTED, border_width=1)
+        card.pack(fill="x", padx=10)
+
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(fill="x", padx=28, pady=24)
+
+        create_field_label(inner, "Email Address").pack(anchor="w", pady=(0, 4))
+        self.fp_email_entry = create_styled_entry(inner, placeholder="you@company.com")
+        self.fp_email_entry.pack(fill="x", pady=(0, 18))
 
         def send_reset_code():
             email = self.fp_email_entry.get().strip().lower()
             if not email:
-                self.show_error("Please enter your email.")
+                self.show_error("Please enter your email address.")
                 return
             target_username = None
             for user, data in auth.users.items():
@@ -1157,75 +1273,79 @@ class LoginWindow:
             self.root.config(cursor="watch")
             loader = ctk.CTkToplevel(self.root)
             loader.overrideredirect(True)
-            x = self.root.winfo_x() + (self.root.winfo_width() // 2) - 125
-            y = self.root.winfo_y() + (self.root.winfo_height() // 2) - 40
-            loader.geometry(f"250x80+{x}+{y}")
-            loader.configure(fg_color="#111111")
-            ctk.CTkLabel(loader, text="⏳ Routing Secure OTP...",
-                         font=("Consolas", 11, "bold"), text_color="#00ff00").pack(expand=True)
+            lx = self.root.winfo_x() + (self.root.winfo_width() // 2) - 120
+            ly = self.root.winfo_y() + (self.root.winfo_height() // 2) - 35
+            loader.geometry(f"240x70+{lx}+{ly}")
+            loader.configure(fg_color=DS.BG_SURFACE)
+            ctk.CTkLabel(loader, text="Sending reset code…",
+                         font=DS.FONT_BODY_SM, text_color=DS.ACCENT_PRIMARY).pack(expand=True)
             loader.update()
             self._apply_icon(loader)
 
             def _send_reset_task():
                 success, msg = email_service.send_otp_email(email, "reset")
+
                 def _update_gui():
                     self.root.config(cursor="")
                     loader.destroy()
                     if success:
-                        self.show_success(f"A password reset code has been sent to {email}")
+                        self.show_success(f"Password reset code sent to {email}")
                         self._build_reset_pass_ui(target_username, email)
                     else:
                         self.show_error(msg)
+
                 self.root.after(0, _update_gui)
 
             threading.Thread(target=_send_reset_task, daemon=True).start()
 
-        ctk.CTkButton(main_card, text="[ SEND RECOVERY CODE ]", command=send_reset_code,
-                      font=("Consolas", 12, "bold"), fg_color="#004d00", hover_color="#006600",
-                      text_color="#00ff00", corner_radius=8, height=45).pack(fill="x", padx=40, pady=(20, 10))
-        ctk.CTkButton(main_card, text="< Back to Login", command=self._build_login_ui,
-                      font=("Segoe UI", 11), fg_color="transparent", text_color="#a0a0a0",
-                      hover=False).pack(pady=(0, 30))
+        create_primary_button(inner, "Send Recovery Code",
+                              send_reset_code).pack(fill="x")
+
+        create_link_button(wrapper, "← Back to sign in",
+                          self._build_login_ui).pack(pady=(16, 0))
 
     def _build_reset_pass_ui(self, username, email):
         for widget in self.root.winfo_children():
             widget.destroy()
 
-        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
-        main_card.pack(expand=True, fill="both", padx=40, pady=40)
+        outer = ctk.CTkFrame(self.root, fg_color=DS.BG_PRIMARY)
+        outer.pack(fill="both", expand=True)
 
-        ctk.CTkLabel(main_card, text="🔓", font=("Segoe UI", 48), text_color="#00ff00").pack(pady=(30, 10))
-        ctk.CTkLabel(main_card, text="Reset Password",
-                     font=("Segoe UI", 24, "bold"), text_color="#ffffff").pack()
-        ctk.CTkLabel(main_card, text=f"Account: {username}",
-                     font=("Consolas", 12), text_color="#00ff00").pack(pady=(0, 20))
+        wrapper = ctk.CTkFrame(outer, fg_color="transparent", width=380)
+        wrapper.place(relx=0.5, rely=0.45, anchor="center")
 
-        # OTP
-        otp_frame = ctk.CTkFrame(main_card, fg_color="transparent")
-        otp_frame.pack(fill="x", padx=40, pady=5)
-        ctk.CTkLabel(otp_frame, text="6‑Digit OTP Code:", font=("Segoe UI", 11),
-                     text_color="#a0a0a0").pack(anchor="w")
-        self.rp_otp_entry = ctk.CTkEntry(otp_frame, font=("Consolas", 13),
-                                          fg_color="#2b2b2b", border_color="#3c3c3c")
-        self.rp_otp_entry.pack(fill="x", pady=(2, 0))
+        ctk.CTkLabel(wrapper, text="🔓", font=("Segoe UI", 42),
+                     text_color=DS.SUCCESS).pack(pady=(0, 12))
+        ctk.CTkLabel(wrapper, text="Reset Password",
+                     font=DS.FONT_HEADING_LG,
+                     text_color=DS.TEXT_PRIMARY).pack()
 
-        # New password
-        pass_frame = ctk.CTkFrame(main_card, fg_color="transparent")
-        pass_frame.pack(fill="x", padx=40, pady=5)
-        ctk.CTkLabel(pass_frame, text="New Password:", font=("Segoe UI", 11),
-                     text_color="#a0a0a0").pack(anchor="w")
-        self.rp_pass_entry = ctk.CTkEntry(pass_frame, show="•", font=("Consolas", 13),
-                                           fg_color="#2b2b2b", border_color="#3c3c3c")
-        self.rp_pass_entry.pack(fill="x", pady=(2, 0))
+        # Account badge
+        badge = ctk.CTkFrame(wrapper, fg_color=DS.BG_SURFACE_2,
+                              corner_radius=DS.RADIUS_SM)
+        badge.pack(pady=(8, 20))
+        ctk.CTkLabel(badge, text=f"Account: {username}",
+                     font=DS.FONT_MONO_SM, text_color=DS.ACCENT_PRIMARY).pack(padx=16, pady=6)
 
-        # Confirm
-        confirm_frame = ctk.CTkFrame(main_card, fg_color="transparent")
-        confirm_frame.pack(fill="x", padx=40, pady=5)
-        ctk.CTkLabel(confirm_frame, text="Confirm Password:", font=("Segoe UI", 11),
-                     text_color="#a0a0a0").pack(anchor="w")
-        self.rp_confirm_entry = ctk.CTkEntry(confirm_frame, show="•", font=("Consolas", 13),
-                                              fg_color="#2b2b2b", border_color="#3c3c3c")
-        self.rp_confirm_entry.pack(fill="x", pady=(2, 0))
+        card = ctk.CTkFrame(wrapper, fg_color=DS.BG_SURFACE,
+                            corner_radius=DS.RADIUS_LG,
+                            border_color=DS.BORDER_MUTED, border_width=1)
+        card.pack(fill="x", padx=10)
+
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(fill="x", padx=28, pady=24)
+
+        create_field_label(inner, "6-Digit OTP Code").pack(anchor="w", pady=(0, 4))
+        self.rp_otp_entry = create_styled_entry(inner, placeholder="Enter code from email")
+        self.rp_otp_entry.pack(fill="x", pady=(0, 12))
+
+        create_field_label(inner, "New Password").pack(anchor="w", pady=(0, 4))
+        self.rp_pass_entry = create_styled_entry(inner, placeholder="Minimum 6 characters", show="•")
+        self.rp_pass_entry.pack(fill="x", pady=(0, 12))
+
+        create_field_label(inner, "Confirm Password").pack(anchor="w", pady=(0, 4))
+        self.rp_confirm_entry = create_styled_entry(inner, placeholder="Re-enter password", show="•")
+        self.rp_confirm_entry.pack(fill="x", pady=(0, 18))
 
         def execute_reset():
             otp = self.rp_otp_entry.get().strip()
@@ -1238,181 +1358,133 @@ class LoginWindow:
             if new_pass != confirm:
                 self.show_error("Passwords do not match.")
                 return
-
             is_valid, msg = email_service.verify_otp(email, otp)
             if is_valid:
                 success, auth_msg = auth.update_password(username, new_pass)
                 if success:
-                    self.show_success("Password reset successfully! You can now log in.")
+                    self.show_success("Password reset successfully!\nYou can now sign in.")
                     self._build_login_ui()
                 else:
                     self.show_error(auth_msg)
             else:
                 self.show_error(msg)
 
-        ctk.CTkButton(main_card, text="[ COMMIT NEW PASSWORD ]", command=execute_reset,
-                      font=("Consolas", 12, "bold"), fg_color="#004d00", hover_color="#006600",
-                      text_color="#00ff00", corner_radius=8, height=45).pack(fill="x", padx=40, pady=(20, 10))
-        ctk.CTkButton(main_card, text="Cancel", command=self._build_login_ui,
-                      font=("Segoe UI", 11), fg_color="transparent", text_color="#a0a0a0",
-                      hover=False).pack(pady=(0, 30))
+        create_primary_button(inner, "Reset Password", execute_reset).pack(fill="x")
 
-    # ------------------------------------------------------------------
-    # Google SSO
-    # ------------------------------------------------------------------
+        create_link_button(wrapper, "← Cancel",
+                          self._build_login_ui).pack(pady=(16, 0))
+
+    # ══════════════════════════════════════════════════════════════════════
+    # GOOGLE SSO (same logic)
+    # ══════════════════════════════════════════════════════════════════════
     def _handle_google_login(self, mode="login"):
-        """
-        Opens Google OAuth in the browser.
-        mode = "register"  →  first-time account creation via Google
-        mode = "login"     →  returning user login (allowlist check applies)
-        """
         self.root.config(cursor="watch")
         self.root.update()
-        self._google_mode = mode  # store mode so _process_google_result can read it
- 
+        self._google_mode = mode
+
         def _auth_thread():
             from core.google_auth import authenticate_google_sso
             success, result = authenticate_google_sso()
             self.root.after(0, lambda: self._process_google_result(success, result))
- 
+
         threading.Thread(target=_auth_thread, daemon=True).start()
 
     def _process_google_result(self, success, result):
-        """
-        Called after Google OAuth completes.
- 
-        REGISTRATION mode (mode="register"):
-            - Google verifies identity.
-            - We auto-fill the email from Google.
-            - If the email is ALREADY registered → redirect to login (no duplicate).
-            - If the email is NEW → show PIN setup → create account.
- 
-        LOGIN mode (mode="login"):
-            - GAP 2 FIX: Email allowlist — only registered emails pass.
-            - GAP 1 FIX: Device PIN required to confirm physical presence.
-        """
         self.root.config(cursor="")
         mode = getattr(self, '_google_mode', 'login')
- 
+
         if not success:
             self.show_error(result)
             return
- 
+
         email = result['email']
-        name  = result['name']
- 
+        name = result['name']
+
         is_registered, existing_username = auth.is_google_email_registered(email)
- 
-        # ── REGISTRATION MODE ─────────────────────────────────────────────
+
         if mode == "register":
             if is_registered:
-                # Account already exists — just log them in instead
                 self.show_info(
-                    f"{email} is already registered.\n\n"
-                    "Taking you to login instead."
-                )
-                # Route through normal login PIN flow
+                    f"{email} is already registered.\nTaking you to sign in.")
                 if auth.has_sso_pin(existing_username):
                     self._build_sso_pin_verify_ui(existing_username, name)
                 else:
                     self._build_sso_pin_setup_ui(existing_username, name)
             else:
-                # Brand new user — derive a username from the email local-part
                 import uuid as _uuid
                 base_username = email.split('@')[0]
-                # Make username unique if somehow it collides with a manual user
                 username = base_username
-                counter  = 1
+                counter = 1
                 while username in auth.users:
                     username = f"{base_username}{counter}"
                     counter += 1
- 
-                # Register silently with a random password (they'll use PIN + Google)
                 dummy_pass = _uuid.uuid4().hex
-                auth.register_user(
-                    username, email, dummy_pass,
-                    role="admin", auth_method="google"
-                )
+                auth.register_user(username, email, dummy_pass, role="admin", auth_method="google")
                 auth._save_db()
- 
-                # Now ask them to set a device PIN
                 self._build_sso_pin_setup_ui(username, name)
- 
-        # ── LOGIN MODE ────────────────────────────────────────────────────
         else:
-            # GAP 2: Reject any Google account not in our system
             if not is_registered:
                 self.show_error(
-                    f"Access Denied.\n\n"
-                    f"{email} is not registered in FMSecure.\n\n"
-                    "Only pre-registered accounts can sign in with Google.\n"
-                    "Please use 'Create Account' on the registration screen first."
-                )
+                    f"Access Denied.\n\n{email} is not registered.\n\n"
+                    "Only registered accounts can sign in with Google.\n"
+                    "Use 'Create Account' first.")
                 return
- 
-            # GAP 1: PIN gate
             if auth.has_sso_pin(existing_username):
                 self._build_sso_pin_verify_ui(existing_username, name)
             else:
-                # Registered via Google but PIN was never set (edge case)
                 self._build_sso_pin_setup_ui(existing_username, name)
 
     def _build_sso_pin_setup_ui(self, username, name):
-        """
-        First Google login — ask the user to create a 4-digit device PIN.
-        This PIN proves physical presence on this device every future login.
-        """
         for widget in self.root.winfo_children():
             widget.destroy()
- 
-        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
-        main_card.pack(expand=True, fill="both", padx=40, pady=40)
- 
-        ctk.CTkLabel(main_card, text="🔐", font=("Segoe UI", 48),
-                     text_color="#00a8ff").pack(pady=(30, 10))
- 
-        ctk.CTkLabel(main_card, text=f"Welcome, {name}!",
-                     font=("Segoe UI", 22, "bold"),
-                     text_color="#ffffff").pack()
- 
-        ctk.CTkLabel(main_card,
-                     text="Google identity verified.\n\n"
-                          "Set a 4-digit device PIN.\n"
-                          "You will enter this PIN every time\n"
-                          "you sign in with Google on this device.",
-                     font=("Segoe UI", 12), text_color="#a0a0a0",
-                     justify="center").pack(pady=(8, 20))
- 
-        ctk.CTkLabel(main_card, text="NEW DEVICE PIN (4+ digits)",
-                     font=("Segoe UI", 10, "bold"),
-                     text_color="#aaaaaa").pack(anchor="w", padx=40)
- 
-        self._pin_entry = ctk.CTkEntry(
-            main_card, show="●",
-            font=("Segoe UI", 18, "bold"),
-            justify="center", width=160)
-        self._pin_entry.pack(pady=(4, 16))
+
+        outer = ctk.CTkFrame(self.root, fg_color=DS.BG_PRIMARY)
+        outer.pack(fill="both", expand=True)
+
+        wrapper = ctk.CTkFrame(outer, fg_color="transparent", width=380)
+        wrapper.place(relx=0.5, rely=0.5, anchor="center")
+
+        ctk.CTkLabel(wrapper, text="🔐", font=("Segoe UI", 42),
+                     text_color=DS.ACCENT_PRIMARY).pack(pady=(0, 12))
+        ctk.CTkLabel(wrapper, text=f"Welcome, {name}!",
+                     font=DS.FONT_HEADING_LG,
+                     text_color=DS.TEXT_PRIMARY).pack()
+        ctk.CTkLabel(wrapper,
+                     text="Google identity verified.\nSet a device PIN for future sign-ins.",
+                     font=DS.FONT_BODY_SM, text_color=DS.TEXT_SECONDARY,
+                     justify="center").pack(pady=(4, 24))
+
+        card = ctk.CTkFrame(wrapper, fg_color=DS.BG_SURFACE,
+                            corner_radius=DS.RADIUS_LG,
+                            border_color=DS.BORDER_MUTED, border_width=1)
+        card.pack(fill="x", padx=10)
+
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(fill="x", padx=28, pady=24)
+
+        create_field_label(inner, "New Device PIN (4+ digits)").pack(anchor="w", pady=(0, 4))
+        self._pin_entry = ctk.CTkEntry(inner, show="●", font=("Segoe UI", 20, "bold"),
+                                        justify="center", fg_color=DS.BG_INPUT,
+                                        border_color=DS.BORDER, text_color=DS.TEXT_PRIMARY,
+                                        corner_radius=DS.RADIUS_SM, height=48)
+        self._pin_entry.pack(fill="x", pady=(0, 14))
         self._pin_entry.focus()
- 
-        ctk.CTkLabel(main_card, text="CONFIRM PIN",
-                     font=("Segoe UI", 10, "bold"),
-                     text_color="#aaaaaa").pack(anchor="w", padx=40)
- 
-        self._pin_confirm_entry = ctk.CTkEntry(
-            main_card, show="●",
-            font=("Segoe UI", 18, "bold"),
-            justify="center", width=160)
-        self._pin_confirm_entry.pack(pady=(4, 24))
- 
+
+        create_field_label(inner, "Confirm PIN").pack(anchor="w", pady=(0, 4))
+        self._pin_confirm_entry = ctk.CTkEntry(inner, show="●", font=("Segoe UI", 20, "bold"),
+                                                justify="center", fg_color=DS.BG_INPUT,
+                                                border_color=DS.BORDER, text_color=DS.TEXT_PRIMARY,
+                                                corner_radius=DS.RADIUS_SM, height=48)
+        self._pin_confirm_entry.pack(fill="x", pady=(0, 18))
+
         def _save_pin():
-            pin     = self._pin_entry.get().strip()
+            pin = self._pin_entry.get().strip()
             confirm = self._pin_confirm_entry.get().strip()
- 
             if not pin or not confirm:
                 self.show_error("Both PIN fields are required.")
                 return
             if pin != confirm:
-                self.show_error("PINs do not match. Please try again.")
+                self.show_error("PINs do not match.")
                 self._pin_entry.delete(0, "end")
                 self._pin_confirm_entry.delete(0, "end")
                 self._pin_entry.focus()
@@ -1423,443 +1495,416 @@ class LoginWindow:
             if len(pin) < 4:
                 self.show_error("PIN must be at least 4 digits.")
                 return
- 
             ok, msg = auth.set_sso_pin(username, pin)
             if ok:
-                self.show_success(
-                    "Device PIN set!\n\n"
-                    "You are now logged in.\n"
-                    "Use this PIN next time you sign in with Google."
-                )
+                self.show_success("Device PIN set!\nYou are now signed in.")
                 self._launch_main_app(role="admin", username=username)
             else:
                 self.show_error(msg)
- 
-        ctk.CTkButton(
-            main_card, text="Set PIN & Continue",
-            command=_save_pin,
-            fg_color="#004d00", hover_color="#006600",
-            text_color="#00ff00", font=("Consolas", 12, "bold"),
-            corner_radius=8, height=40
-        ).pack(fill="x", padx=40, pady=(0, 10))
- 
-        ctk.CTkButton(
-            main_card, text="Cancel",
-            command=self._build_login_ui,
-            font=("Segoe UI", 11), fg_color="transparent",
-            text_color="#a0a0a0", hover=False
-        ).pack(pady=(0, 20))
- 
+
+        create_primary_button(inner, "Set PIN & Continue", _save_pin).pack(fill="x")
+
+        create_link_button(wrapper, "← Cancel",
+                          self._build_login_ui).pack(pady=(16, 0))
         self.root.bind('<Return>', lambda e: _save_pin())
- 
+
     def _build_sso_pin_verify_ui(self, username, name):
-        """
-        Returning Google user — verify device PIN to confirm physical presence.
-        Also used as the credential check for sensitive actions (Gap 3 fix).
-        """
         for widget in self.root.winfo_children():
             widget.destroy()
- 
-        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
-        main_card.pack(expand=True, fill="both", padx=40, pady=40)
- 
-        ctk.CTkLabel(main_card, text="🛡️", font=("Segoe UI", 48),
-                     text_color="#00a8ff").pack(pady=(30, 10))
- 
-        ctk.CTkLabel(main_card, text=f"Welcome back, {name}!",
-                     font=("Segoe UI", 22, "bold"),
-                     text_color="#ffffff").pack()
- 
-        ctk.CTkLabel(main_card,
-                     text="Google identity verified.\n\n"
-                          "Enter your device PIN to complete sign-in.",
-                     font=("Segoe UI", 12), text_color="#a0a0a0",
-                     justify="center").pack(pady=(8, 20))
- 
-        ctk.CTkLabel(main_card, text="DEVICE PIN",
-                     font=("Segoe UI", 10, "bold"),
-                     text_color="#aaaaaa").pack(anchor="w", padx=40)
- 
-        self._verify_pin_entry = ctk.CTkEntry(
-            main_card, show="●",
-            font=("Segoe UI", 20, "bold"),
-            justify="center", width=160)
-        self._verify_pin_entry.pack(pady=(4, 24))
+
+        outer = ctk.CTkFrame(self.root, fg_color=DS.BG_PRIMARY)
+        outer.pack(fill="both", expand=True)
+
+        wrapper = ctk.CTkFrame(outer, fg_color="transparent", width=380)
+        wrapper.place(relx=0.5, rely=0.5, anchor="center")
+
+        ctk.CTkLabel(wrapper, text="🛡", font=("Segoe UI", 42),
+                     text_color=DS.ACCENT_PRIMARY).pack(pady=(0, 12))
+        ctk.CTkLabel(wrapper, text=f"Welcome back, {name}",
+                     font=DS.FONT_HEADING_LG,
+                     text_color=DS.TEXT_PRIMARY).pack()
+        ctk.CTkLabel(wrapper,
+                     text="Google identity verified.\nEnter your device PIN to continue.",
+                     font=DS.FONT_BODY_SM, text_color=DS.TEXT_SECONDARY,
+                     justify="center").pack(pady=(4, 24))
+
+        card = ctk.CTkFrame(wrapper, fg_color=DS.BG_SURFACE,
+                            corner_radius=DS.RADIUS_LG,
+                            border_color=DS.BORDER_MUTED, border_width=1)
+        card.pack(fill="x", padx=10)
+
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(fill="x", padx=28, pady=24)
+
+        create_field_label(inner, "Device PIN").pack(anchor="w", pady=(0, 4))
+        self._verify_pin_entry = ctk.CTkEntry(inner, show="●",
+                                               font=("Segoe UI", 22, "bold"),
+                                               justify="center", fg_color=DS.BG_INPUT,
+                                               border_color=DS.BORDER,
+                                               text_color=DS.TEXT_PRIMARY,
+                                               corner_radius=DS.RADIUS_SM, height=52)
+        self._verify_pin_entry.pack(fill="x", pady=(0, 18))
         self._verify_pin_entry.focus()
- 
+
         self._pin_attempts = 0
- 
+
         def _verify_pin():
             pin = self._verify_pin_entry.get().strip()
- 
             if not pin:
                 self.show_error("Please enter your PIN.")
                 return
- 
             if auth.verify_sso_pin(username, pin):
                 self._launch_main_app(role="admin", username=username)
             else:
                 self._pin_attempts += 1
                 self._verify_pin_entry.delete(0, "end")
- 
                 if self._pin_attempts >= 3:
                     self.show_security_alert(
-                        "DEVICE PIN LOCKED",
-                        "3 incorrect PINs entered.\n\n"
-                        "Returned to the login screen for security."
-                    )
+                        "PIN LOCKOUT",
+                        "3 incorrect PINs entered.\nReturning to sign in.")
                     self._build_login_ui()
                 else:
                     remaining = 3 - self._pin_attempts
-                    self.show_error(
-                        f"Incorrect PIN.\n\n"
-                        f"{remaining} attempt(s) remaining before lockout."
-                    )
- 
-        ctk.CTkButton(
-            main_card, text="[ VERIFY PIN ]",
-            command=_verify_pin,
-            fg_color="#004d00", hover_color="#006600",
-            text_color="#00ff00", font=("Consolas", 12, "bold"),
-            corner_radius=8, height=40
-        ).pack(fill="x", padx=40, pady=(0, 10))
- 
-        ctk.CTkButton(
-            main_card, text="Cancel",
-            command=self._build_login_ui,
-            font=("Segoe UI", 11), fg_color="transparent",
-            text_color="#a0a0a0", hover=False
-        ).pack(pady=(0, 20))
- 
+                    self.show_error(f"Incorrect PIN.\n{remaining} attempt(s) remaining.")
+
+        create_primary_button(inner, "Verify PIN", _verify_pin).pack(fill="x")
+
+        create_link_button(wrapper, "← Cancel",
+                          self._build_login_ui).pack(pady=(16, 0))
         self.root.bind('<Return>', lambda e: _verify_pin())
 
+    # ══════════════════════════════════════════════════════════════════════
+    # REGISTRATION ATTEMPT (same logic)
+    # ══════════════════════════════════════════════════════════════════════
+    def _attempt_register(self):
+        if getattr(self, 'is_processing', False):
+            return
+        self.is_processing = True
 
-    # ── ADD these four methods to the LoginWindow class ───────────────────────────
-    
-    
+        username = self.reg_user_entry.get().strip()
+        email = self.reg_email_entry.get().strip().lower()
+        password = self.reg_pass_entry.get()
+        confirm = self.reg_confirm_entry.get()
+
+        if not username or not email or not password or not confirm:
+            self.show_error("All fields are required.")
+            self.is_processing = False
+            return
+
+        email_pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+        if not re.match(email_pattern, email):
+            self.show_error("Invalid email format.")
+            self.is_processing = False
+            return
+
+        if password != confirm:
+            self.show_error("Passwords do not match.")
+            self.is_processing = False
+            return
+
+        if len(password) < 6:
+            self.show_error("Password must be at least 6 characters.")
+            self.is_processing = False
+            return
+
+        self._set_ui_state("disabled")
+        self.root.config(cursor="watch")
+
+        loader = ctk.CTkToplevel(self.root)
+        loader.overrideredirect(True)
+        lx = self.root.winfo_x() + (self.root.winfo_width() // 2) - 100
+        ly = self.root.winfo_y() + (self.root.winfo_height() // 2) - 35
+        loader.geometry(f"200x70+{lx}+{ly}")
+        loader.configure(fg_color=DS.BG_SURFACE)
+        self._apply_icon(loader)
+
+        ctk.CTkLabel(loader, text="Sending verification…",
+                     font=DS.FONT_BODY_SM, text_color=DS.ACCENT_PRIMARY).pack(expand=True)
+        loader.update()
+
+        def _send_email_task():
+            try:
+                success, msg = email_service.send_otp_email(email, "verification")
+            except Exception as e:
+                success = False
+                msg = str(e)
+
+            def _update_gui():
+                self.root.config(cursor="")
+                loader.destroy()
+                if success:
+                    self.show_success(f"Verification code sent to:\n{email}")
+                    self._build_otp_ui(username, email, password)
+                else:
+                    self.show_error(f"Failed to send OTP.\n\n{msg}")
+                    self.is_processing = False
+                    self._set_ui_state("normal")
+
+            self.root.after(0, _update_gui)
+
+        threading.Thread(target=_send_email_task, daemon=True).start()
+
+    def _set_ui_state(self, state="normal"):
+        target_state = "normal" if state == "normal" else "disabled"
+        for btn_name in ["login_btn", "reg_btn", "google_btn", "viewer_btn", "guest_btn"]:
+            if hasattr(self, btn_name):
+                try:
+                    getattr(self, btn_name).configure(state=target_state)
+                except:
+                    pass
+
+    # ══════════════════════════════════════════════════════════════════════
+    # TENANT / CLOUD / REINSTALL FLOWS (same logic, updated UI)
+    # ══════════════════════════════════════════════════════════════════════
     def _check_tenant_then_reinstall(self):
-        """
-        Entry point after splash on a fresh install (no local users).
-    
-        Priority order:
-        1. FMSECURE_TENANT_KEY env var set → silent auto-enroll, skip wizard
-        2. tenant.json already exists → already enrolled, go to reinstall check
-        3. Neither → show enrollment gateway (ask: org key or personal install?)
-        """
         from core import tenant_manager
-    
-        # ── Path 1: IT admin pre-configured the env variable ─────────────────────
+
         env_key = os.environ.get("FMSECURE_TENANT_KEY", "").strip()
         if env_key and not tenant_manager.is_enrolled():
             self._auto_enroll_from_env(env_key)
             return
-    
-        # ── Path 2: Already enrolled from a previous install ─────────────────────
+
         if tenant_manager.is_enrolled():
-            # Tenant config exists — go straight to cloud restore check
             self._check_for_reinstall_backup()
             return
-    
-        # ── Path 3: No tenant config — show the enrollment gateway ───────────────
+
         self._build_tenant_gateway_ui()
-    
-    
-    def _auto_enroll_from_env(self, env_key: str):
-        """
-        Silent enrollment from FMSECURE_TENANT_KEY environment variable.
-        Used when IT admin pre-configures machines before deployment.
-        Shows a brief status screen, validates the key, saves, then continues.
-        """
+
+    def _auto_enroll_from_env(self, env_key):
         from core import tenant_manager
-    
-        # Show a minimal status screen so the user sees something
+
         for widget in self.root.winfo_children():
             widget.destroy()
-    
-        card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
-        card.pack(expand=True, fill="both", padx=40, pady=80)
-    
-        ctk.CTkLabel(card, text="🏢", font=("Segoe UI", 42),
-                    text_color="#00a8ff").pack(pady=(30, 8))
-        ctk.CTkLabel(card, text="Enrolling in Organisation",
-                    font=("Segoe UI", 18, "bold"),
-                    text_color="#ffffff").pack()
+
+        outer = ctk.CTkFrame(self.root, fg_color=DS.BG_PRIMARY)
+        outer.pack(fill="both", expand=True)
+
+        wrapper = ctk.CTkFrame(outer, fg_color="transparent", width=380)
+        wrapper.place(relx=0.5, rely=0.5, anchor="center")
+
+        ctk.CTkLabel(wrapper, text="🏢", font=("Segoe UI", 42),
+                     text_color=DS.ACCENT_PRIMARY).pack(pady=(0, 12))
+        ctk.CTkLabel(wrapper, text="Enrolling in Organisation",
+                     font=DS.FONT_HEADING_MD,
+                     text_color=DS.TEXT_PRIMARY).pack()
         status_var = ctk.StringVar(value="Validating organisation key…")
-        ctk.CTkLabel(card, textvariable=status_var,
-                    font=("Segoe UI", 11), text_color="#a0a0a0").pack(pady=(8, 0))
-    
+        ctk.CTkLabel(wrapper, textvariable=status_var,
+                     font=DS.FONT_BODY_SM, text_color=DS.TEXT_SECONDARY).pack(pady=(8, 0))
+
         def _do_enroll():
             ok, tenant_name = tenant_manager.validate_key(env_key)
             if ok:
                 tenant_manager.save(env_key,
-                    "https://fmsecure-c2-server-production.up.railway.app",
-                    tenant_name)
+                                    "https://fmsecure-c2-server-production.up.railway.app",
+                                    tenant_name)
                 self.root.after(0, lambda: status_var.set(
-                    f"✅ Enrolled in: {tenant_name or 'organisation'}"))
+                    f"✓ Enrolled in: {tenant_name or 'organisation'}"))
                 self.root.after(1200, self._check_for_reinstall_backup)
             else:
-                # Key invalid — fall through to normal install (don't block the user)
                 self.root.after(0, lambda: status_var.set(
-                    "⚠️  Organisation key invalid — continuing as personal install."))
+                    "⚠ Organisation key invalid — continuing as personal install."))
                 self.root.after(1800, self._check_for_reinstall_backup)
-    
-        import threading
+
         threading.Thread(target=_do_enroll, daemon=True).start()
-    
-    
+
     def _build_tenant_gateway_ui(self):
-        """
-        Gateway screen shown on a fresh personal install.
-        Asks: "Is this an organisation-managed machine, or a personal install?"
-    
-        - Organisation → shows the key enrollment wizard
-        - Personal      → existing reinstall/register flow (unchanged)
-        """
         for widget in self.root.winfo_children():
             widget.destroy()
-    
-        card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
-        card.pack(expand=True, fill="both", padx=30, pady=24)
-    
-        ctk.CTkLabel(card, text="⚡", font=("Segoe UI", 42),
-                    text_color="#2f81f7").pack(pady=(28, 8))
-        ctk.CTkLabel(card, text="Welcome to FMSecure",
-                    font=("Segoe UI", 20, "bold"),
-                    text_color="#ffffff").pack()
-        ctk.CTkLabel(card,
-                    text="How is this installation being set up?",
-                    font=("Segoe UI", 12), text_color="#a0a0a0").pack(pady=(6, 24))
-    
-        # Option A — Organisation
-        org_frame = ctk.CTkFrame(card, fg_color="#0d1424",
-                                border_color="#2f81f7", border_width=1,
-                                corner_radius=10)
-        org_frame.pack(fill="x", padx=28, pady=(0, 12))
-    
-        org_inner = ctk.CTkFrame(org_frame, fg_color="transparent")
+
+        outer = ctk.CTkFrame(self.root, fg_color=DS.BG_PRIMARY)
+        outer.pack(fill="both", expand=True)
+
+        scroll = ctk.CTkScrollableFrame(outer, fg_color=DS.BG_PRIMARY)
+        scroll.pack(fill="both", expand=True, padx=30, pady=30)
+
+        ctk.CTkLabel(scroll, text="⚡", font=("Segoe UI", 42),
+                     text_color=DS.ACCENT_PRIMARY).pack(pady=(0, 8))
+        ctk.CTkLabel(scroll, text="Welcome to FMSecure",
+                     font=DS.FONT_HEADING_LG,
+                     text_color=DS.TEXT_PRIMARY).pack()
+        ctk.CTkLabel(scroll, text="How is this installation being set up?",
+                     font=DS.FONT_BODY_SM, text_color=DS.TEXT_SECONDARY).pack(pady=(4, 24))
+
+        # Organisation option
+        org_card = ctk.CTkFrame(scroll, fg_color=DS.BG_SURFACE,
+                                 corner_radius=DS.RADIUS_MD,
+                                 border_color=DS.ACCENT_MUTED, border_width=1)
+        org_card.pack(fill="x", pady=(0, 12))
+
+        org_inner = ctk.CTkFrame(org_card, fg_color="transparent")
         org_inner.pack(fill="x", padx=20, pady=16)
-    
+
         ctk.CTkLabel(org_inner, text="🏢  Organisation Managed",
-                    font=("Segoe UI", 13, "bold"),
-                    text_color="#e6edf3").pack(anchor="w")
+                     font=DS.FONT_HEADING_SM,
+                     text_color=DS.TEXT_PRIMARY).pack(anchor="w")
         ctk.CTkLabel(org_inner,
-                    text="Your IT admin provided an organisation key.\n"
-                        "This machine will report to your organisation's security dashboard.",
-                    font=("Segoe UI", 10), text_color="#8b949e",
-                    justify="left").pack(anchor="w", pady=(4, 10))
-        ctk.CTkButton(org_inner, text="Enter Organisation Key →",
-                    command=self._build_tenant_enrollment_ui,
-                    font=("Segoe UI", 12, "bold"),
-                    fg_color="#2f81f7", hover_color="#4f96ff",
-                    corner_radius=8, height=38).pack(anchor="w")
-    
-        # Option B — Personal
-        personal_frame = ctk.CTkFrame(card, fg_color="#111111",
-                                    border_color="#30363d", border_width=1,
-                                    corner_radius=10)
-        personal_frame.pack(fill="x", padx=28, pady=(0, 8))
-    
-        personal_inner = ctk.CTkFrame(personal_frame, fg_color="transparent")
+                     text="Your IT admin provided an organisation key.\n"
+                          "This machine will report to your org's dashboard.",
+                     font=DS.FONT_CAPTION, text_color=DS.TEXT_SECONDARY,
+                     justify="left").pack(anchor="w", pady=(4, 10))
+        create_primary_button(org_inner, "Enter Organisation Key →",
+                              self._build_tenant_enrollment_ui).pack(anchor="w")
+
+        # Personal option
+        personal_card = ctk.CTkFrame(scroll, fg_color=DS.BG_SURFACE,
+                                      corner_radius=DS.RADIUS_MD,
+                                      border_color=DS.BORDER_MUTED, border_width=1)
+        personal_card.pack(fill="x", pady=(0, 12))
+
+        personal_inner = ctk.CTkFrame(personal_card, fg_color="transparent")
         personal_inner.pack(fill="x", padx=20, pady=16)
-    
+
         ctk.CTkLabel(personal_inner, text="👤  Personal Install",
-                    font=("Segoe UI", 13, "bold"),
-                    text_color="#e6edf3").pack(anchor="w")
+                     font=DS.FONT_HEADING_SM,
+                     text_color=DS.TEXT_PRIMARY).pack(anchor="w")
         ctk.CTkLabel(personal_inner,
-                    text="Standard installation for personal or standalone use.\n"
-                        "No organisation key required.",
-                    font=("Segoe UI", 10), text_color="#8b949e",
-                    justify="left").pack(anchor="w", pady=(4, 10))
-        ctk.CTkButton(personal_inner, text="Continue as Personal Install",
-                    command=self._check_for_reinstall_backup,
-                    font=("Segoe UI", 12),
-                    fg_color="#21262d", hover_color="#30363d",
-                    text_color="#a0a0a0",
-                    corner_radius=8, height=38).pack(anchor="w")
-    
-        ctk.CTkLabel(card,
-                    text="Your choice can be changed later from within the app.",
-                    font=("Segoe UI", 9), text_color="#484f58").pack(
-            pady=(8, 20))
-    
-    
+                     text="Standard installation for personal or standalone use.\n"
+                          "No organisation key required.",
+                     font=DS.FONT_CAPTION, text_color=DS.TEXT_SECONDARY,
+                     justify="left").pack(anchor="w", pady=(4, 10))
+        create_secondary_button(personal_inner, "Continue as Personal Install",
+                                self._check_for_reinstall_backup).pack(anchor="w")
+
+        ctk.CTkLabel(scroll,
+                     text="Your choice can be changed later from within the app.",
+                     font=DS.FONT_TINY, text_color=DS.TEXT_TERTIARY).pack(pady=(8, 0))
+
     def _build_tenant_enrollment_ui(self):
-        """
-        Organisation key enrollment wizard.
-        Validates the key against the server before saving it.
-        """
         from core import tenant_manager
-    
+
         for widget in self.root.winfo_children():
             widget.destroy()
-    
-        card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
-        card.pack(expand=True, fill="both", padx=30, pady=20)
-    
-        ctk.CTkLabel(card, text="🔑", font=("Segoe UI", 40),
-                    text_color="#2f81f7").pack(pady=(28, 8))
-        ctk.CTkLabel(card, text="Enter Organisation Key",
-                    font=("Segoe UI", 20, "bold"),
-                    text_color="#ffffff").pack()
-        ctk.CTkLabel(card,
-                    text="Your IT administrator provided this key when they\n"
-                        "registered your organisation with FMSecure.",
-                    font=("Segoe UI", 11), text_color="#a0a0a0",
-                    justify="center").pack(pady=(6, 20))
-    
-        # Key entry
-        ctk.CTkLabel(card, text="ORGANISATION KEY",
-                    font=("Segoe UI", 10, "bold"),
-                    text_color="#8b949e").pack(anchor="w", padx=36)
-    
+
+        outer = ctk.CTkFrame(self.root, fg_color=DS.BG_PRIMARY)
+        outer.pack(fill="both", expand=True)
+
+        wrapper = ctk.CTkFrame(outer, fg_color="transparent", width=400)
+        wrapper.place(relx=0.5, rely=0.5, anchor="center")
+
+        ctk.CTkLabel(wrapper, text="🔑", font=("Segoe UI", 40),
+                     text_color=DS.ACCENT_PRIMARY).pack(pady=(0, 8))
+        ctk.CTkLabel(wrapper, text="Enter Organisation Key",
+                     font=DS.FONT_HEADING_LG,
+                     text_color=DS.TEXT_PRIMARY).pack()
+        ctk.CTkLabel(wrapper,
+                     text="Your IT administrator provided this key when they\nregistered your organisation with FMSecure.",
+                     font=DS.FONT_BODY_SM, text_color=DS.TEXT_SECONDARY,
+                     justify="center").pack(pady=(4, 24))
+
+        card = ctk.CTkFrame(wrapper, fg_color=DS.BG_SURFACE,
+                            corner_radius=DS.RADIUS_LG,
+                            border_color=DS.BORDER_MUTED, border_width=1)
+        card.pack(fill="x", padx=10)
+
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(fill="x", padx=28, pady=24)
+
+        create_field_label(inner, "Organisation Key").pack(anchor="w", pady=(0, 4))
         key_var = ctk.StringVar()
-        key_entry = ctk.CTkEntry(
-            card, textvariable=key_var,
-            placeholder_text="fms-tenant-xxxxxxxxxxxxxxxxxxxx",
-            font=("Consolas", 13),
-            fg_color="#0d1117", border_color="#30363d",
-            text_color="#2f81f7", height=44)
-        key_entry.pack(fill="x", padx=36, pady=(4, 0))
+        key_entry = ctk.CTkEntry(inner, textvariable=key_var,
+                                  placeholder_text="fms-tenant-xxxxxxxxxxxxxxxxxxxx",
+                                  font=DS.FONT_MONO_SM, fg_color=DS.BG_INPUT,
+                                  border_color=DS.BORDER, text_color=DS.ACCENT_PRIMARY,
+                                  corner_radius=DS.RADIUS_SM, height=DS.INPUT_HEIGHT)
+        key_entry.pack(fill="x", pady=(0, 6))
         key_entry.focus()
-    
-        # Status label
-        status_lbl = ctk.CTkLabel(card, text="",
-                                font=("Segoe UI", 10),
-                                text_color="#ff4444",
-                                wraplength=340)
-        status_lbl.pack(pady=(8, 0))
-    
-        # Progress bar (hidden until validating)
-        prog = ctk.CTkProgressBar(card, width=320, mode="indeterminate")
-    
+
+        status_lbl = ctk.CTkLabel(inner, text="", font=DS.FONT_CAPTION,
+                                   text_color=DS.ERROR, wraplength=320)
+        status_lbl.pack(pady=(0, 12))
+
+        prog = ctk.CTkProgressBar(inner, width=320, mode="indeterminate",
+                                   progress_color=DS.ACCENT_PRIMARY)
+
         def _do_enroll():
             key = key_var.get().strip()
             if not key:
                 status_lbl.configure(text="Please enter the organisation key.",
-                                    text_color="#ff4444")
+                                     text_color=DS.ERROR)
                 return
             if not key.startswith("fms-tenant-"):
                 status_lbl.configure(
-                    text="That doesn't look like an FMSecure organisation key.\n"
-                        "It should start with  fms-tenant-",
-                    text_color="#ff4444")
+                    text="Key should start with fms-tenant-",
+                    text_color=DS.ERROR)
                 return
-    
-            # Disable UI, show progress
+
             enroll_btn.configure(state="disabled", text="Validating…")
             status_lbl.configure(text="Connecting to FMSecure server…",
-                                text_color="#8b949e")
-            prog.pack(pady=(6, 0))
+                                 text_color=DS.TEXT_SECONDARY)
+            prog.pack(pady=(0, 6))
             prog.start()
-    
+
             def _validate_in_thread():
                 ok, result = tenant_manager.validate_key(key)
-    
+
                 def _finish():
                     prog.stop()
                     prog.pack_forget()
                     enroll_btn.configure(state="normal",
-                                        text="Enroll This Machine →")
-    
+                                         text="Enroll This Machine →")
                     if ok:
-                        # Save and move on
                         tenant_manager.save(
                             key,
                             "https://fmsecure-c2-server-production.up.railway.app",
-                            result   # result = tenant slug/name on success
-                        )
+                            result)
                         status_lbl.configure(
-                            text=f"✅ Enrolled in: {result or 'organisation'}",
-                            text_color="#3fb950")
-                        # Brief pause so user sees success, then continue
+                            text=f"✓ Enrolled in: {result or 'organisation'}",
+                            text_color=DS.SUCCESS)
                         self.root.after(1200, self._check_for_reinstall_backup)
                     else:
-                        status_lbl.configure(text=result, text_color="#ff4444")
-    
+                        status_lbl.configure(text=result, text_color=DS.ERROR)
+
                 self.root.after(0, _finish)
-    
-            import threading
+
             threading.Thread(target=_validate_in_thread, daemon=True).start()
-    
-        enroll_btn = ctk.CTkButton(
-            card, text="Enroll This Machine →",
-            command=_do_enroll,
-            font=("Segoe UI", 13, "bold"),
-            fg_color="#2f81f7", hover_color="#4f96ff",
-            corner_radius=8, height=44)
-        enroll_btn.pack(fill="x", padx=36, pady=(16, 8))
-    
-        ctk.CTkButton(
-            card, text="← Back",
-            command=self._build_tenant_gateway_ui,
-            font=("Segoe UI", 11), fg_color="transparent",
-            text_color="#8b949e", hover=False).pack(pady=(0, 24))
-    
+
+        enroll_btn = create_primary_button(inner, "Enroll This Machine →", _do_enroll)
+        enroll_btn.pack(fill="x")
+
+        create_link_button(wrapper, "← Back",
+                          self._build_tenant_gateway_ui).pack(pady=(16, 0))
+
         key_entry.bind("<Return>", lambda e: _do_enroll())
         self.root.bind("<Escape>", lambda e: self._build_tenant_gateway_ui())
-    
 
-
+    # ══════════════════════════════════════════════════════════════════════
+    # CLOUD BACKUP / REINSTALL DETECTION (same logic, updated UI)
+    # ══════════════════════════════════════════════════════════════════════
     def _check_for_reinstall_backup(self):
-        """
-        Called after splash on a fresh install (no local users.dat).
-
-        PATTERN (industry-standard, WhatsApp-style):
-          1. If a cached OAuth token exists  → probe Drive silently (no user friction).
-          2. If NO token                     → show a gateway screen offering the
-             user the choice to connect Google Drive OR skip and create a new account.
-             This handles the "full AppData wipe" scenario cleanly.
-
-        Never silently fall through to register without giving the user the chance
-        to recover their cloud backup.
-        """
         from core.utils import get_app_data_dir
 
-        # Existing users present — nothing to detect, show login UI directly
         if auth.has_users():
             self._build_login_ui()
             return
 
         token_path = os.path.join(get_app_data_dir(), "token.pickle")
         if os.path.exists(token_path):
-            # Token cached — probe Drive silently, no user friction
             self._build_cloud_probe_ui()
             self._start_drive_probe()
         else:
-            # No cached token — show gateway: connect Drive or skip
             self._build_cloud_gateway_ui()
 
     def _start_drive_probe(self):
-        """Background Drive probe — called when token.pickle already exists."""
         def _probe():
             try:
                 from core.cloud_sync import cloud_sync
                 from core.encryption_manager import crypto_manager
 
                 if not cloud_sync.is_active:
-                    # Token exists but auth failed (expired/revoked) — offer gateway
                     self.root.after(0, self._build_cloud_gateway_ui)
                     return
-
                 self._run_backup_probe(cloud_sync, crypto_manager)
-
             except Exception as e:
-                print(f"[LOGIN] Drive probe error (non-critical): {e}")
+                print(f"[LOGIN] Drive probe error: {e}")
                 self.root.after(0, self._build_register_ui)
 
-        import threading
         threading.Thread(target=_probe, daemon=True).start()
 
     def _run_backup_probe(self, cloud_sync, crypto_manager):
-        """
-        Core probe logic — shared by both the silent path (token cached) and
-        the interactive path (user just authenticated). Runs on a background thread;
-        schedules all UI updates via root.after().
-        """
         try:
-            machine_id  = crypto_manager.get_machine_id()
+            machine_id = crypto_manager.get_machine_id()
             backup_info = cloud_sync.check_backup_exists(machine_id)
-            archives    = cloud_sync.list_archives(machine_id)
+            archives = cloud_sync.list_archives(machine_id)
 
             all_options = []
             if backup_info:
@@ -1878,81 +1923,62 @@ class LoginWindow:
             else:
                 self.root.after(0, lambda: self._build_archive_picker_ui(
                     all_options, machine_id))
-
         except Exception as e:
             print(f"[LOGIN] Backup probe error: {e}")
             self.root.after(0, self._build_register_ui)
 
     def _build_cloud_gateway_ui(self):
-        """
-        Gateway screen shown when there is no cached OAuth token.
-        Gives the user a clear choice: connect Drive to check for a backup,
-        or skip and create a new account.
-        Industry pattern: never silently skip past potential data recovery.
-        """
         for widget in self.root.winfo_children():
             widget.destroy()
 
-        card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
-        card.pack(expand=True, fill="both", padx=30, pady=30)
+        outer = ctk.CTkFrame(self.root, fg_color=DS.BG_PRIMARY)
+        outer.pack(fill="both", expand=True)
 
-        # Header
-        ctk.CTkLabel(card, text="☁", font=("Segoe UI", 48),
-                     text_color="#00a8ff").pack(pady=(28, 8))
-        ctk.CTkLabel(card, text="Check for Previous Installation",
-                     font=("Segoe UI", 18, "bold"), text_color="#ffffff").pack()
-        ctk.CTkLabel(card,
-                     text="If you had FMSecure installed before, your data may\n"
-                          "be recoverable from your Google Drive backup.",
-                     font=("Segoe UI", 10), text_color="#a0a0a0",
-                     justify="center").pack(pady=(6, 20))
+        wrapper = ctk.CTkFrame(outer, fg_color="transparent", width=400)
+        wrapper.place(relx=0.5, rely=0.5, anchor="center")
+
+        ctk.CTkLabel(wrapper, text="☁", font=("Segoe UI", 48),
+                     text_color=DS.ACCENT_PRIMARY).pack(pady=(0, 12))
+        ctk.CTkLabel(wrapper, text="Check for Previous Installation",
+                     font=DS.FONT_HEADING_MD,
+                     text_color=DS.TEXT_PRIMARY).pack()
+        ctk.CTkLabel(wrapper,
+                     text="If you had FMSecure before, your data may be\nrecoverable from Google Drive.",
+                     font=DS.FONT_BODY_SM, text_color=DS.TEXT_SECONDARY,
+                     justify="center").pack(pady=(4, 20))
 
         # Info box
-        info = ctk.CTkFrame(card, fg_color="#002233", corner_radius=8)
-        info.pack(fill="x", padx=30, pady=(0, 20))
+        info = ctk.CTkFrame(wrapper, fg_color=DS.BG_SURFACE_2,
+                             corner_radius=DS.RADIUS_SM,
+                             border_color=DS.ACCENT_MUTED, border_width=1)
+        info.pack(fill="x", padx=10, pady=(0, 16))
         ctk.CTkLabel(info,
-                     text="ℹ  Connecting Google Drive lets FMSecure look for\n"
-                          "     your encrypted backup, accounts, logs, and settings.",
-                     font=("Segoe UI", 9), text_color="#00ccff",
-                     justify="left").pack(padx=14, pady=12)
+                     text="ℹ  Connecting Google Drive lets FMSecure search for\n"
+                          "    your encrypted backup, accounts, and settings.",
+                     font=DS.FONT_TINY, text_color=DS.INFO,
+                     justify="left").pack(padx=14, pady=10)
 
-        # Status label (updated during auth)
         self._gw_status_var = ctk.StringVar(value="")
-        status_lbl = ctk.CTkLabel(card, textvariable=self._gw_status_var,
-                                   font=("Segoe UI", 9), text_color="#ff6b6b")
-        status_lbl.pack(pady=(0, 8))
+        ctk.CTkLabel(wrapper, textvariable=self._gw_status_var,
+                     font=DS.FONT_TINY, text_color=DS.ERROR).pack(pady=(0, 8))
 
-        # Primary CTA
-        connect_btn = ctk.CTkButton(
-            card, text="🌐  Connect Google Drive & Check",
-            command=lambda: self._gateway_connect_drive(connect_btn, skip_btn),
-            font=("Segoe UI", 12, "bold"),
-            fg_color="#00a8ff", hover_color="#0077cc",
-            corner_radius=8, height=44)
-        connect_btn.pack(fill="x", padx=30, pady=(0, 10))
+        connect_btn = create_primary_button(
+            wrapper, "  Connect Google Drive & Check",
+            lambda: self._gateway_connect_drive(connect_btn, skip_btn))
+        connect_btn.pack(fill="x", padx=10, pady=(0, 8))
 
-        # Secondary: skip
-        skip_btn = ctk.CTkButton(
-            card, text="Skip — Create a New Account",
-            command=self._build_register_ui,
-            font=("Segoe UI", 11),
-            fg_color="#2b2b2b", hover_color="#3a3a3a",
-            text_color="#aaaaaa", corner_radius=8, height=38)
-        skip_btn.pack(fill="x", padx=30, pady=(0, 4))
+        skip_btn = create_secondary_button(
+            wrapper, "Skip — Create New Account",
+            self._build_register_ui)
+        skip_btn.pack(fill="x", padx=10, pady=(0, 4))
 
-        ctk.CTkLabel(
-            card,
-            text="Skipping will not delete any cloud backups.\n"
-                 "You can still restore them later from within the app.",
-            font=("Segoe UI", 9), text_color="#555555",
-            justify="center").pack(pady=(0, 20))
+        ctk.CTkLabel(wrapper,
+                     text="Skipping won't delete cloud backups.\nYou can restore them later.",
+                     font=DS.FONT_TINY, text_color=DS.TEXT_TERTIARY,
+                     justify="center").pack(pady=(8, 0))
 
     def _gateway_connect_drive(self, connect_btn, skip_btn):
-        """
-        Triggered by the gateway 'Connect Google Drive' button.
-        Opens the OAuth browser flow, then runs the backup probe.
-        """
-        connect_btn.configure(state="disabled", text="⏳  Connecting…")
+        connect_btn.configure(state="disabled", text="Connecting…")
         skip_btn.configure(state="disabled")
         self._gw_status_var.set("")
 
@@ -1961,76 +1987,57 @@ class LoginWindow:
                 from core.cloud_sync import cloud_sync
                 from core.encryption_manager import crypto_manager
 
-                # Force interactive OAuth — this will open the browser
                 cloud_sync.force_authenticate()
 
                 if not cloud_sync.is_active:
                     def _fail():
                         connect_btn.configure(state="normal",
-                                              text="🌐  Connect Google Drive & Check")
+                                              text="  Connect Google Drive & Check")
                         skip_btn.configure(state="normal")
-                        self._gw_status_var.set(
-                            "Google Drive authentication failed or was cancelled.")
+                        self._gw_status_var.set("Authentication failed or cancelled.")
                     self.root.after(0, _fail)
                     return
 
-                # Auth succeeded — now probe for backups
-                # Show the spinner UI while probing
                 self.root.after(0, self._build_cloud_probe_ui)
                 self._run_backup_probe(cloud_sync, crypto_manager)
-
             except Exception as e:
                 print(f"[LOGIN] Gateway auth error: {e}")
                 def _err():
                     connect_btn.configure(state="normal",
-                                          text="🌐  Connect Google Drive & Check")
+                                          text="  Connect Google Drive & Check")
                     skip_btn.configure(state="normal")
                     self._gw_status_var.set(f"Error: {e}")
                 self.root.after(0, _err)
 
-        import threading
         threading.Thread(target=_auth_and_probe, daemon=True).start()
 
-    
     def _build_cloud_probe_ui(self):
-        """
-        Shown while probing Google Drive on a fresh install.
-        Prevents the blank/frozen window the user was seeing.
-        """
         for widget in self.root.winfo_children():
             widget.destroy()
-    
-        card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
-        card.pack(expand=True, fill="both", padx=40, pady=60)
-    
-        ctk.CTkLabel(card, text="☁",
-                    font=("Segoe UI", 52), text_color="#00a8ff").pack(pady=(30, 8))
-    
-        ctk.CTkLabel(card, text="Checking for previous installation",
-                    font=("Segoe UI", 15, "bold"), text_color="#ffffff").pack()
-    
-        ctk.CTkLabel(card,
-                    text="Looking for a cloud backup on Google Drive...",
-                    font=("Segoe UI", 10), text_color="#a0a0a0").pack(pady=(6, 24))
-    
-        # Braille spinner — rendered as a CTkLabel so it's theme-safe
-        self._probe_spin_chars = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
-        self._probe_spin_idx   = [0]
-        self._probe_spin_lbl   = ctk.CTkLabel(
-            card, text="⠋",
-            font=("Segoe UI", 24), text_color="#00a8ff"
-        )
+
+        outer = ctk.CTkFrame(self.root, fg_color=DS.BG_PRIMARY)
+        outer.pack(fill="both", expand=True)
+
+        wrapper = ctk.CTkFrame(outer, fg_color="transparent", width=380)
+        wrapper.place(relx=0.5, rely=0.5, anchor="center")
+
+        ctk.CTkLabel(wrapper, text="☁", font=("Segoe UI", 48),
+                     text_color=DS.ACCENT_PRIMARY).pack(pady=(0, 12))
+        ctk.CTkLabel(wrapper, text="Checking for backups",
+                     font=DS.FONT_HEADING_MD,
+                     text_color=DS.TEXT_PRIMARY).pack()
+        ctk.CTkLabel(wrapper, text="Searching Google Drive…",
+                     font=DS.FONT_BODY_SM, text_color=DS.TEXT_SECONDARY).pack(pady=(4, 24))
+
+        self._probe_spin_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        self._probe_spin_idx = [0]
+        self._probe_spin_lbl = ctk.CTkLabel(wrapper, text="⠋", font=("Segoe UI", 24),
+                                             text_color=DS.ACCENT_PRIMARY)
         self._probe_spin_lbl.pack()
-    
+
         self._animate_probe_spinner()
 
-    
-    # ══════════════════════════════════════════════════════════════════════════════
-    #  NEW — _animate_probe_spinner
-    # ══════════════════════════════════════════════════════════════════════════════
-    
     def _animate_probe_spinner(self):
-        """Keeps the braille spinner spinning while Drive probe runs."""
         lbl = getattr(self, '_probe_spin_lbl', None)
         if not lbl:
             return
@@ -2039,133 +2046,122 @@ class LoginWindow:
                 return
         except Exception:
             return
-    
         chars = self._probe_spin_chars
-        idx   = self._probe_spin_idx
+        idx = self._probe_spin_idx
         lbl.configure(text=chars[idx[0] % len(chars)])
         idx[0] += 1
         self.root.after(80, self._animate_probe_spinner)
 
-
-    def _build_reinstall_detection_ui(self, backup_info: dict, machine_id: str):
-        """
-        The "Previous Installation Detected" screen — the WhatsApp moment.
-        Shows backup metadata and offers two choices.
-        """
+    def _build_reinstall_detection_ui(self, backup_info, machine_id):
         for widget in self.root.winfo_children():
             widget.destroy()
 
-        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
-        main_card.pack(expand=True, fill="both", padx=30, pady=30)
+        outer = ctk.CTkFrame(self.root, fg_color=DS.BG_PRIMARY)
+        outer.pack(fill="both", expand=True)
 
-        # Header
-        ctk.CTkLabel(main_card, text="☁",
-                    font=("Segoe UI", 42), text_color="#00a8ff").pack(pady=(24, 6))
-        ctk.CTkLabel(main_card, text="Previous Installation Found",
-                    font=("Segoe UI", 20, "bold"), text_color="#ffffff").pack()
-        ctk.CTkLabel(main_card,
-                    text="A cloud backup was found for this device.",
-                    font=("Segoe UI", 11), text_color="#a0a0a0").pack(pady=(4, 18))
+        scroll = ctk.CTkScrollableFrame(outer, fg_color=DS.BG_PRIMARY)
+        scroll.pack(fill="both", expand=True, padx=30, pady=24)
+
+        ctk.CTkLabel(scroll, text="☁", font=("Segoe UI", 42),
+                     text_color=DS.ACCENT_PRIMARY).pack(pady=(0, 8))
+        ctk.CTkLabel(scroll, text="Previous Installation Found",
+                     font=DS.FONT_HEADING_LG,
+                     text_color=DS.TEXT_PRIMARY).pack()
+        ctk.CTkLabel(scroll, text="A cloud backup was found for this device.",
+                     font=DS.FONT_BODY_SM, text_color=DS.TEXT_SECONDARY).pack(pady=(4, 20))
 
         # Metadata card
-        meta = ctk.CTkFrame(main_card, fg_color="#2b2b2b", corner_radius=10)
-        meta.pack(fill="x", padx=30, pady=(0, 18))
+        meta = ctk.CTkFrame(scroll, fg_color=DS.BG_SURFACE,
+                             corner_radius=DS.RADIUS_MD,
+                             border_color=DS.BORDER_MUTED, border_width=1)
+        meta.pack(fill="x", pady=(0, 20))
 
-        fc   = backup_info.get("file_counts", {})
+        fc = backup_info.get("file_counts", {})
         rows = [
-            ("Last sync",  backup_info.get("last_sync",  "Unknown")),
-            ("Hostname",   backup_info.get("hostname",   "Unknown")),
-            ("Account",    backup_info.get("email",      "Unknown")),
-            ("Plan",       backup_info.get("tier",       "Unknown")),
-            ("Vault files",    f"{fc.get('vault',  0)} files"),
-            ("Log files",      f"{fc.get('logs',   0)} files"),
+            ("Last sync", backup_info.get("last_sync", "Unknown")),
+            ("Hostname", backup_info.get("hostname", "Unknown")),
+            ("Account", backup_info.get("email", "Unknown")),
+            ("Plan", backup_info.get("tier", "Unknown")),
+            ("Vault files", f"{fc.get('vault', 0)} files"),
+            ("Log files", f"{fc.get('logs', 0)} files"),
         ]
         for label, value in rows:
             row = ctk.CTkFrame(meta, fg_color="transparent")
             row.pack(fill="x", padx=16, pady=3)
-            ctk.CTkLabel(row, text=label + ":", font=("Segoe UI", 10),
-                        text_color="#888888", width=100, anchor="w").pack(side="left")
+            ctk.CTkLabel(row, text=f"{label}:", font=DS.FONT_CAPTION,
+                         text_color=DS.TEXT_TERTIARY, width=90, anchor="w").pack(side="left")
             ctk.CTkLabel(row, text=value, font=("Segoe UI", 10, "bold"),
-                        text_color="#ffffff", anchor="w").pack(side="left")
+                         text_color=DS.TEXT_PRIMARY, anchor="w").pack(side="left")
 
-        # Action buttons
-        ctk.CTkButton(
-            main_card, text="Restore My Backup",
-            command=lambda: self._execute_restore(machine_id),
-            font=("Segoe UI", 13, "bold"),
-            fg_color="#00a8ff", hover_color="#0077cc",
-            corner_radius=8, height=44
-        ).pack(fill="x", padx=30, pady=(0, 10))
+        create_primary_button(scroll, "Restore My Backup",
+                              lambda: self._execute_restore(machine_id)).pack(fill="x", pady=(0, 8))
 
-        ctk.CTkButton(
-            main_card, text="Start Fresh  (archive old backup)",
-            command=lambda: self._execute_start_fresh(machine_id),
-            font=("Segoe UI", 12),
-            fg_color="#2b2b2b", hover_color="#3a3a3a",
-            text_color="#aaaaaa", corner_radius=8, height=40
-        ).pack(fill="x", padx=30, pady=(0, 6))
+        create_secondary_button(scroll, "Start Fresh (archive old backup)",
+                                lambda: self._execute_start_fresh(machine_id)).pack(fill="x", pady=(0, 6))
 
-        ctk.CTkLabel(
-            main_card,
-            text="Starting fresh archives your old data in Google Drive.\n"
-                "Your PRO license is preserved — re-enter your key after registering.",
-            font=("Segoe UI", 9), text_color="#666666", justify="center"
-        ).pack(pady=(0, 20))
+        ctk.CTkLabel(scroll,
+                     text="Starting fresh archives your old data in Google Drive.\n"
+                          "Your PRO license is preserved.",
+                     font=DS.FONT_TINY, text_color=DS.TEXT_TERTIARY,
+                     justify="center").pack(pady=(4, 0))
 
-
-    def _execute_restore(self, machine_id: str):
+    def _execute_restore(self, machine_id):
         for widget in self.root.winfo_children():
             widget.destroy()
 
-        card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
-        card.pack(expand=True, fill="both", padx=30, pady=24)
+        outer = ctk.CTkFrame(self.root, fg_color=DS.BG_PRIMARY)
+        outer.pack(fill="both", expand=True)
 
-        ctk.CTkLabel(card, text="☁",
-                    font=("Segoe UI", 42), text_color="#00a8ff").pack(pady=(24, 6))
-        ctk.CTkLabel(card, text="Restoring Your Installation",
-                    font=("Segoe UI", 18, "bold"), text_color="#ffffff").pack()
-        ctk.CTkLabel(card, text="Recovering data from Google Drive…",
-                    font=("Segoe UI", 10), text_color="#a0a0a0").pack(pady=(4, 16))
+        wrapper = ctk.CTkFrame(outer, fg_color="transparent", width=400)
+        wrapper.place(relx=0.5, rely=0.5, anchor="center")
 
-        # ── Step indicators ───────────────────────────────────────────────
-        steps_frame = ctk.CTkFrame(card, fg_color="#2b2b2b", corner_radius=10)
-        steps_frame.pack(fill="x", padx=28, pady=(0, 14))
+        ctk.CTkLabel(wrapper, text="☁", font=("Segoe UI", 42),
+                     text_color=DS.ACCENT_PRIMARY).pack(pady=(0, 8))
+        ctk.CTkLabel(wrapper, text="Restoring Your Installation",
+                     font=DS.FONT_HEADING_MD,
+                     text_color=DS.TEXT_PRIMARY).pack()
+        ctk.CTkLabel(wrapper, text="Recovering data from Google Drive…",
+                     font=DS.FONT_BODY_SM, text_color=DS.TEXT_SECONDARY).pack(pady=(4, 16))
+
+        # Steps
+        steps_frame = ctk.CTkFrame(wrapper, fg_color=DS.BG_SURFACE,
+                                    corner_radius=DS.RADIUS_MD,
+                                    border_color=DS.BORDER_MUTED, border_width=1)
+        steps_frame.pack(fill="x", padx=10, pady=(0, 14))
 
         STEP_DEFS = [
             ("🔑", "Recovering encryption key"),
             ("👤", "Restoring account database"),
-            ("📋", "Restoring audit logs & forensics"),
-            ("⚙️", "Reloading credentials"),
-            ("✅", "Finalizing"),
+            ("📋", "Restoring audit logs"),
+            ("⚙", "Reloading credentials"),
+            ("✓", "Finalizing"),
         ]
         step_widgets = []
         for icon, label in STEP_DEFS:
             row = ctk.CTkFrame(steps_frame, fg_color="transparent")
             row.pack(fill="x", padx=14, pady=3)
-            icon_lbl = ctk.CTkLabel(row, text=icon, font=("Segoe UI", 13),
-                                    text_color="#444444", width=26)
+            icon_lbl = ctk.CTkLabel(row, text=icon, font=DS.FONT_BODY,
+                                     text_color=DS.TEXT_TERTIARY, width=26)
             icon_lbl.pack(side="left")
-            txt_lbl  = ctk.CTkLabel(row, text=label, font=("Segoe UI", 11),
-                                    text_color="#555555", anchor="w")
+            txt_lbl = ctk.CTkLabel(row, text=label, font=DS.FONT_BODY_SM,
+                                    text_color=DS.TEXT_TERTIARY, anchor="w")
             txt_lbl.pack(side="left", padx=8)
             step_widgets.append((icon_lbl, txt_lbl))
 
-        # ── Progress bar ──────────────────────────────────────────────────
-        progress_bar = ctk.CTkProgressBar(card, width=320, height=6,
-                                        fg_color="#2b2b2b",
-                                        progress_color="#00a8ff")
+        progress_bar = ctk.CTkProgressBar(wrapper, width=360, height=4,
+                                           fg_color=DS.BG_SURFACE_3,
+                                           progress_color=DS.ACCENT_PRIMARY)
         progress_bar.pack(pady=(0, 6))
         progress_bar.set(0)
 
         progress_var = ctk.StringVar(value="Connecting to Google Drive…")
-        ctk.CTkLabel(card, textvariable=progress_var,
-                    font=("Consolas", 9), text_color="#00a8ff").pack()
+        ctk.CTkLabel(wrapper, textvariable=progress_var,
+                     font=DS.FONT_MONO_XS, text_color=DS.TEXT_SECONDARY).pack()
 
-        # ── Braille spinner ────────────────────────────────────────────────
-        SPIN = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
+        SPIN = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         spin_idx = [0]
-        spin_lbl = ctk.CTkLabel(card, text=SPIN[0],
-                                font=("Segoe UI", 18), text_color="#555555")
+        spin_lbl = ctk.CTkLabel(wrapper, text=SPIN[0], font=("Segoe UI", 18),
+                                 text_color=DS.TEXT_TERTIARY)
         spin_lbl.pack(pady=(6, 0))
 
         def _spin():
@@ -2183,48 +2179,44 @@ class LoginWindow:
         def _activate_step(idx):
             for i, (il, tl) in enumerate(step_widgets):
                 if i < idx:
-                    il.configure(text_color="#00cc66")
-                    tl.configure(text_color="#00cc66")
+                    il.configure(text_color=DS.SUCCESS)
+                    tl.configure(text_color=DS.SUCCESS)
                 elif i == idx:
-                    il.configure(text_color="#00a8ff")
-                    tl.configure(text_color="#ffffff")
+                    il.configure(text_color=DS.ACCENT_PRIMARY)
+                    tl.configure(text_color=DS.TEXT_PRIMARY)
                 else:
-                    il.configure(text_color="#444444")
-                    tl.configure(text_color="#555555")
+                    il.configure(text_color=DS.TEXT_TERTIARY)
+                    tl.configure(text_color=DS.TEXT_TERTIARY)
             progress_bar.set((idx + 1) / TOTAL_STEPS)
 
         def _do_restore():
             from core.encryption_manager import crypto_manager
             from core.cloud_sync import cloud_sync
-            import os, time
 
-            # Step 0 — clear local key so cloud key is downloaded fresh
             self.root.after(0, lambda: _activate_step(0))
             self.root.after(0, lambda: progress_var.set("Step 1/5: Preparing encryption recovery…"))
             try:
                 for kpath in [crypto_manager.key_file, crypto_manager.key_backup]:
                     if os.path.exists(kpath):
                         os.remove(kpath)
-                crypto_manager.fernet                    = None
-                crypto_manager._key_bytes                = None
-                crypto_manager._local_ok                 = False
+                crypto_manager.fernet = None
+                crypto_manager._key_bytes = None
+                crypto_manager._local_ok = False
                 crypto_manager._cloud_recovery_attempted = False
             except Exception as e:
                 print(f"[RESTORE] Key clear warning: {e}")
 
-            # Step 1 — download encryption key
             self.root.after(0, lambda: progress_var.set("Step 1/5: Downloading encryption key…"))
             key_ok = crypto_manager.attempt_cloud_recovery_if_needed(user_consented=True)
 
             if not key_ok or crypto_manager.fernet is None:
                 def _fail():
-                    spin_lbl.configure(text="❌", text_color="#ff4444")
-                    progress_var.set("⚠️  Key not found — please create a new account.")
+                    spin_lbl.configure(text="✕", text_color=DS.ERROR)
+                    progress_var.set("Key not found — please create a new account.")
                 self.root.after(0, _fail)
                 self.root.after(2800, self._build_register_ui)
                 return
 
-            # Step 2 — AppData (users.dat, config, hash records)
             self.root.after(0, lambda: _activate_step(1))
             self.root.after(0, lambda: progress_var.set("Step 2/5: Restoring account database…"))
             try:
@@ -2232,7 +2224,6 @@ class LoginWindow:
             except Exception as e:
                 print(f"[RESTORE] AppData error: {e}")
 
-            # Step 3 — Logs + forensics
             self.root.after(0, lambda: _activate_step(2))
             self.root.after(0, lambda: progress_var.set("Step 3/5: Restoring audit logs…"))
             try:
@@ -2240,7 +2231,6 @@ class LoginWindow:
             except Exception as e:
                 print(f"[RESTORE] Logs error: {e}")
 
-            # Step 4 — Reload auth (double pass for safety)
             self.root.after(0, lambda: _activate_step(3))
             self.root.after(0, lambda: progress_var.set("Step 4/5: Reloading credentials…"))
             try:
@@ -2251,25 +2241,21 @@ class LoginWindow:
             except Exception as e:
                 print(f"[RESTORE] auth.reload error: {e}")
 
-            # Step 5 — Done
             self.root.after(0, lambda: _activate_step(4))
-            self.root.after(0, lambda: progress_var.set("✅ Restore complete — please log in."))
+            self.root.after(0, lambda: progress_var.set("✓ Restore complete — please sign in."))
 
             def _finish():
-                spin_lbl.configure(text="✅", text_color="#00cc66")
+                spin_lbl.configure(text="✓", text_color=DS.SUCCESS)
                 self.root.after(2000, self._build_login_ui)
             self.root.after(0, _finish)
 
-        import threading
         threading.Thread(target=_do_restore, daemon=True).start()
 
-
-    def _execute_start_fresh(self, machine_id: str):
-        """User chose Start Fresh. Archive old data, then show registration."""
+    def _execute_start_fresh(self, machine_id):
         if not self.show_warning_confirm(
             "Archive your cloud backup?\n\n"
             "Your old data will be moved to an archive folder in Google Drive.\n"
-            "Your PRO license is NOT cancelled — re-enter your key after setup."
+            "Your PRO license is NOT cancelled."
         ):
             return
 
@@ -2281,51 +2267,39 @@ class LoginWindow:
             if ok:
                 print(f"[LOGIN] Archived as: {name}")
             else:
-                print(f"[LOGIN] Archive warning (non-blocking): {name}")
+                print(f"[LOGIN] Archive warning: {name}")
 
-            # Generate a fresh local key now that the old cloud folder is archived
             crypto_manager.attempt_cloud_recovery_if_needed(user_consented=False)
             self.root.after(0, self._build_register_ui)
 
-        import threading
         threading.Thread(target=_do_archive, daemon=True).start()
 
-
-    def show_warning_confirm(self, message: str) -> bool:
-        """Synchronous yes/no confirm dialog."""
+    def show_warning_confirm(self, message):
         import tkinter.messagebox as mb
         return mb.askyesno("Confirm", message, parent=self.root)
 
-
-    def _build_archive_picker_ui(self, all_options: list, machine_id: str):
-        """
-        Shown when multiple backups exist (active + archives, or multiple archives).
-        Lists every available backup with date, account email, and file counts.
-        User picks one and clicks Restore, or starts fresh.
-
-        'all_options' items are dicts with the same shape as check_backup_exists()
-        returns, plus '_is_active' bool and 'archived_at' string.
-        """
+    def _build_archive_picker_ui(self, all_options, machine_id):
         for widget in self.root.winfo_children():
             widget.destroy()
 
-        main_card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
-        main_card.pack(expand=True, fill="both", padx=20, pady=16)
+        outer = ctk.CTkFrame(self.root, fg_color=DS.BG_PRIMARY)
+        outer.pack(fill="both", expand=True)
 
-        ctk.CTkLabel(main_card, text="☁",
-                     font=("Segoe UI", 36), text_color="#00a8ff").pack(pady=(18, 4))
-        ctk.CTkLabel(main_card,
-                     text=f"{len(all_options)} Backup(s) Found",
-                     font=("Segoe UI", 18, "bold"), text_color="#ffffff").pack()
-        ctk.CTkLabel(main_card,
-                     text="Select which backup to restore, or start fresh.",
-                     font=("Segoe UI", 10), text_color="#a0a0a0",
-                     justify="center").pack(pady=(4, 12))
+        scroll = ctk.CTkScrollableFrame(outer, fg_color=DS.BG_PRIMARY)
+        scroll.pack(fill="both", expand=True, padx=20, pady=16)
 
-        # Scrollable option list
-        scroll = ctk.CTkScrollableFrame(main_card, fg_color="#2b2b2b",
-                                        corner_radius=8, height=200)
-        scroll.pack(fill="x", padx=20, pady=(0, 10))
+        ctk.CTkLabel(scroll, text="☁", font=("Segoe UI", 36),
+                     text_color=DS.ACCENT_PRIMARY).pack(pady=(0, 6))
+        ctk.CTkLabel(scroll, text=f"{len(all_options)} Backup(s) Found",
+                     font=DS.FONT_HEADING_MD,
+                     text_color=DS.TEXT_PRIMARY).pack()
+        ctk.CTkLabel(scroll, text="Select a backup to restore, or start fresh.",
+                     font=DS.FONT_BODY_SM, text_color=DS.TEXT_SECONDARY).pack(pady=(4, 16))
+
+        # List
+        list_frame = ctk.CTkFrame(scroll, fg_color=DS.BG_SURFACE,
+                                   corner_radius=DS.RADIUS_MD)
+        list_frame.pack(fill="x", pady=(0, 12))
 
         selected = [None]
         all_btns = []
@@ -2333,155 +2307,123 @@ class LoginWindow:
         def _select(opt, btn_ref):
             selected[0] = opt
             for b in all_btns:
-                b.configure(fg_color="#3b3b3b")
-            btn_ref.configure(fg_color="#00a8ff")
+                b.configure(fg_color=DS.BG_SURFACE_3)
+            btn_ref.configure(fg_color=DS.ACCENT_MUTED)
             restore_btn.configure(state="normal")
 
         for opt in all_options:
-            fc      = opt.get("file_counts", {})
+            fc = opt.get("file_counts", {})
             n_files = sum(v for v in fc.values() if isinstance(v, int))
-            is_act  = opt.get("_is_active", False)
-            tag     = "  ★ CURRENT  " if is_act else "  ARCHIVE  "
-            date    = (opt.get("last_sync") or opt.get("archived_at") or "Unknown")[:16]
-            email   = opt.get("email", "?")[:32]
-            lbl     = f"{tag}  {date}   •   {email}   •   {n_files} files"
+            is_act = opt.get("_is_active", False)
+            tag = "★ CURRENT" if is_act else "ARCHIVE"
+            date = (opt.get("last_sync") or opt.get("archived_at") or "Unknown")[:16]
+            email = opt.get("email", "?")[:32]
+            lbl = f"  {tag}  ·  {date}  ·  {email}  ·  {n_files} files"
 
-            btn = ctk.CTkButton(
-                scroll, text=lbl,
-                command=lambda o=opt, b=None: None,  # set below
-                font=("Segoe UI", 10),
-                fg_color="#3b3b3b", hover_color="#4a4a4a",
-                text_color="#ffffff", anchor="w",
-                height=40, corner_radius=6)
+            btn = ctk.CTkButton(list_frame, text=lbl,
+                                command=lambda o=opt, b=None: None,
+                                font=DS.FONT_CAPTION,
+                                fg_color=DS.BG_SURFACE_3,
+                                hover_color=DS.BG_SURFACE_2,
+                                text_color=DS.TEXT_PRIMARY, anchor="w",
+                                height=40, corner_radius=DS.RADIUS_SM)
             btn.configure(command=lambda o=opt, bref=btn: _select(o, bref))
             btn.pack(fill="x", padx=8, pady=3)
             all_btns.append(btn)
 
-        restore_btn = ctk.CTkButton(
-            main_card, text="Restore Selected Backup",
-            command=lambda: self._execute_restore_from_option(selected[0], machine_id),
-            font=("Segoe UI", 12, "bold"),
-            fg_color="#00a8ff", hover_color="#0077cc",
-            state="disabled", corner_radius=8, height=42)
-        restore_btn.pack(fill="x", padx=20, pady=(0, 8))
+        restore_btn = create_primary_button(
+            scroll, "Restore Selected Backup",
+            lambda: self._execute_restore_from_option(selected[0], machine_id))
+        restore_btn.configure(state="disabled")
+        restore_btn.pack(fill="x", pady=(0, 8))
 
-        # Start fresh — no active folder case (or user just doesn't want any backup)
         def _start_fresh():
             if not self.show_warning_confirm(
-                "Start Fresh?\n\n"
-                "Your existing backups will remain in Google Drive as archives.\n"
-                "A new account will be created.\n\n"
-                "Your PRO license is NOT cancelled — re-enter your key after setup."
+                "Start Fresh?\n\nExisting backups remain in Google Drive.\n"
+                "PRO license is NOT cancelled."
             ):
                 return
+
             def _run():
                 from core.encryption_manager import crypto_manager
                 crypto_manager.attempt_cloud_recovery_if_needed(user_consented=False)
                 self.root.after(0, self._build_register_ui)
-            import threading
             threading.Thread(target=_run, daemon=True).start()
 
-        ctk.CTkButton(
-            main_card, text="Start Fresh",
-            command=_start_fresh,
-            font=("Segoe UI", 11),
-            fg_color="#2b2b2b", hover_color="#3a3a3a",
-            text_color="#aaaaaa", corner_radius=8, height=36
-        ).pack(fill="x", padx=20, pady=(0, 4))
+        create_secondary_button(scroll, "Start Fresh", _start_fresh).pack(fill="x", pady=(0, 4))
 
-        ctk.CTkLabel(
-            main_card,
-            text="Your PRO license is preserved — re-enter your key after registering.",
-            font=("Segoe UI", 9), text_color="#555555", justify="center"
-        ).pack(pady=(0, 12))
+        ctk.CTkLabel(scroll,
+                     text="PRO license preserved — re-enter your key after registering.",
+                     font=DS.FONT_TINY, text_color=DS.TEXT_TERTIARY,
+                     justify="center").pack(pady=(4, 0))
 
-
-    def _execute_restore_from_option(self, opt: dict, machine_id: str):
-        """
-        Restore from a selected option (either the active backup or an archive).
-        Routes to the correct restore path depending on _is_active flag.
-        Both paths share the same key-clear-first logic.
-        """
+    def _execute_restore_from_option(self, opt, machine_id):
         if not opt:
             return
-
         if opt.get("_is_active"):
-            # Active folder — use the standard restore flow
             self._execute_restore(machine_id)
         else:
-            # Archive folder — restore from the specific archive folder_id
             self._execute_restore_from_archive(opt, machine_id)
 
-
-    def _execute_restore_from_archive(self, archive: dict, machine_id: str):
-        """
-        Restore from a specific archive folder.
-        Same key-clear-first pattern as _execute_restore.
-        """
+    def _execute_restore_from_archive(self, archive, machine_id):
         for widget in self.root.winfo_children():
             widget.destroy()
 
-        card = ctk.CTkFrame(self.root, fg_color="#1e1e1e", corner_radius=16)
-        card.pack(expand=True, fill="both", padx=40, pady=60)
-        ctk.CTkLabel(card, text="⏳ Restoring from archive...",
-                     font=("Segoe UI", 14, "bold"), text_color="#00a8ff").pack(pady=30)
+        outer = ctk.CTkFrame(self.root, fg_color=DS.BG_PRIMARY)
+        outer.pack(fill="both", expand=True)
+
+        wrapper = ctk.CTkFrame(outer, fg_color="transparent", width=380)
+        wrapper.place(relx=0.5, rely=0.5, anchor="center")
+
+        ctk.CTkLabel(wrapper, text="Restoring from archive…",
+                     font=DS.FONT_HEADING_SM,
+                     text_color=DS.ACCENT_PRIMARY).pack(pady=30)
         progress_var = ctk.StringVar(value="Starting restore…")
-        ctk.CTkLabel(card, textvariable=progress_var,
-                     font=("Segoe UI", 10), text_color="#a0a0a0").pack()
+        ctk.CTkLabel(wrapper, textvariable=progress_var,
+                     font=DS.FONT_BODY_SM, text_color=DS.TEXT_SECONDARY).pack()
 
         def _run():
             from core.cloud_sync import cloud_sync
             from core.encryption_manager import crypto_manager
-            import os, time
 
             archive_folder_id = archive["folder_id"]
 
-            # Step 1 — clear local key so crypto_manager downloads the archive's key
-            progress_var.set("Clearing local key for fresh restore...")
+            progress_var.set("Clearing local key…")
             try:
                 for kpath in [crypto_manager.key_file, crypto_manager.key_backup]:
                     if os.path.exists(kpath):
                         os.remove(kpath)
-                crypto_manager.fernet                    = None
-                crypto_manager._key_bytes                = None
-                crypto_manager._local_ok                 = False
+                crypto_manager.fernet = None
+                crypto_manager._key_bytes = None
+                crypto_manager._local_ok = False
                 crypto_manager._cloud_recovery_attempted = False
             except Exception as e:
                 print(f"[RESTORE_ARCHIVE] Key clear warning: {e}")
 
-            # Step 2 — restore key files from archive
-            progress_var.set("Downloading encryption key...")
-            key_result = cloud_sync.restore_from_archive(archive_folder_id,
-                                                          subfolder="keys",
-                                                          machine_id=machine_id)
-            print(f"[RESTORE_ARCHIVE] Keys: {key_result}")
+            progress_var.set("Downloading encryption key…")
+            cloud_sync.restore_from_archive(archive_folder_id, subfolder="keys",
+                                             machine_id=machine_id)
 
-            # Step 3 — reload the key from the just-restored files
-            progress_var.set("Loading encryption key...")
+            progress_var.set("Loading encryption key…")
             try:
                 crypto_manager._phase1_local_init()
             except Exception as e:
                 print(f"[RESTORE_ARCHIVE] Phase1 reload error: {e}")
 
             if crypto_manager.fernet is None:
-                progress_var.set("⚠️  No encryption key in this archive.\n"
-                                 "Please create a new account.")
+                progress_var.set("No key in this archive. Please create a new account.")
                 self.root.after(2500, self._build_register_ui)
                 return
 
-            # Step 4 — restore appdata with the now-correct key loaded
-            progress_var.set("Restoring account database...")
-            cloud_sync.restore_from_archive(archive_folder_id,
-                                             subfolder="appdata",
+            progress_var.set("Restoring account database…")
+            cloud_sync.restore_from_archive(archive_folder_id, subfolder="appdata",
                                              machine_id=machine_id)
 
-            progress_var.set("Restoring logs & forensics...")
-            cloud_sync.restore_from_archive(archive_folder_id,
-                                             subfolder="logs",
+            progress_var.set("Restoring logs…")
+            cloud_sync.restore_from_archive(archive_folder_id, subfolder="logs",
                                              machine_id=machine_id)
 
-            # Step 5 — reload auth
-            progress_var.set("Reloading credentials...")
+            progress_var.set("Reloading credentials…")
             try:
                 time.sleep(0.5)
                 auth.reload()
@@ -2490,23 +2432,18 @@ class LoginWindow:
             except Exception as e:
                 print(f"[RESTORE_ARCHIVE] auth.reload error: {e}")
 
-            progress_var.set("✅ Restore complete — please log in.")
+            progress_var.set("✓ Restore complete — please sign in.")
             self.root.after(1500, self._build_login_ui)
 
-        import threading
         threading.Thread(target=_run, daemon=True).start()
 
-    # ------------------------------------------------------------------
-    # Launch main app (reusing the same root window)
-    # ------------------------------------------------------------------
+    # ══════════════════════════════════════════════════════════════════════
+    # LAUNCH MAIN APP
+    # ══════════════════════════════════════════════════════════════════════
     def _launch_main_app(self, role, username):
-        # Clear all widgets from the current root
         for widget in self.root.winfo_children():
             widget.destroy()
-
-        # Build the main application inside the existing root
         app = ProIntegrityGUI(self.root, user_role=role, username=username)
-        # No need to start a new mainloop – the existing one continues
 
     def run(self):
         self.root.mainloop()

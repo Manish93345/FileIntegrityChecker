@@ -501,10 +501,16 @@ class ProIntegrityGUI:
         ad_value = CONFIG.get('active_defense', False) if is_pro else False
         ks_value = CONFIG.get('ransomware_killswitch', False) if is_pro else False
         usb_value = CONFIG.get('usb_readonly', False) if is_pro else False
+        sp_value  = CONFIG.get('system_path_protection', False) if is_pro else False
+        rm_value  = CONFIG.get('registry_monitoring', False)    if is_pro else False
+        ti_value  = CONFIG.get('threat_intel_enabled', False)   if is_pro else False
 
         self._ad_var  = tk.BooleanVar(value=ad_value)
         self._ks_var  = tk.BooleanVar(value=ks_value)
         self._usb_var = tk.BooleanVar(value=usb_value)
+        self._sp_var  = tk.BooleanVar(value=CONFIG.get('system_path_protection', False) if is_pro else False)
+        self._rm_var  = tk.BooleanVar(value=CONFIG.get('registry_monitoring', False) if is_pro else False)
+        self._ti_var  = tk.BooleanVar(value=CONFIG.get('threat_intel_enabled', False) if is_pro else False)
 
         # Also sanitize the live backend CONFIG so the engine doesn't silently run Pro features
         if not is_pro:
@@ -993,6 +999,12 @@ class ProIntegrityGUI:
              'Burst-detect + folder lockdown'),
             ('USB Device Control',    self._usb_var, self._toggle_usb_control,
              'Block USB write access (DLP)'),
+            # ('System Path Protection',   self._sp_var,  self._toggle_system_paths,
+            #  'Monitor Windows critical paths'),
+            # ('Registry Persistence',     self._rm_var,  self._toggle_registry_monitor,
+            #  'Detect malware autostart & hijacking'),
+            # ('Threat Intel (Hash Check)',self._ti_var,  self._toggle_threat_intel,
+            #  'MalwareBazaar hash lookup on new files'),
         ]
 
         self._toggle_switches = {}
@@ -1152,8 +1164,140 @@ class ProIntegrityGUI:
         # ── Tab strip + log area ──────────────────────────────────────────────
         tab_container = tk.Frame(parent, bg=C['bg'])
         tab_container.pack(fill=tk.BOTH, expand=True)
+        self._build_edr_engine_card(parent)
 
         self._build_tab_area(tab_container)
+
+    def _build_edr_engine_card(self, parent):
+        """
+        EDR Engine feature toggles — sits between metric row and tab area.
+        Horizontal layout (3 toggle pills in a row) so it doesn't take
+        up vertical space.
+        """
+        C = self.colors
+ 
+        card = self._card(parent, accent=C['accent_secondary'])
+        card.pack(fill=tk.X, pady=(0, 10))
+        inner = card.inner()
+ 
+        # Header row
+        hdr = tk.Frame(inner, bg=C['card_bg'])
+        hdr.pack(fill=tk.X, padx=14, pady=(10, 6))
+ 
+        tk.Label(hdr, text="EDR ENGINE",
+                 font=('Segoe UI', 8, 'bold'),
+                 bg=C['card_bg'], fg=C['text_muted']).pack(side=tk.LEFT)
+ 
+        pro_badge = tk.Label(hdr, text=" PRO ",
+                              font=('Segoe UI', 7, 'bold'),
+                              bg='#2d2008', fg='#d29922',
+                              padx=4, pady=1)
+        pro_badge.pack(side=tk.LEFT, padx=(6, 0))
+ 
+        # Three feature pills in a horizontal row
+        pills_row = tk.Frame(inner, bg=C['card_bg'])
+        pills_row.pack(fill=tk.X, padx=14, pady=(0, 10))
+        pills_row.columnconfigure(0, weight=1)
+        pills_row.columnconfigure(1, weight=1)
+        pills_row.columnconfigure(2, weight=1)
+ 
+        edr_features = [
+            (
+                '🛡 System Paths',
+                'Monitor startup, tasks, hosts file',
+                self._sp_var,
+                self._toggle_system_paths,
+                0
+            ),
+            (
+                '🔑 Registry',
+                'Persistence key detection (14 vectors)',
+                self._rm_var,
+                self._toggle_registry_monitor,
+                1
+            ),
+            (
+                '🔍 Threat Intel',
+                'Hash lookup vs MalwareBazaar',
+                self._ti_var,
+                self._toggle_threat_intel,
+                2
+            ),
+        ]
+ 
+        for (label, tip, var, cmd, col) in edr_features:
+            pill = tk.Frame(pills_row, bg=C['card_bg'],
+                             highlightbackground=C['card_border'],
+                             highlightthickness=1,
+                             padx=10, pady=6)
+            pill.grid(row=0, column=col, sticky='ew', padx=3)
+ 
+            # Label row: feature name + toggle
+            top = tk.Frame(pill, bg=C['card_bg'])
+            top.pack(fill=tk.X)
+            tk.Label(top, text=label,
+                     font=('Segoe UI', 9, 'bold'),
+                     bg=C['card_bg'], fg=C['text_primary']).pack(side=tk.LEFT)
+ 
+            sw = _ToggleSwitch(top, var, cmd, C)
+            sw.pack(side=tk.RIGHT)
+ 
+            # Tooltip line
+            tk.Label(pill, text=tip,
+                     font=('Segoe UI', 7),
+                     bg=C['card_bg'],
+                     fg=C['text_muted'],
+                     anchor='w').pack(fill=tk.X, pady=(2, 0))
+ 
+            # Store switch ref for refresh
+            if not hasattr(self, '_toggle_switches'):
+                self._toggle_switches = {}
+            self._toggle_switches[label] = sw
+        
+        # ── EDR stats footer — shown only when threat intel has data ──
+        # Thin divider
+        tk.Frame(inner, height=1, bg=C['divider']).pack(fill=tk.X, padx=14)
+
+        self._edr_stats_var = tk.StringVar(value='')
+        self._edr_stats_lbl = tk.Label(
+            inner,
+            textvariable=self._edr_stats_var,
+            font=('Consolas', 8),
+            bg=C['card_bg'],
+            fg=C['accent_info'],
+            anchor='w',
+        )
+        # Widget is packed but hidden until we have real data
+        self._edr_stats_lbl.pack(fill=tk.X, padx=14, pady=(4, 8))
+        self._edr_stats_var.set('🔍 Threat DB  ·  waiting for first scan...')
+ 
+        def _refresh_edr_stats():
+            try:
+                from core.threat_intel import get_db_stats
+                s     = get_db_stats()
+                total = s.get('total_cached', 0)
+                bad   = s.get('known_malicious', 0)
+                if total > 0 and bad > 0:
+                    self._edr_stats_lbl.configure(fg=C['accent_danger'])
+                    self._edr_stats_var.set(
+                        f'⚠  Threat DB  ·  {total} checked  ·  '
+                        f'{bad} malicious detected')
+                elif total > 0:
+                    self._edr_stats_lbl.configure(fg=C['accent_success'])
+                    self._edr_stats_var.set(
+                        f'✓  Threat DB  ·  {total} files checked  ·  0 malicious')
+                else:
+                    self._edr_stats_lbl.configure(fg=C['text_muted'])
+                    self._edr_stats_var.set(
+                        '🔍 Threat Intel  ·  enable toggle to activate hash checking')
+            except Exception:
+                self._edr_stats_var.set(
+                    '🔍 Threat Intel  ·  enable toggle to activate hash checking')
+            self.root.after(30_000, _refresh_edr_stats)
+ 
+        self.root.after(5_000, _refresh_edr_stats)
+
+
 
     # ─────────────────────────────────────────
     #  TAB AREA
@@ -1346,6 +1490,7 @@ class ProIntegrityGUI:
         _ActionButton(vault_btns, 'Restore from Vault',
                       self._restore_from_vault,
                       C['button_bg'], fg=C['text_secondary'], font_size=9).pack(fill=tk.X, pady=2)
+
 
         # Cloud pane
         cp = self._card(panes, accent=C['accent_info'])
@@ -3164,6 +3309,110 @@ class ProIntegrityGUI:
             
         except Exception as e:
             print(f'USB toggle error: {e}')
+
+    def _toggle_system_paths(self):
+        """Toggle system path protection with PRO check."""
+        tier = auth.get_user_tier(self.username) if auth else "free"
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "pro_monthly"
+        if not subscription_manager.is_pro(tier):
+            self._sp_var.set(False)
+            if 'System Path Protection' in getattr(self, '_toggle_switches', {}):
+                self._toggle_switches['System Path Protection'].refresh()
+                self.root.update_idletasks()
+            messagebox.showwarning(
+                "⭐ Premium Feature",
+                "🛡️ System Path Protection is a PRO feature.")
+            return
+        new_state = self._sp_var.get()
+        try:
+            from core.integrity_core import CONFIG, save_config
+            CONFIG['system_path_protection'] = new_state
+            save_config()
+            self._append_log(
+                f"System Path Protection {'ENABLED' if new_state else 'DISABLED'}"
+                f" by {self.username}")
+            if new_state and self.monitor_running and self.monitor:
+                messagebox.showinfo(
+                    "System Path Protection",
+                    "Restart monitoring to begin watching critical Windows paths.")
+        except Exception as e:
+            print(f"System path toggle error: {e}")
+ 
+    def _toggle_registry_monitor(self):
+        """Toggle registry persistence monitoring with PRO check."""
+        tier = auth.get_user_tier(self.username) if auth else "free"
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "pro_monthly"
+        if not subscription_manager.is_pro(tier):
+            self._rm_var.set(False)
+            if 'Registry Persistence' in getattr(self, '_toggle_switches', {}):
+                self._toggle_switches['Registry Persistence'].refresh()
+                self.root.update_idletasks()
+            messagebox.showwarning(
+                "⭐ Premium Feature",
+                "🔑 Registry Persistence Monitoring is a PRO feature.")
+            return
+        new_state = self._rm_var.get()
+        try:
+            from core.integrity_core import CONFIG, save_config
+            CONFIG['registry_monitoring'] = new_state
+            save_config()
+            self._append_log(
+                f"Registry Monitoring {'ENABLED' if new_state else 'DISABLED'}"
+                f" by {self.username}")
+            if new_state:
+                if not self.monitor_running:
+                    messagebox.showinfo(
+                        "Registry Monitoring",
+                        "Start the monitor to activate Registry Persistence detection.")
+                else:
+                    try:
+                        from core.registry_monitor import start_registry_monitoring
+                        from core.integrity_core import append_log_line
+                        ok = start_registry_monitoring(
+                            log_fn=append_log_line,
+                            alert_callback=lambda et, p, s: self.root.after(
+                                0, lambda: self._handle_realtime_event(et, p, s))
+                        )
+                        if ok:
+                            messagebox.showinfo(
+                                "Registry Monitoring Active",
+                                "Now watching 14 persistence key paths.")
+                    except Exception as e:
+                        print(f"Registry start error: {e}")
+        except Exception as e:
+            print(f"Registry toggle error: {e}")
+ 
+    def _toggle_threat_intel(self):
+        """Toggle threat intelligence hash checking with PRO check."""
+        tier = auth.get_user_tier(self.username) if auth else "free"
+        if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+            tier = "pro_monthly"
+        if not subscription_manager.is_pro(tier):
+            self._ti_var.set(False)
+            if 'Threat Intel (Hash Check)' in getattr(self, '_toggle_switches', {}):
+                self._toggle_switches['Threat Intel (Hash Check)'].refresh()
+                self.root.update_idletasks()
+            messagebox.showwarning(
+                "⭐ Premium Feature",
+                "🔍 Threat Intelligence is a PRO feature.")
+            return
+        new_state = self._ti_var.get()
+        try:
+            from core.integrity_core import CONFIG, save_config
+            CONFIG['threat_intel_enabled'] = new_state
+            save_config()
+            self._append_log(
+                f"Threat Intel {'ENABLED' if new_state else 'DISABLED'}"
+                f" by {self.username}")
+            if new_state:
+                messagebox.showinfo(
+                    "Threat Intel Active",
+                    "File hashes will be checked against MalwareBazaar.\\n"
+                    "Tip: Add a VirusTotal API key in Settings for deeper scanning.")
+        except Exception as e:
+            print(f"Threat intel toggle error: {e}")
 
     # Legacy toggle_btn stubs so old code that calls .configure() doesn't crash
     @property
