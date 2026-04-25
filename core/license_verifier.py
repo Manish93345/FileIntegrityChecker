@@ -37,7 +37,7 @@ from datetime import datetime
 from core.utils import get_app_data_dir
 from core.encryption_manager import crypto_manager
 
-LICENSE_SERVER_URL = "https://fmsecure-c2-server-production.up.railway.app"
+LICENSE_SERVER_URL = "https://fmsecure.onrender.com"
 _CACHE_FILE      = os.path.join(get_app_data_dir(), "logs", "license_cache.dat")
 _CACHE_TTL       = 86_400   # 24 hours
 _TIMEOUT         = 8

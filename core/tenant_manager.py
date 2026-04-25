@@ -126,7 +126,7 @@ def get_server() -> str:
     cfg = load()
     return (cfg or {}).get(
         "server",
-        "https://fmsecure-c2-server-production.up.railway.app"
+        "https://fmsecure.onrender.com"
     )
 
 
@@ -152,7 +152,7 @@ def validate_key(tenant_key: str, server: str = "") -> tuple[bool, str]:
     """
     import requests as _req
 
-    srv = (server or "https://fmsecure-c2-server-production.up.railway.app").rstrip("/")
+    srv = (server or "https://fmsecure.onrender.com").rstrip("/")
     url = f"{srv}/api/heartbeat"
 
     try:

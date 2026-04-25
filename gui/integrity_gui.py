@@ -493,6 +493,13 @@ class ProIntegrityGUI:
             # --- NEW FIX: Inject email into CONFIG so cloud sync knows the folder name ---
             user_data = auth.users.get(self.username, {})
             CONFIG["admin_email"] = user_data.get("registered_email", "UnknownUser")
+        # ── Tenant override: org-enrolled machines are always PRO ───────────────
+        try:
+            from core import tenant_manager as _tenant_mgr
+            if _tenant_mgr.is_enrolled():
+                current_tier = "business"   # treat org installs as PRO immediately
+        except Exception:
+            pass
             
         is_pro = subscription_manager.is_pro(current_tier)
         CONFIG["is_pro_user"] = is_pro  # <-- NEW: Let backend know if user is pro
@@ -1794,7 +1801,7 @@ class ProIntegrityGUI:
         c2_rows = [
             ('Machine ID',  str(uuid.getnode())[:16] + '…'),
             ('Hostname',    socket.gethostname()),
-            ('C2 Endpoint', 'fmsecure-c2-server-production.up.railway.app'),
+            ('C2 Endpoint', 'fmsecure.onrender.com'),
             ('Heartbeat',   'Every 10s'),
         ]
         for i, (k, v) in enumerate(c2_rows):
@@ -4128,8 +4135,8 @@ class ProIntegrityGUI:
 
         import requests
         try:
-            # Connect to your new secure Railway endpoint
-            url = "https://fmsecure-c2-server-production.up.railway.app/api/license/recover_key"
+            # Connect to your new secure render endpoint
+            url = "https://fmsecure.onrender.com/api/license/recover_key"
             
             # We don't need to wait for a specific success boolean because 
             # the server uses Blind Responses for security.
@@ -4338,7 +4345,7 @@ class ProIntegrityGUI:
         buy_btn = tk.Button(
             sec_row, text="Buy PRO License →",
             command=lambda: webbrowser.open(
-                "https://fmsecure-c2-server-production.up.railway.app/pricing"),
+                "https://fmsecure.onrender.com/pricing"),
             font=('Segoe UI', 9, 'bold'),
             bg="#238636", fg="#ffffff",
             relief='flat', padx=12, pady=6, cursor='hand2',
@@ -4590,7 +4597,7 @@ class ProIntegrityGUI:
     def _show_key_recovery_dialog(self, parent_win=None):
         """
         Recover a lost license key by sending it to the purchase email.
-        Calls POST /api/license/recover_key on the Railway server.
+        Calls POST /api/license/recover_key on the render server.
         The server looks up all keys for that email and re-sends them.
         """
         C   = self.colors
@@ -4718,9 +4725,16 @@ class ProIntegrityGUI:
         """
         def heartbeat_loop():
             import socket
-            machine_id = str(uuid.getnode())
+            # ✅ CORRECT — replace with:
+            try:
+                from core.encryption_manager import crypto_manager
+                machine_id = crypto_manager.get_machine_id()
+            except Exception:
+                import platform, hashlib
+                hw = f"{platform.node()}-{platform.machine()}-{platform.processor()}"
+                machine_id = "FM-" + hashlib.sha256(hw.encode()).hexdigest()[:24].upper()
             hostname   = socket.gethostname()
-            c2_url     = "https://fmsecure-c2-server-production.up.railway.app/api/heartbeat"
+            c2_url     = "https://fmsecure.onrender.com/api/heartbeat"
  
             # Load tenant key once (cached after first call)
             try:
@@ -4818,9 +4832,15 @@ class ProIntegrityGUI:
         def _heartbeat_loop():
             import socket as _sock
             _hostname   = _sock.gethostname()
-            _machine_id = str(uuid.getnode())
-            _c2_url     = ("https://fmsecure-c2-server-production"
-                        ".up.railway.app/api/heartbeat")
+            # ✅ CORRECT — replace with:
+            try:
+                from core.encryption_manager import crypto_manager
+                _machine_id = crypto_manager.get_machine_id()
+            except Exception:
+                import platform, hashlib
+                hw = f"{platform.node()}-{platform.machine()}-{platform.processor()}"
+                _machine_id = "FM-" + hashlib.sha256(hw.encode()).hexdigest()[:24].upper()
+            _c2_url     = ("https://fmsecure.onrender.com/api/heartbeat")
 
             while True:
                 try:
@@ -4852,7 +4872,7 @@ class ProIntegrityGUI:
                         url     = f"{_tm.get_server()}/api/heartbeat"
                     else:
                         # ── Legacy single-user path ────────────────────────────
-                        # API_KEY env var on Railway must match this value.
+                        # API_KEY env var on render must match this value.
                         headers = {"x-api-key": "fmsecure-enterprise-key-99"}
                         url     = _c2_url
 
@@ -4861,8 +4881,21 @@ class ProIntegrityGUI:
                     if resp.status_code == 200:
                         data = resp.json()
                         if data.get("command") == "LOCKDOWN":
-                            print("🚨 CLOUD COMMAND: LOCKDOWN")
                             self.root.after(0, self._execute_remote_lockdown)
+                        # ── Apply org plan from server ──────────────────────────
+                        if data.get("is_pro") and not CONFIG.get("is_pro_user"):
+                            CONFIG["is_pro_user"] = True
+                            try:
+                                from core.integrity_core import save_config
+                                save_config()
+                            except Exception:
+                                pass
+                            self.root.after(0, self._apply_org_pro_status)
+
+                    elif resp.status_code == 402:
+                        # Seat limit — show banner
+                        self.root.after(0, self._show_seat_limit_banner)
+                    
 
                 except Exception:
                     pass   # server offline — silent
@@ -7851,6 +7884,56 @@ class ProIntegrityGUI:
                 font=("Segoe UI", 11), bg="#1a3a1a", fg="#888888",
                 bd=0, cursor="hand2",
                 activebackground="#2a4a2a").pack(side=tk.LEFT)
+
+    def _apply_org_pro_status(self):
+        """Unlock PRO features for organisation-enrolled machines."""
+        from core.integrity_core import CONFIG
+        CONFIG["is_pro_user"] = True
+
+        # Remove "Upgrade" button if it exists
+        if hasattr(self, 'upgrade_btn'):
+            try:
+                if self.upgrade_btn.winfo_exists():
+                    self.upgrade_btn.destroy()
+            except Exception:
+                pass
+
+        # Show ORG badge if not already showing PRO badge
+        if not (hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists()):
+            try:
+                import customtkinter as ctk
+                self.pro_badge = ctk.CTkLabel(
+                    self.top_btn_frame,
+                    text="🏢  ORG PRO",
+                    font=('Segoe UI', 10, 'bold'),
+                    text_color="#2f81f7",
+                    fg_color="transparent")
+                self.pro_badge.pack(side=tk.LEFT, padx=(0, 15),
+                                    before=self.theme_btn)
+            except Exception:
+                pass
+
+        # Sync toggle states to match PRO
+        for var in [self._ad_var, self._ks_var]:
+            from core.integrity_core import CONFIG as C
+            # Don't force-enable — respect what IT admin pushed via pull_config()
+            pass
+
+        self._append_log("🏢 Organisation PRO plan applied — all PRO features active")
+
+    def _show_seat_limit_banner(self):
+        """Show a non-blocking warning when org seat limit is reached."""
+        C = self.colors
+        if hasattr(self, '_seat_banner') and self._seat_banner.winfo_exists():
+            return
+        self._seat_banner = tk.Frame(self.root, bg="#3d1a00", height=36)
+        self._seat_banner.place(x=0, y=56, relwidth=1.0)
+        self._seat_banner.pack_propagate(False)
+        tk.Label(self._seat_banner,
+                text="⚠  Seat limit reached — this device cannot check in. "
+                    "Contact your IT administrator to add seats.",
+                font=("Segoe UI", 10, "bold"),
+                bg="#3d1a00", fg="#f0883e").pack(expand=True)
 
     def _apply_tenant_config(self):
         """

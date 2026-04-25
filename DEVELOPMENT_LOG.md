@@ -367,8 +367,100 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
 ---
+---
 
+## 🗓️ Phase 14 — Multi-Tenancy & Enterprise C2 (Apr 2026)
 
+This phase transforms FMSecure from a single-machine product into a
+**multi-tenant enterprise platform**: one Railway-hosted server manages
+multiple client organisations, each isolated from one another, with their
+own IT admin portal, policy controls, and real-time agent dashboard.
+
+### 14.1 — Server Architecture
+
+**Database layer — new tables:**
+- `tenants` — organisation records: name, API key (hashed), plan tier, seat limit, active flag
+- `tenant_agents` — one row per installed endpoint; tracks hostname, OS, IP, version, last-seen
+- `tenant_alerts` — alert feed for each organisation; written by agents, read by IT portal
+- `tenant_users` — IT admin accounts; separate from the super-admin account
+- `tenant_config` — per-organisation policy overrides (scan interval, alert thresholds, PRO feature flags)
+
+**New API endpoints:**
+- `POST /api/heartbeat` — agent check-in; creates agent row on first contact, updates `last_seen`; enforces seat limit (HTTP 402 on overflow)
+- `POST /api/agent/alert` — agent pushes a CRITICAL/HIGH alert to server; stored in `tenant_alerts`
+- `GET /agent/config` — agent pulls current policy config for its organisation
+- `POST /super/tenants-form` — super admin creates a new tenant and receives the API key
+- `GET /super/dashboard` — all tenants, all agents, all alerts in one view
+- `GET /super/tenant-detail/<id>` — per-tenant drill-down: agent list, alert list, admin user management
+- `GET/POST /tenant/login` — IT admin login (session-based, scoped to one tenant)
+- `GET /tenant/dashboard` — IT admin sees only their organisation's agents and alerts; settings form for policy config
+
+**Offline sweeper:** Background thread (`FMSecure-OfflineSweeper`) runs every 30 seconds on the server. Any agent whose `last_seen` is older than 45 seconds is marked offline. Fixes agents stuck in "online" state after a crash or network drop.
+
+**Seat enforcement:** On every heartbeat, the server counts active agents for the tenant. If count ≥ `max_agents`, the heartbeat returns HTTP 402. The agent displays a seat limit banner and continues monitoring locally.
+
+---
+
+### 14.2 — Desktop Agent Integration
+
+**New file: `core/tenant_manager.py`**
+- `load()` / `save()` / `clear()` — tenant enrolment state persisted to `AppData/FMSecure/tenant.json`
+- `is_enrolled()` — returns True if a valid tenant key is stored
+- `get_key()` / `get_server()` — returns stored credentials
+- `validate_key()` — POST to `/api/heartbeat`; validates key against server on first enrolment
+- `push_alert()` — POST to `/api/agent/alert`; called for CRITICAL/HIGH events
+- `pull_config()` — GET from `/agent/config`; called at startup to apply remote policy
+
+**`core/integrity_core.py` changes:**
+- `send_webhook_safe()` now has a third channel: `tenant_manager.push_alert()` for CRITICAL and HIGH severity events, alongside Discord/Slack and email
+
+**`gui/integrity_gui.py` changes:**
+- `_start_heartbeat()` — daemon thread (`FMSecure-Heartbeat`, 10s interval) sends `POST /api/heartbeat` with `x-tenant-key` header on every cycle; shows seat limit banner on HTTP 402
+- `_apply_tenant_config()` — applies server-side policy overrides to local `CONFIG` on startup; IT admin settings take precedence over local config
+
+**`gui/login_gui.py` changes:**
+- `_check_tenant_then_reinstall()` — on fresh install, probes for tenant enrolment before cloud probe
+- `_auto_enroll_from_env()` — reads `FMSECURE_TENANT_KEY` environment variable for silent MSI-style mass deployment
+- `_build_tenant_gateway_ui()` / `_build_tenant_enrollment_ui()` — branded enrolment wizard shown on first install; accepts tenant API key, validates against server, saves locally
+
+---
+
+### 14.3 — Admin Portals
+
+**Super Admin (`/super/`):**
+- Global dashboard: all tenants, seat usage, agent count, alert count per org
+- Create tenant form: name, email, plan, seat limit → generates cryptographically random API key
+- Tenant detail page: per-tenant agent table, alert feed, IT admin user management
+- Tenant suspend / reactivate
+
+**IT Admin (`/tenant/`):**
+- Login with org-scoped credentials (separate from super admin)
+- Dashboard scoped to own organisation only — cannot see other tenants' data
+- Live agent table: hostname, OS, IP, version, status (online / offline)
+- Alert feed: last 50 CRITICAL/HIGH events from all endpoints in the org
+- Settings form: scan interval, alert thresholds, PRO feature flag overrides — changes written to `tenant_config` and pulled by agents on next startup
+
+**Public nav update:** "Client Portal" link added to landing page header → routes to `/tenant/login`
+
+---
+
+### 14.4 — Deployment & Security Notes
+
+- Tenant API keys are generated with `secrets.token_urlsafe(32)` — 256 bits of entropy
+- Keys stored in DB as SHA-256 hash; plaintext shown once at creation only
+- All agent-to-server communication uses `x-tenant-key` header (HTTPS on Railway)
+- Super admin is a single `SUPER_ADMIN_KEY` environment variable; never stored in DB
+- Per-tenant data isolation enforced at query level: every DB query filters by `tenant_id`
+
+---
+
+### 🛠 Bug Fixes (Phase 14)
+
+| ID | Area | Description |
+|---|---|---|
+| BUG-016 | Server | Agents stayed "online" permanently after crash — offline sweeper was absent; fixed with 45-second grace period |
+| BUG-017 | Desktop | `pull_config()` ran before `tenant_manager.load()` on startup — always returned defaults; fixed with explicit load-before-pull ordering |
+| BUG-018 | Server | Seat count included offline agents — could block new enrollments even when seats were available; fixed by counting only agents with `last_seen` within 45s |
 
 
 ---

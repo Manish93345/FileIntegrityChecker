@@ -1695,7 +1695,7 @@ class LoginWindow:
             ok, tenant_name = tenant_manager.validate_key(env_key)
             if ok:
                 tenant_manager.save(env_key,
-                                    "https://fmsecure-c2-server-production.up.railway.app",
+                                    "https://fmsecure.onrender.com",
                                     tenant_name)
                 self.root.after(0, lambda: status_var.set(
                     f"✓ Enrolled in: {tenant_name or 'organisation'}"))
@@ -1845,7 +1845,7 @@ class LoginWindow:
                     if ok:
                         tenant_manager.save(
                             key,
-                            "https://fmsecure-c2-server-production.up.railway.app",
+                            "https://fmsecure.onrender.com",
                             result)
                         status_lbl.configure(
                             text=f"✓ Enrolled in: {result or 'organisation'}",
