@@ -281,7 +281,7 @@ CONFIG = dict(DEFAULT_CONFIG)
 # Additional temp patterns to ignore (lowercase)
 TEMP_PATTERNS = [".tmp", ".part", ".crdownload", ".ds_store", ".swp", ".bak",
                  "~", ".~", ".pyc", "__pycache__", ".git", ".restore_tmp",
-                 ".cloud_tmp"]
+                 ".cloud_tmp", "telemetry.jsonl", "telemetry_"]
 
 
 def get_severity(event_type):
@@ -342,7 +342,7 @@ def load_config(path=None):
         "hash_chunk_size": 65536,
         "hash_retries": 3,
         "hash_retry_delay": 0.5,
-        "ignore_filenames": ["hash_records.dat", "integrity_log.dat", "integrity_log.sig", "hash_records.sig", "report_summary.txt"],
+        "ignore_filenames": ["hash_records.dat", "integrity_log.dat", "integrity_log.sig", "hash_records.sig", "report_summary.txt", "telemetry.jsonl"],
         "active_defense": False, 
         "vault_max_size_mb": 10,
         "vault_allowed_exts": [".txt", ".json", ".py", ".html", ".js", ".css", ".php", ".ini", ".conf", ".jsx"],
@@ -352,7 +352,11 @@ def load_config(path=None):
         "threat_intel_enabled": False,     # PRO feature — MalwareBazaar hash check
         "virustotal_api_key": "",          # Optional VT API key
         "process_attribution": True,       # Enable WHO modified tracking
-        "registry_monitoring": False      # PRO feature — persistence detection
+        "registry_monitoring": False,      # PRO feature — persistence detection
+        # ── GAP-012: Structured telemetry / SIEM output ───────────────────────
+        "syslog_enabled": False,           # Set True to forward CEF syslog to your SIEM
+        "syslog_host":    "",              # SIEM collector IP e.g. "192.168.1.100"
+        "syslog_port":    514,             # UDP syslog port (514 = standard)
     }
     CONFIG.update(defaults)
 
@@ -375,7 +379,9 @@ def load_config(path=None):
     return True
 
 # ------------------ Logging & Log HMAC (per-line) ------------------
-def append_log_line(message, event_type="INFO", severity="INFO"):
+def append_log_line(message, event_type="INFO", severity="INFO",
+                    file_path=None, file_hash=None,
+                    process_pid=None, process_name=None, process_parent=None):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     # --- 🚨 FIX 2: INJECT SEVERITY EMOJI SO GUI CAN FILTER IT ---
@@ -400,11 +406,51 @@ def append_log_line(message, event_type="INFO", severity="INFO"):
         update_severity_counter(severity)
         
         # Optional: Print plain text to terminal for your own debugging
-        print(plain_text_log.strip()) 
-        
+        print(plain_text_log.strip())
+
+        # ── GAP-012: Emit structured ECS telemetry (SIEM-ready JSONL + Syslog/CEF) ──
+        # Runs in a daemon thread so it never adds latency to the hot path.
+        # telemetry.jsonl is written to the same logs/ directory.
+        try:
+            from core.event_schema import emit_telemetry_event, emit_syslog_cef
+            import threading as _threading
+            _threading.Thread(
+                target=_emit_structured,
+                args=(message, event_type, severity,
+                      file_path, file_hash,
+                      process_pid, process_name, process_parent),
+                daemon=True,
+            ).start()
+        except Exception:
+            pass   # Never block the hot path
+
     except Exception as e:
         print(f"Failed to write encrypted log: {e}")
 
+def _emit_structured(message, event_type, severity,
+                     file_path, file_hash,
+                     process_pid, process_name, process_parent):
+    """Background worker: write ECS JSONL + Syslog/CEF. Never raises."""
+    try:
+        from core.event_schema import emit_telemetry_event, emit_syslog_cef
+        emit_telemetry_event(
+            message=message,
+            event_type=event_type,
+            severity=severity,
+            file_path=file_path,
+            file_hash=file_hash,
+            process_pid=process_pid,
+            process_name=process_name,
+            process_parent=process_parent,
+        )
+        emit_syslog_cef(
+            message=message,
+            event_type=event_type,
+            severity=severity,
+            file_path=file_path,
+        )
+    except Exception:
+        pass
 
 def update_severity_counter(severity):
     """
@@ -492,6 +538,12 @@ def rotate_logs_if_needed():
     # write rotation event
     append_log_line(f"LOG_ROTATED: {new_log}")
     cleanup_backups(base, CONFIG["max_log_backups"])
+    # Rotate telemetry.jsonl in sync with the main log
+    try:
+        from core.event_schema import rotate_telemetry_if_needed
+        rotate_telemetry_if_needed(max_mb=CONFIG.get("max_log_size_mb", 10) * 5)
+    except Exception:
+        pass
 
 def cleanup_backups(base, keep):
     files = sorted([f for f in os.listdir(".") if f.startswith(base + "_")], reverse=True)
@@ -1255,7 +1307,11 @@ class IntegrityHandler(FileSystemEventHandler):
             #     log_msg += f"  by {attr_str}"
             log_msg = f"CREATED: {path}{sys_badge}"
         
-            append_log_line(log_msg, event_type="CREATED", severity=final_severity)
+            append_log_line(
+                log_msg, event_type="CREATED", severity=final_severity,
+                file_path=path,
+                file_hash=details.get("content") if details else None,
+            )
         
             # ── Gap 4: Threat Intel hash check ───────────────────────────────
             if CONFIG.get('threat_intel_enabled', False) and THREAT_INTEL_AVAILABLE:
@@ -1429,7 +1485,11 @@ class IntegrityHandler(FileSystemEventHandler):
             #     log_msg += f"  by {attr_str}"
             log_msg = f"MODIFIED: {path}{sys_badge}"
         
-            append_log_line(log_msg, event_type="MODIFIED", severity=final_severity)
+            append_log_line(
+                log_msg, event_type="MODIFIED", severity=final_severity,
+                file_path=path,
+                file_hash=new_content if new_content else None,
+            )
         
             # ── Gap 4: Threat Intel (check modified file hash) ────────────────
             if CONFIG.get('threat_intel_enabled', False) and THREAT_INTEL_AVAILABLE:
@@ -1647,7 +1707,10 @@ class IntegrityHandler(FileSystemEventHandler):
                 #     log_msg += f"  by {attr_str}"
                 log_msg = f"DELETED: {path}{sys_badge}"
             
-                append_log_line(log_msg, event_type="DELETED", severity=final_severity)
+                append_log_line(
+                    log_msg, event_type="DELETED", severity=final_severity,
+                    file_path=path,
+                )
                 send_webhook_safe("DELETED", "File deleted", path, severity="MEDIUM")
 
     

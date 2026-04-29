@@ -22,54 +22,6 @@ from core.lockdown_manager import lockdown  # <-- NEW: Import the Killswitch
 import requests
 from core.email_service import email_service
 
-# --- SAFE WIN32 IMPORTS ---
-try:
-    import win32file
-    import win32con
-    WIN32_AVAILABLE = True
-except ImportError:
-    WIN32_AVAILABLE = False
-    print("pywin32 not installed. Folder locking disabled.")
-
-class FolderLockManager:
-    """Safely locks the root folder to prevent deletion without triggering watchdog panics."""
-    def __init__(self):
-        self._locked_handles = {}
-
-    def lock_folder(self, folder_path: str):
-        if not WIN32_AVAILABLE or not os.path.exists(folder_path):
-            return False
-        if folder_path in self._locked_handles:
-            return True # Already locked
-            
-        try:
-            # Omit FILE_SHARE_DELETE so attackers/ransomware cannot delete the root folder
-            share_mode = win32con.FILE_SHARE_READ | win32con.FILE_SHARE_WRITE
-            handle = win32file.CreateFile(
-                folder_path,
-                win32con.GENERIC_READ,
-                share_mode,
-                None,
-                win32con.OPEN_EXISTING,
-                win32file.FILE_FLAG_BACKUP_SEMANTICS,
-                None
-            )
-            self._locked_handles[folder_path] = handle
-            print(f"🛡️ [ROOT SHIELD] Secured against deletion: {folder_path}")
-            return True
-        except Exception as e:
-            print(f"❌ [ROOT SHIELD] Lock failed: {e}")
-            return False
-
-    def unlock_folder(self, folder_path: str):
-        if folder_path in self._locked_handles:
-            try:
-                handle = self._locked_handles.pop(folder_path)
-                win32file.CloseHandle(handle)
-                print(f"🔓 [ROOT SHIELD] Unlocked: {folder_path}")
-            except Exception as e:
-                print(f"❌ [ROOT SHIELD] Unlock failed: {e}")
-
 # --- THE UNIVERSAL BRAIN ---
 # This forces the app to ALWAYS look in your Windows AppData folder
 # No matter if it's run by you, the Watchdog, or Inno Setup.
@@ -137,6 +89,46 @@ try:
 except Exception:
     print("Missing dependency: watchdog. Install with `pip install watchdog`.")
     raise
+
+# ── Gap 1: Process Attribution ───────────────────────────────────────
+try:
+    from core.process_monitor import attribute_file_event, get_attribution_dict
+    PROCESS_ATTRIBUTION_AVAILABLE = True
+except Exception:
+    PROCESS_ATTRIBUTION_AVAILABLE = False
+    def attribute_file_event(fp): return ''
+    def get_attribution_dict(fp): return None
+ 
+# ── Gap 2: System Path Protection ────────────────────────────────────
+try:
+    from core.system_paths import (
+        get_paths_only, is_system_critical,
+        classify_file_risk, is_executable
+    )
+    SYSTEM_PATHS_AVAILABLE = True
+except Exception:
+    SYSTEM_PATHS_AVAILABLE = False
+    def get_paths_only(level='balanced'): return []
+    def is_system_critical(fp): return None
+    def classify_file_risk(fp): return {}
+    def is_executable(fp): return False
+ 
+# ── Gap 3: Registry Monitor ───────────────────────────────────────────
+try:
+    from core.registry_monitor import start_registry_monitoring, stop_registry_monitoring
+    REGISTRY_MONITOR_AVAILABLE = True
+except Exception:
+    REGISTRY_MONITOR_AVAILABLE = False
+    def start_registry_monitoring(**kwargs): return False
+    def stop_registry_monitoring(): pass
+ 
+# ── Gap 4: Threat Intel ───────────────────────────────────────────────
+try:
+    from core.threat_intel import check_file_threat, get_engine as get_threat_engine
+    THREAT_INTEL_AVAILABLE = True
+except Exception:
+    THREAT_INTEL_AVAILABLE = False
+    def check_file_threat(*args, **kwargs): pass
 
 try:
     import requests
@@ -225,11 +217,11 @@ EVENT_SEVERITY = {
     "DELETED_UNTRACKED": "MEDIUM",
     
     # Security events
-    "TAMPERED_RECORDS": "CRITICAL",
-    "TAMPERED_LOGS": "CRITICAL",
-    "LOG_INTEGRITY_FAIL": "CRITICAL",
-    "INTEGRITY_FAIL": "CRITICAL",
-    "SIGNATURE_MISMATCH": "CRITICAL",
+    "TAMPERED_RECORDS": "HIGH",
+    "TAMPERED_LOGS": "HIGH",
+    "LOG_INTEGRITY_FAIL": "HIGH",
+    "INTEGRITY_FAIL": "HIGH",
+    "SIGNATURE_MISMATCH": "HIGH",
     
     # Configuration changes
     "CONFIG_CHANGED": "HIGH",
@@ -287,7 +279,9 @@ SEVERITY_COUNTER_FILE = os.path.join(log_dir, "severity_counters.json")
 CONFIG = dict(DEFAULT_CONFIG)
 
 # Additional temp patterns to ignore (lowercase)
-TEMP_PATTERNS = [".tmp", ".part", ".crdownload", ".ds_store", ".swp", ".bak", "~", ".~", ".pyc", "__pycache__", ".git"]
+TEMP_PATTERNS = [".tmp", ".part", ".crdownload", ".ds_store", ".swp", ".bak",
+                 "~", ".~", ".pyc", "__pycache__", ".git", ".restore_tmp",
+                 ".cloud_tmp", "telemetry.jsonl", "telemetry_"]
 
 
 def get_severity(event_type):
@@ -348,11 +342,21 @@ def load_config(path=None):
         "hash_chunk_size": 65536,
         "hash_retries": 3,
         "hash_retry_delay": 0.5,
-        "ignore_filenames": ["hash_records.dat", "integrity_log.dat", "integrity_log.sig", "hash_records.sig", "report_summary.txt"],
+        "ignore_filenames": ["hash_records.dat", "integrity_log.dat", "integrity_log.sig", "hash_records.sig", "report_summary.txt", "telemetry.jsonl"],
         "active_defense": False, 
         "vault_max_size_mb": 10,
         "vault_allowed_exts": [".txt", ".json", ".py", ".html", ".js", ".css", ".php", ".ini", ".conf", ".jsx"],
-        "ransomware_killswitch": False
+        "ransomware_killswitch": False,
+        "system_path_protection": False,   # PRO feature — monitor Windows critical paths
+        "system_path_level": "balanced",   # 'minimal' | 'balanced' | 'aggressive'
+        "threat_intel_enabled": False,     # PRO feature — MalwareBazaar hash check
+        "virustotal_api_key": "",          # Optional VT API key
+        "process_attribution": True,       # Enable WHO modified tracking
+        "registry_monitoring": False,      # PRO feature — persistence detection
+        # ── GAP-012: Structured telemetry / SIEM output ───────────────────────
+        "syslog_enabled": False,           # Set True to forward CEF syslog to your SIEM
+        "syslog_host":    "",              # SIEM collector IP e.g. "192.168.1.100"
+        "syslog_port":    514,             # UDP syslog port (514 = standard)
     }
     CONFIG.update(defaults)
 
@@ -375,7 +379,9 @@ def load_config(path=None):
     return True
 
 # ------------------ Logging & Log HMAC (per-line) ------------------
-def append_log_line(message, event_type="INFO", severity="INFO"):
+def append_log_line(message, event_type="INFO", severity="INFO",
+                    file_path=None, file_hash=None,
+                    process_pid=None, process_name=None, process_parent=None):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     # --- 🚨 FIX 2: INJECT SEVERITY EMOJI SO GUI CAN FILTER IT ---
@@ -400,10 +406,52 @@ def append_log_line(message, event_type="INFO", severity="INFO"):
         update_severity_counter(severity)
         
         # Optional: Print plain text to terminal for your own debugging
-        print(plain_text_log.strip()) 
+        print(plain_text_log.strip())
+
+        # ── GAP-012: Emit structured ECS telemetry (SIEM-ready JSONL + Syslog/CEF) ──
+        # Runs in a daemon thread so it never adds latency to the hot path.
+        # telemetry.jsonl is written to the same logs/ directory.
+        try:
+            from core.event_schema import emit_telemetry_event, emit_syslog_cef
+            import threading as _threading
+            _threading.Thread(
+                target=_emit_structured,
+                args=(message, event_type, severity,
+                      file_path, file_hash,
+                      process_pid, process_name, process_parent),
+                daemon=True,
+            ).start()
+        except Exception:
+            pass   # Never block the hot path
         
     except Exception as e:
         print(f"Failed to write encrypted log: {e}")
+
+
+def _emit_structured(message, event_type, severity,
+                     file_path, file_hash,
+                     process_pid, process_name, process_parent):
+    """Background worker: write ECS JSONL + Syslog/CEF. Never raises."""
+    try:
+        from core.event_schema import emit_telemetry_event, emit_syslog_cef
+        emit_telemetry_event(
+            message=message,
+            event_type=event_type,
+            severity=severity,
+            file_path=file_path,
+            file_hash=file_hash,
+            process_pid=process_pid,
+            process_name=process_name,
+            process_parent=process_parent,
+        )
+        emit_syslog_cef(
+            message=message,
+            event_type=event_type,
+            severity=severity,
+            file_path=file_path,
+        )
+    except Exception:
+        pass
 
 
 def update_severity_counter(severity):
@@ -492,6 +540,12 @@ def rotate_logs_if_needed():
     # write rotation event
     append_log_line(f"LOG_ROTATED: {new_log}")
     cleanup_backups(base, CONFIG["max_log_backups"])
+    # Rotate telemetry.jsonl in sync with the main log
+    try:
+        from core.event_schema import rotate_telemetry_if_needed
+        rotate_telemetry_if_needed(max_mb=CONFIG.get("max_log_size_mb", 10) * 5)
+    except Exception:
+        pass
 
 def cleanup_backups(base, keep):
     files = sorted([f for f in os.listdir(".") if f.startswith(base + "_")], reverse=True)
@@ -783,6 +837,22 @@ def send_webhook_safe(event_type, message, filepath=None, severity="INFO"):
     elif not admin_email:
         print(f"\n[ 📧 EMAIL THREAD ] ⚠️ Skipped: No 'admin_email' configured in Settings.")
 
+    # ── CHANNEL 3: Tenant C2 Server (multi-tenancy) ──────────────────────────
+    if severity in ("CRITICAL", "HIGH"):
+        try:
+            from core import tenant_manager as _tm
+            import socket as _sock
+            _tm.push_alert(
+                machine_id = _tm._get_machine_id(),
+                hostname   = _sock.gethostname(),
+                severity   = severity,
+                event_type = event_type,
+                message    = message[:500],
+                file_path  = filepath or "",
+            )
+        except Exception:
+            pass   # never block the existing alert pipeline
+
 # ------------------ Verification & Summary ------------------
 def verify_all_files_and_update(records=None, watch_folders=None):
     """
@@ -926,6 +996,30 @@ def write_report_summary(summary):
         print(f"Error writing reports: {e}")
         traceback.print_exc()
 
+
+class _SystemPathRateLimiter:
+    """
+    Prevents system path events from flooding the event queue.
+    Allows at most 1 event per path per 3 seconds.
+    Events that arrive faster are silently dropped (they're almost always
+    OS background activity, not attacks).
+    """
+    def __init__(self, min_interval: float = 3.0):
+        self._last_event: dict = {}
+        self._lock = threading.Lock()
+        self._min_interval = min_interval
+ 
+    def should_process(self, path: str) -> bool:
+        now = time.time()
+        with self._lock:
+            last = self._last_event.get(path, 0)
+            if now - last < self._min_interval:
+                return False
+            self._last_event[path] = now
+            return True
+ 
+_sys_path_limiter = _SystemPathRateLimiter(min_interval=3.0)
+
 # ------------------ Watchdog event handler ------------------
 class IntegrityHandler(FileSystemEventHandler):
     def __init__(self, watch_folders=None, callback=None):  # Changed to watch_folders
@@ -1013,6 +1107,9 @@ class IntegrityHandler(FileSystemEventHandler):
         self.recent_events = []
         self.burst_threshold = 5
         self.burst_time_window = 10
+        # ── Restore cooldown: prevents the same file being re-restored within 10s ──
+        # key = absolute path, value = timestamp of last restore
+        self._restore_cooldown: dict = {}
 
     def _notify_gui(self, event_type, path, severity):
         """
@@ -1160,6 +1257,10 @@ class IntegrityHandler(FileSystemEventHandler):
         if event.is_directory: return
         path = os.path.abspath(event.src_path)
         if is_ignored_filename(os.path.basename(path)): return
+        # Rate-limit events from system paths to prevent flooding
+        from core.system_paths import is_system_critical as _isc
+        if _isc(path) and not _sys_path_limiter.should_process(path):
+            return  # Too many events from this system path, skip
         
         details = generate_file_hash(path)
         if details:
@@ -1189,15 +1290,54 @@ class IntegrityHandler(FileSystemEventHandler):
                                   CONFIG.get("vault_max_size_mb", 10), 
                                   _allowed)
                                   
-            append_log_line(f"CREATED: {path}", event_type="CREATED", severity="INFO")
-            send_webhook_safe("CREATED", "New file created", path)
-            self._notify_gui("CREATED", path, "INFO")
+            # ── Gap 1: Process Attribution ───────────────────────────────────
+            # attr_str = ''
+            if CONFIG.get('process_attribution', True) and PROCESS_ATTRIBUTION_AVAILABLE:
+                    attribute_file_event(path, log_fn=append_log_line)
+        
+            # ── Gap 2: Escalate severity for system paths ─────────────────────
+            final_severity = "INFO"
+            sys_badge      = ''
+            if SYSTEM_PATHS_AVAILABLE:
+                sys_sev = is_system_critical(path)
+                if sys_sev in ('CRITICAL', 'HIGH'):
+                    final_severity = sys_sev
+                    sys_badge      = f' [⚠ SYSTEM PATH: {sys_sev}]'
+        
+            # log_msg = f"CREATED: {path}{sys_badge}"
+            # if attr_str:
+            #     log_msg += f"  by {attr_str}"
+            log_msg = f"CREATED: {path}{sys_badge}"
+        
+            append_log_line(
+                log_msg, event_type="CREATED", severity=final_severity,
+                file_path=path,
+                file_hash=details.get("content") if details else None,
+            )
+        
+            # ── Gap 4: Threat Intel hash check ───────────────────────────────
+            if CONFIG.get('threat_intel_enabled', False) and THREAT_INTEL_AVAILABLE:
+                content_hash = details.get('content', '')
+                if content_hash:
+                    get_threat_engine().configure(CONFIG)
+                    check_file_threat(
+                        path, content_hash,
+                        log_fn=append_log_line,
+                        alert_callback=self._notify_gui
+                    )
+        
+            send_webhook_safe("CREATED", "New file created", path, severity=final_severity)
+            self._notify_gui("CREATED", path, final_severity)
 
     def on_modified(self, event):
         """Catches modification events and queues them to prevent spam during file transfers"""
         if event.is_directory: return
         path = os.path.abspath(event.src_path)
         if is_ignored_filename(os.path.basename(path)): return
+        # Rate-limit events from system paths to prevent flooding
+        from core.system_paths import is_system_critical as _isc
+        if _isc(path) and not _sys_path_limiter.should_process(path):
+            return  # Too many events from this system path, skip
 
         # --- 🚨 NEW: HONEYPOT TRIPWIRE 🚨 ---
         if os.path.basename(path).lower() == "secret_passwords.txt":
@@ -1260,30 +1400,41 @@ class IntegrityHandler(FileSystemEventHandler):
             
             # --- THE INFINITE LOOP FIX: ACTIVE DEFENSE INTERCEPT ---
             if old_content and old_content != new_content:
-                # 🚨 FIX: Double-check PRO status here as well
                 if CONFIG.get("active_defense", False) and CONFIG.get("is_pro_user", False):
+                    # Cooldown: same file cannot be re-restored within 10 seconds
+                    now       = time.time()
+                    last_time = self._restore_cooldown.get(path, 0)
+                    if now - last_time < 10.0:
+                        return   # already handling this file
+                    self._restore_cooldown[path] = now
+
                     from core.vault_manager import vault
                     success, msg = vault.restore_file(path)
                     if success:
-                        append_log_line(f"RESTORED: {path} (Malware modification reverted!)", event_type="RESTORED", severity="INFO")
+                        append_log_line(
+                            f"RESTORED: {path} (Malware modification reverted!)",
+                            event_type="RESTORED", severity="INFO")
                         self._notify_gui("RESTORED", path, "INFO")
-                        
-                        time.sleep(0.5) 
+
+                        time.sleep(0.5)
                         restored_details = generate_file_hash(path)
                         if restored_details:
                             self.records[path] = {
-                                "hash": restored_details["hash"], 
-                                "content": restored_details["content"], 
-                                "attrs": restored_details["attrs"], 
+                                "hash":         restored_details["hash"],
+                                "content":      restored_details["content"],
+                                "attrs":        restored_details["attrs"],
                                 "last_checked": now_pretty()
                             }
                             self.save_records()
                             
-                        self._check_burst_operations("MODIFY", path)
-                        return 
+                        # 🚨 THE FIX: Tell the Killswitch about the ransomware encryption attempt!
+                        self._check_burst_operations("MALICIOUS_MODIFICATION", path)
+                        return
                     else:
-                        # 🚨 FIX: Log modification restore failures
-                        append_log_line(f"ACTIVE DEFENSE FAILED: Could not restore {path} ({msg})", severity="HIGH")
+                        self._restore_cooldown.pop(path, None)
+                        append_log_line(
+                            f"ACTIVE DEFENSE FAILED: Could not restore {path} ({msg})",
+                            severity="HIGH")
 
             # ... (Existing log_detail logic for metadata or normal modifications)
             log_detail = ""
@@ -1296,21 +1447,86 @@ class IntegrityHandler(FileSystemEventHandler):
                         state = "Hidden" if is_hidden else "Unhidden"
                         log_detail = f" (Property changed: File marked as {state})"
                     else:
-                        log_detail = " (Properties/Metadata changed)"
+                        # 🚨 FIX: If content is identical and hidden status hasn't changed, 
+                        # this is just the OS updating the timestamp after a restore. 
+                        # Silently absorb the new metadata and abort the alert!
+                        self.records[path]["attrs"] = new_attrs
+                        self.save_records()
+                        return
             elif old_content and old_content != new_content:
                 log_detail = " (Content modified)"
             
             self.records[path] = {"hash": h, "content": new_content, "attrs": new_attrs, "last_checked": now_pretty()}
             self.save_records()
             
-            append_log_line(f"MODIFIED: {path}{log_detail}", event_type="MODIFIED", severity="MEDIUM")
-            send_webhook_safe("MODIFIED", f"File modified{log_detail}", path)
-            self._notify_gui("MODIFIED", path, "MEDIUM")
+            # ── Gap 1: Process Attribution ────────────────────────────────────
+            # attr_str = ''
+            if CONFIG.get('process_attribution', True) and PROCESS_ATTRIBUTION_AVAILABLE:
+                    attribute_file_event(path, log_fn=append_log_line)
+        
+            # ── Gap 2: Escalate severity for system paths ─────────────────────
+            final_severity = "MEDIUM"
+            sys_badge      = ''
+            if SYSTEM_PATHS_AVAILABLE:
+                sys_sev = is_system_critical(path)
+                if sys_sev == 'CRITICAL':
+                    final_severity = 'CRITICAL'
+                    sys_badge      = ' [⚠ SYSTEM BINARY MODIFIED]'
+                elif sys_sev == 'HIGH':
+                    final_severity = 'HIGH'
+                    sys_badge      = ' [⚠ SYSTEM PATH]'
+                # Executable dropped in Temp = HIGH at minimum
+                if is_executable(path) and final_severity == 'MEDIUM':
+                    from core.system_paths import is_in_temp
+                    if is_in_temp(path):
+                        final_severity = 'HIGH'
+                        sys_badge      = ' [⚠ EXECUTABLE IN TEMP]'
+        
+            # log_msg = f"MODIFIED: {path}{log_detail}{sys_badge}"
+            # if attr_str:
+            #     log_msg += f"  by {attr_str}"
+            log_msg = f"MODIFIED: {path}{sys_badge}"
+        
+            append_log_line(
+                log_msg, event_type="MODIFIED", severity=final_severity,
+                file_path=path,
+                file_hash=new_content if new_content else None,
+            )
+        
+            # ── Gap 4: Threat Intel (check modified file hash) ────────────────
+            if CONFIG.get('threat_intel_enabled', False) and THREAT_INTEL_AVAILABLE:
+                content_hash = details.get('content', '') if 'details' in dir() else ''
+                if not content_hash:
+                    try:
+                        d = generate_file_hash(path)
+                        content_hash = d.get('content', '') if d else ''
+                    except Exception:
+                        pass
+                if content_hash:
+                    get_threat_engine().configure(CONFIG)
+                    check_file_threat(
+                        path, content_hash,
+                        log_fn=append_log_line,
+                        alert_callback=self._notify_gui
+                    )
+        
+            send_webhook_safe("MODIFIED", f"File modified{log_detail}", path, severity=final_severity)
+            self._notify_gui("MODIFIED", path, final_severity)
 
     def on_deleted(self, event):
-        if event.is_directory: return
+        # Directories are handled by the heartbeat thread, not here.
+        # On Windows, the Observer stops receiving events when a watched
+        # folder is deleted, so on_deleted for directories is unreliable.
+        if event.is_directory:
+            return
+
         path = os.path.abspath(event.src_path)
-        if is_ignored_filename(os.path.basename(path)): return
+        if is_ignored_filename(os.path.basename(path)):
+            return
+        # Rate-limit events from system paths to prevent flooding
+        from core.system_paths import is_system_critical as _isc
+        if _isc(path) and not _sys_path_limiter.should_process(path):
+            return  # Too many events from this system path, skip
 
         # --- 🚨 HONEYPOT TRIPWIRE 🚨 ---
         if os.path.basename(path).lower() == "secret_passwords.txt":
@@ -1319,18 +1535,63 @@ class IntegrityHandler(FileSystemEventHandler):
         
         # 1. ACTIVE DEFENSE INTERCEPT (Heals the file instantly)
         if path in self.records:
-            # 🚨 FIX: Force backend to verify PRO status, preventing config tampering
             if CONFIG.get("active_defense", False) and CONFIG.get("is_pro_user", False):
+                # ── Cooldown guard: one restore attempt per file per 10 seconds ──
+                now       = time.time()
+                last_time = self._restore_cooldown.get(path, 0)
+                if now - last_time < 10.0:
+                    # Already attempted a restore for this file recently — skip silently
+                    # to prevent the infinite restore loop and false killswitch triggers.
+                    return
+                self._restore_cooldown[path] = now
+                # ────────────────────────────────────────────────────────────────
+
                 from core.vault_manager import vault
+ 
+                # Do NOT restore files that were just created in this session
+                # (< 10 seconds old in records). Notepad's atomic save creates
+                # + deletes the file — restoring here fights the user's own save.
+                record_age = 0
+                if path in self.records:
+                    try:
+                        from datetime import datetime as _dt
+                        ts_str = self.records[path].get("last_checked", "")
+                        if ts_str:
+                            checked = _dt.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
+                            record_age = (
+                                _dt.now() - checked).total_seconds()
+                    except Exception:
+                        record_age = 999  # unknown → allow restore
+ 
+                if record_age < 10:
+                    # File was added to monitoring less than 10s ago.
+                    # This is almost certainly an editor atomic save, not malware.
+                    # Let the file system settle; the editor will recreate it.
+                    self.records.pop(path, None)
+                    self.save_records()
+                    append_log_line(
+                        f"DELETED (new file — skipping vault restore): "
+                        f"{path}",
+                        event_type="DELETED", severity="MEDIUM")
+                    self._notify_gui("DELETED", path, "MEDIUM")
+                    return
+ 
                 success, msg = vault.restore_file(path)
+ 
                 if success:
-                    append_log_line(f"RESTORED: {path} (Malicious deletion reverted!)", event_type="RESTORED", severity="INFO")
+                    append_log_line(
+                        f"RESTORED: {path} (Malicious deletion reverted!)",
+                        event_type="RESTORED", severity="INFO")
                     self._notify_gui("RESTORED", path, "INFO")
-                    self._check_burst_operations("DELETE", path)
-                    return 
+                    
+                    # 🚨 THE FIX: Tell the Killswitch that a malicious deletion just happened!
+                    self._check_burst_operations("MALICIOUS_DELETION", path)
+                    return
                 else:
-                    # 🚨 FIX: Log failures instead of silently allowing the deletion
-                    append_log_line(f"ACTIVE DEFENSE FAILED: Vault empty for {path}", severity="HIGH") 
+                    self._restore_cooldown.pop(path, None)   # allow retry later
+                    append_log_line(
+                        f"ACTIVE DEFENSE FAILED: Vault empty for {path} ({msg})",
+                        severity="HIGH") 
             
             # 2. NORMAL DELETION (Remove from database)
             self.records.pop(path, None)
@@ -1429,7 +1690,29 @@ class IntegrityHandler(FileSystemEventHandler):
         # --- BRANCH B: NORMAL FILE DELETION ---
         else:
             for path in casualties:
-                append_log_line(f"DELETED: {path}", event_type="DELETED", severity="MEDIUM")
+                # ── Gap 1: Process Attribution ────────────────────────────────────
+                # attr_str = ''
+                if CONFIG.get('process_attribution', True) and PROCESS_ATTRIBUTION_AVAILABLE:
+                    attribute_file_event(path, log_fn=append_log_line)
+            
+                # ── Gap 2: System path severity escalation ────────────────────────
+                final_severity = "MEDIUM"
+                sys_badge      = ''
+                if SYSTEM_PATHS_AVAILABLE:
+                    sys_sev = is_system_critical(path)
+                    if sys_sev in ('CRITICAL', 'HIGH'):
+                        final_severity = sys_sev
+                        sys_badge      = f' [⚠ SYSTEM PATH DELETION: {sys_sev}]'
+            
+                # log_msg = f"DELETED: {path}{sys_badge}"
+                # if attr_str:
+                #     log_msg += f"  by {attr_str}"
+                log_msg = f"DELETED: {path}{sys_badge}"
+            
+                append_log_line(
+                    log_msg, event_type="DELETED", severity=final_severity,
+                    file_path=path,
+                )
                 send_webhook_safe("DELETED", "File deleted", path, severity="MEDIUM")
 
     
@@ -1483,8 +1766,7 @@ class FileIntegrityMonitor:
         self.handler = None
         self.verifier_thread = None
         self.running = False
-        self.current_watch_folders = [] 
-        self.folder_locker = FolderLockManager() # 🚨 NEW: Initialize the locker
+        self.current_watch_folders = [] # Changed to plural
 
     def start_monitoring(self, watch_folders=None, event_callback=None):
         if not load_config():
@@ -1504,6 +1786,11 @@ class FileIntegrityMonitor:
 
         self.current_watch_folders = valid_folders 
 
+        # if not os.path.exists(LOG_FILE):
+        #     atomic_write_text(LOG_FILE, f"{now_pretty()} - Log started\n")
+        # if not os.path.exists(LOG_SIG_FILE):
+        #     atomic_write_text(LOG_SIG_FILE, "")
+
         self.observer = Observer()
         self.handler = IntegrityHandler(watch_folders=valid_folders, callback=event_callback)
         
@@ -1514,29 +1801,228 @@ class FileIntegrityMonitor:
 
         self.observer.start()
         self.running = True
+        # Gap 2: Add system-critical paths (RATE-LIMITED, non-recursive only)
+        if CONFIG.get('system_path_protection', False) and SYSTEM_PATHS_AVAILABLE:
+            level     = CONFIG.get('system_path_level', 'balanced')
+            sys_paths = get_paths_only(level)
+            added     = 0
+            for sys_path in sys_paths:
+                if os.path.exists(sys_path) and sys_path not in valid_folders:
+                    try:
+                        # CRITICAL: recursive=False for ALL system paths
+                        # recursive=True on System32 = instant app freeze
+                        self.observer.schedule(
+                            self.handler, sys_path, recursive=False)
+                        append_log_line(
+                            f"SYSTEM PATH PROTECTION: {sys_path}",
+                            event_type="SYSTEM_MONITORING_ADDED",
+                            severity="INFO")
+                        added += 1
+                    except Exception as e:
+                        print(f"[SYSPATH] Could not schedule {sys_path}: {e}")
+            if added:
+                append_log_line(
+                    f"System Path Protection active: {added} critical paths",
+                    event_type="SYSTEM_MONITORING_ACTIVE",
+                    severity="INFO")
+    
+        # ── Gap 3: Start registry persistence monitoring ───────────────────
+        if CONFIG.get('registry_monitoring', False) and REGISTRY_MONITOR_AVAILABLE:
+            start_registry_monitoring(
+                log_fn=append_log_line,
+                alert_callback=event_callback
+            )
+            append_log_line(
+                "Registry persistence monitoring STARTED",
+                event_type="REGISTRY_MONITORING_STARTED",
+                severity="INFO"
+            )
+    
+        # ── Gap 4: Configure threat intelligence engine ───────────────────
+        if CONFIG.get('threat_intel_enabled', False) and THREAT_INTEL_AVAILABLE:
+            get_threat_engine().configure(CONFIG)
+            append_log_line(
+                "Threat intelligence engine ACTIVE",
+                event_type="THREAT_INTEL_STARTED",
+                severity="INFO"
+            )
         self.verifier_thread = threading.Thread(target=self._periodic_verifier_loop, daemon=True)
         self.verifier_thread.start()
-
-        # 🚨 NEW: Lock the folders ONLY AFTER watchdog is safely running!
-        # if CONFIG.get("active_defense", False) and CONFIG.get("is_pro_user", False):
-        for folder in valid_folders:
-            self.folder_locker.lock_folder(folder)
+        self._start_folder_heartbeat(valid_folders, event_callback)
 
         return True
 
     def stop_monitoring(self):
         self.running = False
-        
-        # 🚨 NEW: Safely unlock the folders before shutting down
-        for folder in self.current_watch_folders:
-            self.folder_locker.unlock_folder(folder)
-            
         if self.observer:
             self.observer.stop()
             self.observer.join()
             self.observer = None
         self.handler = None
+        # Stop registry monitoring
+        if REGISTRY_MONITOR_AVAILABLE:
+            stop_registry_monitoring()
         append_log_line("MONITOR_STOPPED")
+
+    def _start_folder_heartbeat(self, watch_folders: list, event_callback=None):
+        """
+        Active folder protection heartbeat — runs every 2 seconds.
+
+        When a watched folder is deleted (entire tree gone):
+        1. Recreate the directory immediately
+        2. Restore every tracked file from vault (Active Defense + PRO)
+        3. Fall back to cloud vault for any file missing locally
+        4. Re-schedule the Observer so monitoring resumes on recreated folder
+        5. Log CRITICAL + send webhook + notify GUI
+
+        This is the only reliable protection on Windows because the watchdog
+        Observer silently stops when the watched ROOT is deleted — on_deleted
+        events for files inside it never fire.
+        """
+        import threading
+
+        def _restore_all_files_in_folder(folder: str) -> tuple:
+            """
+            Attempt vault restoration for every file under `folder`
+            that was tracked in self.handler.records at time of deletion.
+            Returns (restored_count, failed_list).
+            """
+            if not self.handler:
+                return 0, []
+            if not (CONFIG.get("active_defense", False) and
+                    CONFIG.get("is_pro_user", False)):
+                return 0, []
+
+            try:
+                from core.vault_manager import vault
+            except Exception:
+                return 0, []
+
+            folder_abs = os.path.abspath(folder) + os.sep
+            restored   = 0
+            failed     = []
+
+            # Snapshot the records so we don't iterate a changing dict
+            records_snapshot = dict(self.handler.records)
+
+            for file_path in records_snapshot:
+                if not os.path.abspath(file_path).startswith(folder_abs):
+                    continue   # not under this folder
+
+                # Skip files that already exist (partial deletion scenario)
+                if os.path.exists(file_path):
+                    continue
+
+                # Ensure parent directories exist before restoring
+                try:
+                    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                except Exception:
+                    pass
+
+                success, msg = vault.restore_file(file_path)
+                if success:
+                    restored += 1
+                    append_log_line(
+                        f"RESTORED (folder recovery): {file_path}",
+                        event_type="RESTORED",
+                        severity="INFO")
+                else:
+                    failed.append(os.path.basename(file_path))
+                    append_log_line(
+                        f"RESTORE FAILED (folder recovery): "
+                        f"{os.path.basename(file_path)} — {msg}",
+                        event_type="RESTORE_FAILED",
+                        severity="HIGH")
+
+            return restored, failed
+
+        def _heartbeat():
+            while self.running:
+                try:
+                    for folder in watch_folders:
+                        if os.path.exists(folder):
+                            continue   # healthy — nothing to do
+
+                        # ── Folder is gone ──────────────────────────────────────
+                        folder_name = os.path.basename(folder)
+                        print(f"[HEARTBEAT] ⚠️  Watched folder deleted: {folder}")
+
+                        # Step 1 — Recreate the directory tree
+                        try:
+                            os.makedirs(folder, exist_ok=True)
+                        except Exception as mkdir_err:
+                            append_log_line(
+                                f"CRITICAL: Could not recreate watched folder "
+                                f"'{folder}': {mkdir_err}",
+                                event_type="WATCHED_FOLDER_DELETE_FAILED",
+                                severity="CRITICAL")
+                            continue
+
+                        # Step 2 — Restore all tracked files from vault
+                        restored, failed = _restore_all_files_in_folder(folder)
+
+                        # Step 3 — Build alert message
+                        if restored > 0 or failed:
+                            detail = (f"Folder '{folder_name}' deleted and recreated. "
+                                    f"Files restored: {restored}. "
+                                    f"Failed: {len(failed)}.")
+                            if failed:
+                                detail += (f" Could not restore: "
+                                        f"{', '.join(failed[:5])}"
+                                        f"{'…' if len(failed) > 5 else ''}")
+                        else:
+                            ad_on = (CONFIG.get("active_defense", False) and
+                                    CONFIG.get("is_pro_user", False))
+                            detail = (
+                                f"Watched folder '{folder_name}' was deleted "
+                                f"and recreated (empty). "
+                                + ("No vault entries found for its files."
+                                if ad_on else
+                                "Enable Active Defense (PRO) to auto-restore files.")
+                            )
+
+                        severity = "CRITICAL"
+                        msg_full = f"⚠️  WATCHED FOLDER DELETED: {detail}"
+
+                        append_log_line(
+                            msg_full,
+                            event_type="WATCHED_FOLDER_DELETED",
+                            severity=severity)
+                        send_webhook_safe(
+                            "WATCHED_FOLDER_DELETED", msg_full,
+                            filepath=folder, severity=severity)
+
+                        if event_callback:
+                            try:
+                                event_callback(
+                                    "WATCHED_FOLDER_DELETED", folder, severity)
+                            except Exception:
+                                pass
+
+                        # Step 4 — Re-schedule observer so monitoring resumes
+                        if self.observer and self.handler:
+                            try:
+                                self.observer.schedule(
+                                    self.handler, folder, recursive=True)
+                                print(f"[HEARTBEAT] ✅ Observer re-scheduled "
+                                    f"for: {folder}")
+                            except Exception as oe:
+                                print(f"[HEARTBEAT] Re-schedule failed "
+                                    f"(non-critical): {oe}")
+
+                except Exception as outer_err:
+                    # Never let heartbeat thread crash
+                    print(f"[HEARTBEAT] Unexpected error (non-critical): "
+                        f"{outer_err}")
+
+                time.sleep(2)
+
+        t = threading.Thread(
+            target=_heartbeat,
+            daemon=True,
+            name="FMSecure-FolderHeartbeat")
+        t.start()
+        print("[HEARTBEAT] Folder protection heartbeat started.")
 
     def _periodic_verifier_loop(self):
         while self.running:
@@ -1588,11 +2074,7 @@ class FileIntegrityMonitor:
 # Add 'import shutil' at the top of the file if not present
 
 def archive_session():
-    """
-    Archive logs and reset safely with SIGNATURES and ENCRYPTION.
-    """
     try:
-        # 1. Setup paths
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         history_base = os.path.join(DATA_ROOT, "config", "history")
         if not os.path.exists(history_base):
@@ -1602,25 +2084,69 @@ def archive_session():
         if not os.path.exists(session_folder):
             os.makedirs(session_folder)
 
-        # --- FIX 1: Update file extensions to look for the new encrypted .dat files ---
         files_to_archive = [
-            "integrity_log.dat",      # Updated from .txt
+            "integrity_log.dat",
             "integrity_log.sig",
-            "hash_records.dat",       # Updated from .json
+            "hash_records.dat",
             "hash_records.sig",
-            "report_summary.txt",     # Added missing summary file
+            "report_summary.txt",
             "detailed_reports.txt",
             "report_data.json",
             "severity_counters.json"
         ]
 
-        # 2. Move files
+        # ── ADD THIS BLOCK ─────────────────────────────────────────────
+        # Cloud-backup current logs BEFORE moving them, so Drive always has
+        # the latest session even when the user archives locally.
+        try:
+            if CONFIG.get("is_pro_user", False):
+                from core.cloud_sync import cloud_sync
+                from core.encryption_manager import crypto_manager
+                if cloud_sync.is_active:
+                    mid = crypto_manager.get_machine_id()
+                    result = cloud_sync.backup_logs_and_forensics(mid)
+                    print(f"[ARCHIVE] Pre-archive cloud sync: "
+                          f"{result.get('uploaded', 0)} files uploaded.")
+        except Exception as _ce:
+            print(f"[ARCHIVE] Pre-archive cloud sync skipped (non-critical): {_ce}")
+        # ── END ADDED BLOCK ────────────────────────────────────────────
+        
+        # 2. Move files (with retry for WinError 32 file-lock race)
+        import time as _time
         for filename in files_to_archive:
             src = os.path.join(log_dir, filename)
-            if os.path.exists(src):
-                dst = os.path.join(session_folder, filename)
-                shutil.move(src, dst)
-                print(f"Archived: {filename}")
+            if not os.path.exists(src):
+                continue
+            dst = os.path.join(session_folder, filename)
+ 
+            # Try shutil.move up to 5 times with 150ms gap
+            moved = False
+            for attempt in range(5):
+                try:
+                    shutil.move(src, dst)
+                    moved = True
+                    print(f"Archived: {filename}")
+                    break
+                except PermissionError:
+                    # File locked by another thread — wait and retry
+                    _time.sleep(0.15)
+                except OSError as _oe:
+                    if getattr(_oe, 'winerror', 0) == 32:
+                        # WinError 32: file in use — wait and retry
+                        _time.sleep(0.15)
+                    else:
+                        raise  # unexpected error, propagate
+ 
+            if not moved:
+                # All move attempts failed — copy + truncate as fallback
+                # (copy never needs an exclusive lock on source)
+                try:
+                    shutil.copy2(src, dst)
+                    # Truncate source to 0 bytes (doesn't need exclusive lock)
+                    open(src, 'w').close()
+                    print(f"Archived (copy+truncate fallback): {filename}")
+                except Exception as _fe:
+                    print(f"Archive fallback also failed for {filename}: {_fe}")
 
         # 3. RE-INITIALIZE SAFELY (Encryption Aware)
         
