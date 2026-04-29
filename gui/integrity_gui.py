@@ -3324,8 +3324,8 @@ class ProIntegrityGUI:
             tier = "pro_monthly"
         if not subscription_manager.is_pro(tier):
             self._sp_var.set(False)
-            if 'System Path Protection' in getattr(self, '_toggle_switches', {}):
-                self._toggle_switches['System Path Protection'].refresh()
+            if '🛡 System Paths' in getattr(self, '_toggle_switches', {}):
+                self._toggle_switches['🛡 System Paths'].refresh()
                 self.root.update_idletasks()
             messagebox.showwarning(
                 "⭐ Premium Feature",
@@ -3353,8 +3353,8 @@ class ProIntegrityGUI:
             tier = "pro_monthly"
         if not subscription_manager.is_pro(tier):
             self._rm_var.set(False)
-            if 'Registry Persistence' in getattr(self, '_toggle_switches', {}):
-                self._toggle_switches['Registry Persistence'].refresh()
+            if '🔑 Registry' in getattr(self, '_toggle_switches', {}):
+                self._toggle_switches['🔑 Registry'].refresh()
                 self.root.update_idletasks()
             messagebox.showwarning(
                 "⭐ Premium Feature",
@@ -3398,8 +3398,8 @@ class ProIntegrityGUI:
             tier = "pro_monthly"
         if not subscription_manager.is_pro(tier):
             self._ti_var.set(False)
-            if 'Threat Intel (Hash Check)' in getattr(self, '_toggle_switches', {}):
-                self._toggle_switches['Threat Intel (Hash Check)'].refresh()
+            if '🔍 Threat Intel' in getattr(self, '_toggle_switches', {}):
+                self._toggle_switches['🔍 Threat Intel'].refresh()
                 self.root.update_idletasks()
             messagebox.showwarning(
                 "⭐ Premium Feature",

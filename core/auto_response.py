@@ -251,10 +251,17 @@ def handle_tamper_event(tamper_type, file_path):
     }
     
     message = messages.get(tamper_type, f"Tampering detected: {file_path}")
+    event_type = f"TAMPERED_{tamper_type.upper()}"
+    
+    try:
+        from core.integrity_core import EVENT_SEVERITY
+        severity = EVENT_SEVERITY.get(event_type, "HIGH")
+    except ImportError:
+        severity = "HIGH"
     
     return trigger_auto_response(
-        severity="CRITICAL",
-        event_type=f"TAMPERED_{tamper_type.upper()}",
+        severity=severity,
+        event_type=event_type,
         message=message,
         file_path=file_path
     )
