@@ -1,0 +1,19 @@
+title: Mass File Deletion
+id: a1b2c3d4-0004-0001-0001-000000000004
+status: stable
+description: Multiple files deleted in short time window
+author: FMSecure
+date: 2026/04/01
+logsource:
+    product: fmsecure
+    category: file
+detection:
+    selection:
+        fmsecure.event_type: MULTIPLE_DELETES
+    condition: selection
+falsepositives:
+    - Bulk file cleanup scripts
+level: high
+tags:
+    - attack.impact
+    - attack.t1485

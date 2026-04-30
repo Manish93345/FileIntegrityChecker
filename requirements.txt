@@ -8,3 +8,5 @@ pip install pystray Pillow
 pip install pywin32
 pip install nuitka zstandard
 pip install psutil pywin32 requests
+pySigma>=0.10.0
+PyYAML>=6.0

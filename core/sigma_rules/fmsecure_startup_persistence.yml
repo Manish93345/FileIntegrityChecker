@@ -1,0 +1,22 @@
+title: File Created in Startup Folder
+id: a1b2c3d4-0003-0001-0001-000000000003
+status: stable
+description: A file was created in a Windows autostart location
+author: FMSecure
+date: 2026/04/01
+logsource:
+    product: fmsecure
+    category: file
+detection:
+    selection:
+        fmsecure.event_type: CREATED
+        file.path|contains:
+            - '\Start Menu\Programs\Startup'
+            - '\Microsoft\Windows\Start Menu\Programs\Startup'
+    condition: selection
+falsepositives:
+    - Legitimate software installers
+level: high
+tags:
+    - attack.persistence
+    - attack.t1547.001

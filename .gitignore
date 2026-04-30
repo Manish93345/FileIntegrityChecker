@@ -42,3 +42,4 @@ FMSecure_Deployment_Guide.md
 core/__pycache__
 /system32_shadow
 nuitka-crash-report.xml
+DEVELOPMENT_LOG_RAW_2.md

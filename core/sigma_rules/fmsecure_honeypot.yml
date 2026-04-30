@@ -1,0 +1,19 @@
+title: Honeypot File Accessed
+id: a1b2c3d4-0005-0001-0001-000000000005
+status: stable
+description: The honeypot canary file was touched — active threat actor present
+author: FMSecure
+date: 2026/04/01
+logsource:
+    product: fmsecure
+    category: file
+detection:
+    selection:
+        fmsecure.event_type: HONEYPOT_BREACH
+    condition: selection
+falsepositives:
+    - None expected
+level: critical
+tags:
+    - attack.discovery
+    - attack.t1083

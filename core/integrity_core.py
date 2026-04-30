@@ -275,6 +275,11 @@ LOG_SIG_FILE = os.path.join(log_dir, "integrity_log.sig")
 REPORT_SUMMARY_FILE = os.path.join(log_dir, "report_summary.txt")
 SEVERITY_COUNTER_FILE = os.path.join(log_dir, "severity_counters.json")
 
+TELEMETRY_FILE = os.path.join(log_dir, "telemetry.jsonl")
+SIGMA_RULES_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "sigma_rules"
+)
+
 # in-memory config will be loaded on startup
 CONFIG = dict(DEFAULT_CONFIG)
 
@@ -1844,6 +1849,22 @@ class FileIntegrityMonitor:
                 event_type="THREAT_INTEL_STARTED",
                 severity="INFO"
             )
+
+        # ── GAP-007: Start Sigma rule engine ─────────────────────────────────────────
+        try:
+            from core.sigma_engine import start_sigma_monitoring
+            start_sigma_monitoring(
+                telemetry_path=TELEMETRY_FILE,
+                rules_dir=SIGMA_RULES_DIR
+            )
+            append_log_line(
+                "Sigma detection engine started",
+                event_type="SIGMA_ENGINE_STARTED",
+                severity="INFO"
+            )
+        except Exception as _se:
+            print(f"[SIGMA] Engine start failed (non-critical): {_se}")
+
         self.verifier_thread = threading.Thread(target=self._periodic_verifier_loop, daemon=True)
         self.verifier_thread.start()
         self._start_folder_heartbeat(valid_folders, event_callback)
@@ -1860,6 +1881,13 @@ class FileIntegrityMonitor:
         # Stop registry monitoring
         if REGISTRY_MONITOR_AVAILABLE:
             stop_registry_monitoring()
+
+        # Stop Sigma engine
+        try:
+            from core.sigma_engine import stop_sigma_monitoring
+            stop_sigma_monitoring()
+        except Exception:
+            pass
         append_log_line("MONITOR_STOPPED")
 
     def _start_folder_heartbeat(self, watch_folders: list, event_callback=None):

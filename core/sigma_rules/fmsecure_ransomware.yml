@@ -1,0 +1,22 @@
+title: Ransomware Burst Detected
+id: a1b2c3d4-0001-0001-0001-000000000001
+status: stable
+description: Detects burst file encryption behavior consistent with ransomware
+author: FMSecure
+date: 2026/04/01
+logsource:
+    product: fmsecure
+    category: file
+detection:
+    selection:
+        fmsecure.event_type:
+            - RANSOMWARE_BURST
+            - BURST_OPERATION
+            - MASS_DELETION_BURST
+    condition: selection
+falsepositives:
+    - Bulk file archiving tools
+level: critical
+tags:
+    - attack.impact
+    - attack.t1486

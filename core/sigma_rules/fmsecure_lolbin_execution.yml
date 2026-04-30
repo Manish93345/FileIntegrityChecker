@@ -1,0 +1,28 @@
+title: LOLBin Process Attribution Detected
+id: a1b2c3d4-0002-0001-0001-000000000002
+status: stable
+description: A known Living-off-the-Land binary modified a monitored file
+author: FMSecure
+date: 2026/04/01
+logsource:
+    product: fmsecure
+    category: file
+detection:
+    selection:
+        fmsecure.event_type: PROCESS_ATTRIBUTION
+        message|contains:
+            - 'powershell.exe'
+            - 'cmd.exe'
+            - 'wscript.exe'
+            - 'cscript.exe'
+            - 'mshta.exe'
+            - 'certutil.exe'
+            - 'bitsadmin.exe'
+            - 'rundll32.exe'
+    condition: selection
+falsepositives:
+    - Legitimate admin scripts
+level: high
+tags:
+    - attack.execution
+    - attack.t1059
