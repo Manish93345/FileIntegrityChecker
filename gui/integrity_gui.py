@@ -4817,6 +4817,14 @@ class ProIntegrityGUI:
             "critical"
         )
 
+    def _get_loaded_rules_summary(self):
+        try:
+            from core.sigma_engine import get_loaded_rules
+            rules = get_loaded_rules()
+            return [{"title": r["title"], "level": r["level"]} for r in rules]
+        except Exception:
+            return []
+
     def _start_heartbeat(self):
         """
         Starts the C2 heartbeat on app launch.
@@ -4864,6 +4872,7 @@ class ProIntegrityGUI:
                         "tier":          tier,
                         "is_armed":      getattr(self, 'monitor_running', False),
                         "agent_version": APP_VERSION,
+                        "sigma_rules":   self._get_loaded_rules_summary(),
                     }
 
                     if _tm and _tm.is_enrolled():
@@ -6960,6 +6969,19 @@ class ProIntegrityGUI:
                 "tampered": "CRITICAL", "high": "HIGH", "critical": "CRITICAL"
             }
             severity = severity_map.get(level, "INFO")
+
+            # ── NEW: Windows Toast when app is in system tray ──────────────────
+            if severity in ("CRITICAL", "HIGH"):
+                is_tray = (self.root.state() in ('withdrawn', 'iconic'))
+                if is_tray and hasattr(self, 'tray_icon') and self.tray_icon:
+                    try:
+                        # pystray's notify() shows a Windows toast notification
+                        # even when the window is fully hidden
+                        notif_title = f"🚨 FMSecure {severity}"
+                        notif_msg   = f"{title}\n{message[:120]}"
+                        self.tray_icon.notify(notif_msg, notif_title)
+                    except Exception:
+                        pass
             
             # Update internal counters
             if severity in self.severity_counters:

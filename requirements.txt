@@ -10,3 +10,4 @@ pip install nuitka zstandard
 pip install psutil pywin32 requests
 pySigma>=0.10.0
 PyYAML>=6.0
+yara-python>=4.3.0

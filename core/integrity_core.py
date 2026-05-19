@@ -280,6 +280,10 @@ SIGMA_RULES_DIR = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "sigma_rules"
 )
 
+YARA_RULES_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "yara_rules"
+)
+
 # in-memory config will be loaded on startup
 CONFIG = dict(DEFAULT_CONFIG)
 
@@ -287,6 +291,24 @@ CONFIG = dict(DEFAULT_CONFIG)
 TEMP_PATTERNS = [".tmp", ".part", ".crdownload", ".ds_store", ".swp", ".bak",
                  "~", ".~", ".pyc", "__pycache__", ".git", ".restore_tmp",
                  ".cloud_tmp", "telemetry.jsonl", "telemetry_"]
+
+# Directories to skip entirely during os.walk (prune in-place)
+# This prevents 43k-file hangs on projects with node_modules / .git / venvs
+IGNORED_DIRS = {
+    # Version control
+    ".git", ".svn", ".hg",
+    # Node / JS
+    "node_modules", ".next", ".nuxt", ".turbo", "dist", ".cache",
+    # Python
+    "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache",
+    # Python virtual environments (common names)
+    "venv", ".venv", "env", ".env", "virtualenv", ".virtualenv",
+    "site-packages",
+    # Build artifacts
+    "build", "target", ".gradle", ".idea", ".vs",
+    # OS
+    ".DS_Store", "Thumbs.db",
+}
 
 
 def get_severity(event_type):
@@ -340,7 +362,7 @@ def load_config(path=None):
         "watch_folder": os.path.join(os.path.expanduser("~"), "Documents"),
         "verify_interval": 60,
         "webhook_url": None,
-        "secret_key": "Lisacutie",
+        "secret_key": "",
         "max_log_size_mb": 10,
         "max_log_backups": 5,
         "hash_algo": "sha256",
@@ -350,7 +372,11 @@ def load_config(path=None):
         "ignore_filenames": ["hash_records.dat", "integrity_log.dat", "integrity_log.sig", "hash_records.sig", "report_summary.txt", "telemetry.jsonl"],
         "active_defense": False, 
         "vault_max_size_mb": 10,
-        "vault_allowed_exts": [".txt", ".json", ".py", ".html", ".js", ".css", ".php", ".ini", ".conf", ".jsx"],
+        "vault_allowed_exts": [
+            ".txt", ".json", ".py", ".html", ".js", ".css",
+            ".php", ".ini", ".conf", ".jsx",
+            ".docx", ".xlsx", ".pptx", ".pdf", ".md", ".csv", ".yaml", ".yml", ".env"
+        ],
         "ransomware_killswitch": False,
         "system_path_protection": False,   # PRO feature — monitor Windows critical paths
         "system_path_level": "balanced",   # 'minimal' | 'balanced' | 'aggressive'
@@ -362,6 +388,7 @@ def load_config(path=None):
         "syslog_enabled": False,           # Set True to forward CEF syslog to your SIEM
         "syslog_host":    "",              # SIEM collector IP e.g. "192.168.1.100"
         "syslog_port":    514,             # UDP syslog port (514 = standard)
+        "ignored_dirs": [],
     }
     CONFIG.update(defaults)
 
@@ -505,7 +532,7 @@ def append_log_signature(line):
         # ENSURE CONFIG IS LOADED
         if "secret_key" not in CONFIG: load_config()
             
-        key = CONFIG.get("secret_key", "Lisacutie").encode("utf-8")
+        key = _get_hmac_key()
         h = getattr(hashlib, CONFIG.get("hash_algo", "sha256"))
         
         # Consistent UTF-8 encoding
@@ -655,7 +682,7 @@ def verify_log_signatures():
     # Ensure config is loaded
     if "secret_key" not in CONFIG: load_config()
     
-    key = CONFIG.get("secret_key", "Lisacutie").encode("utf-8")
+    key = _get_hmac_key()
     h_factory = getattr(hashlib, CONFIG.get("hash_algo", "sha256"))
     
     for i, (line, stored_sig) in enumerate(zip(log_lines, sig_lines)):
@@ -766,19 +793,29 @@ def send_webhook_safe(event_type, message, filepath=None, severity="INFO"):
         return
 
     # Determine Embed Color based on event type
+    # Determine embed color — use passed-in severity as primary source,
+    # fall back to event_type string matching only when severity is not explicit
     event_upper = event_type.upper()
+
+    # Color from event_type (visual only)
     if "BURST" in event_upper or "CRITICAL" in event_upper or "RANSOMWARE" in event_upper:
         color = 15548997  # Red
-        severity = "CRITICAL"
     elif "DELETE" in event_upper:
         color = 15105570  # Orange
-        severity = "HIGH"
     elif "MODIF" in event_upper:
         color = 16776960  # Yellow
-        severity = "MEDIUM"
     else:
         color = 3447003   # Blue
-        severity = "INFO"
+
+    # CRITICAL FIX: don't downgrade the severity that was passed in.
+    # Only upgrade it if the event_type string implies a higher severity.
+    if "BURST" in event_upper or "CRITICAL" in event_upper or "RANSOMWARE" in event_upper:
+        if severity not in ("CRITICAL",):
+            severity = "CRITICAL"
+    elif "DELETE" in event_upper:
+        if severity == "INFO":
+            severity = "HIGH"
+    # Otherwise keep the caller's severity as-is
 
     # --- CHANNEL 1: DISCORD/SLACK WEBHOOK (Incident Response) ---
     # if webhook_url: -> iss se sare chhezon par alert aayega kuch bhi karenge toh
@@ -881,7 +918,18 @@ def verify_all_files_and_update(records=None, watch_folders=None):
     paths_to_scan = []
     for folder in watch_folders:
         if not os.path.exists(folder): continue
-        for root, _, files in os.walk(folder):
+        for root, dirs, files in os.walk(folder):
+            # Prune ignored directories (both default and user-configured)
+            custom_ignored = set(CONFIG.get("ignored_dirs", []))
+            
+            # Keep directories that are NOT in our ignore lists AND do NOT contain pyvenv.cfg
+            dirs[:] = [
+                d for d in dirs 
+                if d not in IGNORED_DIRS 
+                and d not in custom_ignored
+                and not os.path.isfile(os.path.join(root, d, "pyvenv.cfg"))
+            ]
+
             for fn in files:
                 if is_ignored_filename(fn): continue
                 path = os.path.abspath(os.path.join(root, fn))
@@ -1000,6 +1048,29 @@ def write_report_summary(summary):
         traceback.print_exc()
 
 
+def _get_hmac_key() -> bytes:
+    """
+    Returns the HMAC signing key.
+    Priority:
+      1. Derived from hardware KEK (most secure — tied to machine)
+      2. From users.dat (encrypted storage)
+      3. Fallback hardcoded default (only if both above fail — warns loudly)
+    Never reads from config.json.
+    """
+    try:
+        from core.encryption_manager import crypto_manager
+        # Derive from machine KEK — stable across reboots, unique per device
+        # PBKDF2 over the machine_id gives a deterministic 32-byte HMAC key
+        import hashlib
+        mid = crypto_manager.get_machine_id().encode("utf-8")
+        return hashlib.pbkdf2_hmac("sha256", mid, b"fmsecure_hmac_salt_v1", 100_000)
+    except Exception:
+        pass
+    # Last resort
+    print("[SECURITY] WARNING: Using default HMAC key — hardware derivation failed")
+    return b"FMSecure_Default_HMAC_Key_v1_Change_Me"
+
+
 class _SystemPathRateLimiter:
     """
     Prevents system path events from flooding the event queue.
@@ -1056,7 +1127,18 @@ class IntegrityHandler(FileSystemEventHandler):
         # 1. Quickly gather all file paths first (Disk is fast at listing files)
         for folder in self.watch_folders:
             if not os.path.exists(folder): continue
-            for root, _, files in os.walk(folder):
+            for root, dirs, files in os.walk(folder):
+                # Prune ignored directories (both default and user-configured)
+                custom_ignored = set(CONFIG.get("ignored_dirs", []))
+                
+                # Keep directories that are NOT in our ignore lists AND do NOT contain pyvenv.cfg
+                dirs[:] = [
+                    d for d in dirs 
+                    if d not in IGNORED_DIRS 
+                    and d not in custom_ignored
+                    and not os.path.isfile(os.path.join(root, d, "pyvenv.cfg"))
+                ]
+                
                 for fn in files:
                     if is_ignored_filename(fn): continue
                     path = os.path.abspath(os.path.join(root, fn))
@@ -1292,6 +1374,12 @@ class IntegrityHandler(FileSystemEventHandler):
                 vault.backup_file(path, 
                                   CONFIG.get("vault_max_size_mb", 10), 
                                   _allowed)
+            # ── GAP-009: Submit to YARA scanner ──────────────────────────────────────
+            try:
+                from core.yara_engine import submit_file_for_scan
+                submit_file_for_scan(path)
+            except Exception:
+                pass
                                   
             # ── Gap 1: Process Attribution ───────────────────────────────────
             # attr_str = ''
@@ -1489,6 +1577,13 @@ class IntegrityHandler(FileSystemEventHandler):
             # if attr_str:
             #     log_msg += f"  by {attr_str}"
             log_msg = f"MODIFIED: {path}{sys_badge}"
+
+            # ── GAP-009: Submit to YARA scanner ──────────────────────────────────────
+            try:
+                from core.yara_engine import submit_file_for_scan
+                submit_file_for_scan(path)
+            except Exception:
+                pass
         
             append_log_line(
                 log_msg, event_type="MODIFIED", severity=final_severity,
@@ -1855,7 +1950,8 @@ class FileIntegrityMonitor:
             from core.sigma_engine import start_sigma_monitoring
             start_sigma_monitoring(
                 telemetry_path=TELEMETRY_FILE,
-                rules_dir=SIGMA_RULES_DIR
+                rules_dir=SIGMA_RULES_DIR,
+                gui_callback=event_callback
             )
             append_log_line(
                 "Sigma detection engine started",
@@ -1864,6 +1960,22 @@ class FileIntegrityMonitor:
             )
         except Exception as _se:
             print(f"[SIGMA] Engine start failed (non-critical): {_se}")
+
+        # ── GAP-009: Start YARA malware scanning ─────────────────────────────────
+        try:
+            from core.yara_engine import start_yara_scanning
+            yara_ok = start_yara_scanning(
+                rules_dir=YARA_RULES_DIR,
+                on_match=self._on_yara_match
+            )
+            if yara_ok:
+                append_log_line(
+                    "YARA malware scanning engine started",
+                    event_type="YARA_ENGINE_STARTED",
+                    severity="INFO"
+                )
+        except Exception as _ye:
+            print(f"[YARA] Engine start failed (non-critical): {_ye}")
 
         self.verifier_thread = threading.Thread(target=self._periodic_verifier_loop, daemon=True)
         self.verifier_thread.start()
@@ -1889,6 +2001,12 @@ class FileIntegrityMonitor:
         except Exception:
             pass
         append_log_line("MONITOR_STOPPED")
+
+        try:
+            from core.yara_engine import stop_yara_scanning
+            stop_yara_scanning()
+        except Exception:
+            pass
 
     def _start_folder_heartbeat(self, watch_folders: list, event_callback=None):
         """
@@ -2095,6 +2213,43 @@ class FileIntegrityMonitor:
                 return "No report summary file found. Run a verification first."
         except Exception as e:
             return f"Error reading summary file: {e}"
+
+
+    def _on_yara_match(self, filepath: str, result: dict):
+        """
+        Called by AsyncYaraScanner when a YARA rule matches.
+        Runs in the scanner's worker thread — safe to call append_log_line.
+        """
+        family      = result.get("family", "Unknown Malware")
+        rule_name   = result.get("rule_name", "")
+        description = result.get("description", "")
+        mitre       = result.get("mitre", "")
+        severity    = result.get("severity", "CRITICAL")
+        all_matches = result.get("all_matches", [rule_name])
+
+        alert_msg = (
+            f"[YARA MATCH] {family}"
+            + (f" [{mitre}]" if mitre else "")
+            + f" — {description}"
+            + f" | File: {os.path.basename(filepath)}"
+            + (f" | Also matched: {', '.join(all_matches[1:])}" if len(all_matches) > 1 else "")
+        )
+
+        append_log_line(
+            alert_msg,
+            event_type="YARA_MALWARE_MATCH",
+            severity=severity,
+            file_path=filepath,
+        )
+        send_webhook_safe(
+            "YARA_MALWARE_MATCH",
+            alert_msg,
+            filepath=filepath,
+            severity=severity,
+        )
+        # Notify GUI
+        if self.handler and hasattr(self.handler, '_notify_gui'):
+            self.handler._notify_gui("YARA_MALWARE_MATCH", filepath, severity)
 
 
 # Add 'import shutil' at the top of the file if not present

@@ -179,11 +179,12 @@ class SigmaMonitor:
     on every new line.
     """
 
-    def __init__(self, telemetry_path: str, engine: SimpleSigmaEngine):
+    def __init__(self, telemetry_path: str, engine: SimpleSigmaEngine, gui_callback=None):
         self.telemetry_path = telemetry_path
         self.engine         = engine
         self._running       = False
         self._thread: Optional[threading.Thread] = None
+        self._gui_callback = gui_callback
 
     def start(self):
         if self._running:
@@ -304,6 +305,12 @@ class SigmaMonitor:
                 severity=severity,
                 file_path=file_path or None,
             )
+            # Notify GUI in real-time (fires the alert panel popup)
+            if self._gui_callback:
+                try:
+                    self._gui_callback(f"SIGMA_{rule_level}", alert_msg, severity)
+                except Exception:
+                    pass
             if severity in ("HIGH", "CRITICAL"):
                 send_webhook_safe(
                     f"SIGMA_RULE_{rule_level}",
@@ -321,7 +328,7 @@ _monitor: Optional[SigmaMonitor] = None
 _engine:  Optional[SimpleSigmaEngine] = None
 
 
-def start_sigma_monitoring(telemetry_path: str, rules_dir: str) -> bool:
+def start_sigma_monitoring(telemetry_path: str, rules_dir: str, gui_callback=None) -> bool:
     """
     Start the Sigma rule monitor.
     Called from FileIntegrityMonitor.start_monitoring().
@@ -338,7 +345,7 @@ def start_sigma_monitoring(telemetry_path: str, rules_dir: str) -> bool:
         print("[SIGMA] No rules loaded — monitor not started.")
         return False
 
-    _monitor = SigmaMonitor(telemetry_path=telemetry_path, engine=_engine)
+    _monitor = SigmaMonitor(telemetry_path=telemetry_path, engine=_engine, gui_callback=gui_callback)
     _monitor.start()
     return True
 
