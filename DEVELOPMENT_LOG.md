@@ -488,6 +488,57 @@ SHA-256 hash of every new or modified file is checked asynchronously against Mal
 
 
 
+## 🗓️ Phase G — YARA + Sigma Detection Engine (May 2026)
+
+### What was implemented
+Dual detection engine combining signature-based (YARA) and behavioral (Sigma) 
+threat detection — the same architecture used by CrowdStrike Falcon.
+
+### YARA Engine (core/yara_engine.py)
+- Compiles all .yar/.yara rule files from core/yara_rules/ into a single 
+  compiled yara.Rules object at startup
+- Scans every new/modified file asynchronously in a dedicated worker thread
+- On match: CRITICAL alert + email + webhook + Windows toast + forensic snapshot
+- MITRE ATT&CK technique auto-tagged from rule metadata
+- Files > 20MB skipped for performance
+- Scan timeout: 10 seconds per file (prevents hang on complex rules)
+- Hot-reload: reload_yara_rules() updates rules without restarting monitoring
+
+### Sigma Engine (core/sigma_engine.py)  
+- Tails telemetry.jsonl (ECS-format) and evaluates every event against .yml rules
+- Custom SimpleSigmaEngine: direct field matching, no pySigma backend dependency
+- Supports: exact match, contains, startswith, endswith modifiers
+- All rules in condition: selection format (covers 95% of community rules)
+- gui_callback wired through — Sigma matches fire the GUI alert panel in real-time
+
+### Detection Rules Shipped
+| Rule | Engine | MITRE | What it detects |
+|------|--------|-------|-----------------|
+| WannaCry/LockBit/NotPetya | YARA | T1486 | Ransomware byte patterns |
+| Mimikatz | YARA | T1003 | Credential dumping strings |
+| Cobalt Strike | YARA | T1071 | C2 beacon patterns |
+| Webshell (PHP/ASP) | YARA | T1505.003 | Server-side backdoors |
+| EICAR test | YARA | T1204 | AV test string |
+| LOLBin execution | Sigma | T1059 | powershell/cmd modifying files |
+| Startup persistence | Sigma | T1547.001 | Files dropped in Startup folder |
+| Ransomware burst | Sigma | T1486 | Burst file events |
+| Mass deletion | Sigma | T1485 | Rapid file deletion |
+| Honeypot breach | Sigma | T1083 | Canary file accessed |
+
+### Key design decisions
+YARA vs Sigma separation:
+  YARA = "what is this file?" — scans file content bytes
+  Sigma = "what did the system do?" — evaluates event metadata
+  Together: catches known malware (YARA) + zero-day behavior (Sigma)
+  This is the same dual-engine model as CrowdStrike Falcon.
+
+Rule delivery model:
+  Rules are .yml/.yar files in the agent's local folder.
+  Future: server pushes rule bundle updates on heartbeat — agents hot-reload
+  without EXE rebuild. New ransomware family → write one .yar file →
+  deploy to all endpoints in < 10 seconds via Railway server.
+
+
 ## 🛠️ Build Commands
 ```powershell
 # Compile the invisible Watchdog

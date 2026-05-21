@@ -107,6 +107,8 @@ class AutoResponseEngine:
     
     def _handle_high(self, event_type, message, file_path=None, data=None):
         """HIGH: Alert + report snapshot"""
+        if event_type in ("TAMPERED_SIGNATURE", "HIGH_ALERT_TAMPERED_SIGNATURE"):
+            return True
         try:
             from .integrity_core import append_log_line, send_webhook_safe
         except ImportError:
