@@ -388,6 +388,11 @@ def load_config(path=None):
         "syslog_enabled": False,           # Set True to forward CEF syslog to your SIEM
         "syslog_host":    "",              # SIEM collector IP e.g. "192.168.1.100"
         "syslog_port":    514,             # UDP syslog port (514 = standard)
+        # ── GAP-026: Data Retention (GDPR Article 5 compliance) ──────────────────
+        "retention_telemetry_days":   90,   # telemetry.jsonl lines
+        "retention_forensics_days":   180,  # encrypted forensic snapshots
+        "retention_log_history_days": 365,  # archived session history folders
+        "retention_quarantine_days":  30,   # quarantined malware files
         "ignored_dirs": [],
     }
     CONFIG.update(defaults)
@@ -1977,6 +1982,20 @@ class FileIntegrityMonitor:
         except Exception as _ye:
             print(f"[YARA] Engine start failed (non-critical): {_ye}")
 
+        # ── GAP-026: Start data retention manager ────────────────────────────────
+        try:
+            from core.retention_manager import start_retention_management
+            start_retention_management(CONFIG)
+            append_log_line(
+                "Data retention manager started "
+                f"(telemetry={CONFIG.get('retention_telemetry_days', 90)}d, "
+                f"forensics={CONFIG.get('retention_forensics_days', 180)}d)",
+                event_type="RETENTION_STARTED",
+                severity="INFO"
+            )
+        except Exception as _re:
+            print(f"[RETENTION] Start failed (non-critical): {_re}")
+
         self.verifier_thread = threading.Thread(target=self._periodic_verifier_loop, daemon=True)
         self.verifier_thread.start()
         self._start_folder_heartbeat(valid_folders, event_callback)
@@ -2005,6 +2024,13 @@ class FileIntegrityMonitor:
         try:
             from core.yara_engine import stop_yara_scanning
             stop_yara_scanning()
+        except Exception:
+            pass
+
+        # stop retention manager
+        try:
+            from core.retention_manager import stop_retention_management
+            stop_retention_management()
         except Exception:
             pass
 
