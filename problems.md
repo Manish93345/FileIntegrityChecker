@@ -1,0 +1,11 @@
+- Super admin is not able to suspend any tenant organization  DONE ✅
+- After creating an organization, key email is not sent to the registered email address    DONE ✅
+- After creating an organization, selecting 'pro' but when logged in i was in free tier not in pro one, same for the enterprise one. DONE ✅
+- In the starting even the use is not pro, still the pro features are enabled like active defense, ransomware kill switch, system path, registry and threat intel.
+- tenant not able to login or reset the password  DONE ✅
+- there is no area for the superadmin to update or introduce the new sigma and yara rules, i think the backend part is implemented already there  DONE ✅
+- No mail to the customer when its tenant is getting suspended
+- Tanant admin is able to pulish the new sigma and yara rules to the endponints, this should be allowed only for the super admin, not for the tenant admin. Tenant admin can only view the rules and not able to publish them to the endpoints.  DONE ✅
+- Login is only done by username not email, it can be done by email and username both, so that the user can login by either of them. 
+- 
+

@@ -1,0 +1,9 @@
+title: FMSecure Deployment Canary 2026
+id: 6c00f7b2-c4f1-4f00-9d2b-ca8aaaaaaaaa
+status: experimental
+description: Deployment canary — fires on any process whose command line contains a known test marker
+level: low
+detection:
+    selection:
+        fmsecure.event_type|contains: "FM-CANARY-DO-NOT-USE-IN-PROD-d4f1c2a8"
+    condition: selection

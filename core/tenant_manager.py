@@ -136,6 +136,104 @@ def get_name() -> str:
     return (cfg or {}).get("tenant_name", "")
 
 
+# ============================================================================
+#  ORG-PLAN CACHE  (added v2.5.1 — fixes "org shows FREE in GUI" bug)
+#  -------------------------------------------------------------------
+#  The server's /api/heartbeat response now contains the actual
+#  organisation plan ("free" / "pro" / "business" / "enterprise" /
+#  "trial").  Previously the desktop GUI hard-coded the value to
+#  "business" whenever a machine was enrolled, which meant an org
+#  bought on the PRO or ENTERPRISE tier was displayed (and gated)
+#  as if it were Business.  We now persist the server-returned plan
+#  into tenant.json so the GUI tier-badge, upgrade-button visibility,
+#  and profile panel all reflect the correct purchased plan.
+#
+#  The cache is updated on every successful heartbeat (cheap — just one
+#  string compare + an occasional disk write).  Until the first
+#  heartbeat lands we fall back to "business" so paid PRO features
+#  stay unlocked rather than locking the IT admin out of their own
+#  org during the first 10 seconds after launch.
+# ============================================================================
+
+_VALID_ORG_TIERS = (
+    "free", "pro", "pro_monthly", "pro_annual",
+    "business", "enterprise", "trial", "org_pro", "premium",
+)
+
+
+def cache_org_tier(tier: str) -> None:
+    """
+    Persist the org-plan string returned by the server's heartbeat
+    into tenant.json so the GUI can render it on next launch (or
+    right away, via get_org_tier() below).  Idempotent + never raises.
+    """
+    global _cached
+    if not tier:
+        return
+    t = tier.strip().lower()
+    if t not in _VALID_ORG_TIERS:
+        # Don't pollute the cache with junk values — server may
+        # add new plans later; ignore them until the agent is updated.
+        return
+
+    cfg = load()
+    if not cfg:
+        return   # not enrolled yet — nothing to cache
+
+    if cfg.get("org_tier") == t:
+        return   # already up-to-date — skip disk write
+
+    try:
+        with _cache_lock:
+            cfg["org_tier"] = t
+            cfg["org_tier_updated_at"] = datetime.now(timezone.utc).isoformat()
+            with open(_TENANT_FILE, "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=2)
+            _cached = cfg
+        print(f"[TENANT] Org plan cached: {t}")
+    except Exception as e:
+        # Non-fatal — the next heartbeat will retry.
+        print(f"[TENANT] Could not cache org plan: {e}")
+
+
+def get_org_tier(default: str = "business") -> str:
+    """
+    Return the cached org-plan string for this machine.
+
+      • If enrolled and a heartbeat has already cached the real plan,
+        returns that exact string ("pro" / "enterprise" / …).
+      • If enrolled but no heartbeat has landed yet, returns the
+        `default` ("business") — paid features stay unlocked rather
+        than locking the IT admin out of their own org during the
+        first 10 seconds after launch.
+      • If not enrolled, returns "" so the caller knows to fall back
+        to the single-user license tier from auth_manager.
+    """
+    cfg = load()
+    if not cfg:
+        return ""
+    cached = (cfg.get("org_tier") or "").strip().lower()
+    if cached in _VALID_ORG_TIERS:
+        return cached
+    return default
+
+
+def get_effective_tier(local_tier: str = "free") -> str:
+    """
+    One-stop helper for GUI code: returns the tier string to display
+    and to feed into subscription_manager.
+
+    Resolution order:
+      1. If this machine is enrolled in a tenant → return the cached
+         org plan (or "business" until the first heartbeat lands).
+      2. Otherwise → return the supplied `local_tier` (typically the
+         result of auth_manager.get_user_tier(username)).
+    """
+    if is_enrolled():
+        return get_org_tier(default="business")
+    return (local_tier or "free").lower()
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  SERVER VALIDATION
 # ══════════════════════════════════════════════════════════════════════════════

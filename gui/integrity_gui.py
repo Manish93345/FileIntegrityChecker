@@ -493,11 +493,19 @@ class ProIntegrityGUI:
             # --- NEW FIX: Inject email into CONFIG so cloud sync knows the folder name ---
             user_data = auth.users.get(self.username, {})
             CONFIG["admin_email"] = user_data.get("registered_email", "UnknownUser")
-        # ── Tenant override: org-enrolled machines are always PRO ───────────────
+        # ── Tenant override v2.5.1: read REAL org plan from tenant.json ──
+        # Previously this hard-coded "business" — so PRO / Enterprise orgs
+        # were displayed (and feature-gated) as Business in the GUI.
+        # tenant_manager.get_org_tier() returns the actual plan string
+        # ("pro" / "enterprise" / "business"…) cached from the server's
+        # most recent heartbeat response. Falls back to "business" while
+        # the first heartbeat is in-flight so paid features stay unlocked.
         try:
             from core import tenant_manager as _tenant_mgr
             if _tenant_mgr.is_enrolled():
-                current_tier = "business"   # treat org installs as PRO immediately
+                _org_tier = _tenant_mgr.get_org_tier(default="business")
+                if _org_tier:
+                    current_tier = _org_tier
         except Exception:
             pass
             
@@ -714,6 +722,17 @@ class ProIntegrityGUI:
         current_tier = 'FREE'
         if auth:
             current_tier = auth.get_user_tier(self.username)
+        # v2.5.1 fix: org-enrolled machines must honour the org plan from
+        # the server, not the local users.dat tier (which stays "free"
+        # for org users because they never activate a personal license).
+        try:
+            from core import tenant_manager as _tm_hdr
+            if _tm_hdr.is_enrolled():
+                _org_tier = _tm_hdr.get_org_tier(default="business")
+                if _org_tier:
+                    current_tier = _org_tier
+        except Exception:
+            pass
         self.top_btn_frame = tk.Frame(right_hdr, bg=C['header_bg'])
         self.top_btn_frame.pack(side=tk.LEFT, pady=12)
 
@@ -727,9 +746,21 @@ class ProIntegrityGUI:
                 width=140, height=30, cursor='hand2')
             self.upgrade_btn.pack(side=tk.LEFT, padx=(0, 10))
         else:
+            # v2.5.1 — show the friendly label for the actual purchased
+            # plan ("PRO" / "ENTERPRISE" / "BUSINESS" / "TRIAL") instead
+            # of a hard-coded "PRO" string. Falls back to "PRO" if the
+            # tier is unknown so we never crash the header.
+            try:
+                badge_label = subscription_manager.get_label(current_tier).upper()
+            except Exception:
+                badge_label = 'PRO'
+            for _suffix in (' PLAN', ' MONTHLY', ' ANNUAL'):
+                if badge_label.endswith(_suffix):
+                    badge_label = badge_label[: -len(_suffix)]
             pro_frame = tk.Frame(self.top_btn_frame, bg='#2d2008', padx=10, pady=4)
             pro_frame.pack(side=tk.LEFT, padx=(0, 10))
-            tk.Label(pro_frame, text='★  PRO', font=('Segoe UI', 10, 'bold'),
+            tk.Label(pro_frame, text=f'★  {badge_label}',
+                     font=('Segoe UI', 10, 'bold'),
                      bg='#2d2008', fg='#d29922').pack()
             self.pro_badge = pro_frame
 
@@ -4891,7 +4922,46 @@ class ProIntegrityGUI:
                         data = resp.json()
                         if data.get("command") == "LOCKDOWN":
                             self.root.after(0, self._execute_remote_lockdown)
-                        # ── Apply org plan from server ──────────────────────────
+                        
+                        # ── NEW: live detection-rule updates ─────────────────
+                        server_rule_version = data.get("rule_version", "")
+                        if server_rule_version and _tm and _tm.is_enrolled():
+                            try:
+                                from core.rule_updater import handle_heartbeat_version
+
+                                def _gui_toast(event_type, msg, severity):
+                                    # Show banner in GUI when a new rule pack is applied
+                                    self.root.after(
+                                        0,
+                                        lambda: self._handle_realtime_event(
+                                            event_type, msg, severity)
+                                    )
+
+                                handle_heartbeat_version(
+                                    server_version=server_rule_version,
+                                    tenant_key=_tm.get_key(),
+                                    server_url=_tm.get_server(),
+                                    gui_cb=_gui_toast,
+                                )
+                            except Exception as e:
+                                print(f"[RULE-UPDATER] hook error: {e}")
+                        # ──────────────────────────────────────────────────────
+
+                        # ── Apply org plan from server (v2.5.1 — cache to disk) ──
+                        # Persist the exact plan ("pro" / "enterprise" / …) the
+                        # server returned so the header badge, profile panel,
+                        # and feature gates reflect the real purchased plan.
+                        srv_tier = (data.get("tier") or "").strip().lower()
+                        if srv_tier and _tm and _tm.is_enrolled():
+                            try:
+                                prev_cached = _tm.get_org_tier(default="")
+                                _tm.cache_org_tier(srv_tier)
+                                if prev_cached and prev_cached != srv_tier:
+                                    # Plan changed mid-session — refresh badge
+                                    self.root.after(0, self._refresh_tier_badge)
+                            except Exception as _e:
+                                print(f"[HB] org-tier cache error: {_e}")
+
                         if data.get("is_pro") and not CONFIG.get("is_pro_user"):
                             CONFIG["is_pro_user"] = True
                             try:
@@ -5355,6 +5425,17 @@ class ProIntegrityGUI:
             tier = auth.get_user_tier(self.username).upper()
             user_data = auth.users.get(self.username, {})
             email = user_data.get("registered_email", "No email on file")
+        # v2.5.1 fix: org-enrolled machines display the ORG plan (PRO /
+        # ENTERPRISE / BUSINESS) in the profile panel, not the personal
+        # license tier (which is always FREE for org users).
+        try:
+            from core import tenant_manager as _tm_prof
+            if _tm_prof.is_enrolled():
+                _org_tier = _tm_prof.get_org_tier(default="business")
+                if _org_tier:
+                    tier = _org_tier.upper().replace("_", " ")
+        except Exception:
+            pass
             
         tier_color = "#ffd700" if tier != "FREE" else self.colors['text_muted']
         
@@ -5791,6 +5872,7 @@ class ProIntegrityGUI:
             ("📊 $> AUDIT LOGS", self._open_audit_logs, '#00ffff', '📁'),
             ("🔐 $> CRYPTO TOOLS", self._open_crypto_tools, '#ff00ff', '🔑'),
             ("🛡️ $> FIREWALL SETTINGS", self._open_firewall_settings, '#ff9900', '⚙️'),
+            ("🔄 $> UPDATE DETECTION RULES", self._menu_check_rule_updates, '#00ffff', '🔄'), # <--- NEW BUTTON HERE
             ("💾 $> SYSTEM BACKUP", self.archive_and_reset, '#ff0000', '💿'),
             ("🚨 $> EMERGENCY LOCKDOWN", self._emergency_lockdown, '#ff0000', '⚠️')
         ]
@@ -7825,6 +7907,45 @@ class ProIntegrityGUI:
             else:
                 messagebox.showerror("Error", "Failed to disable Safe Mode.")
 
+    def _menu_check_rule_updates(self):
+        """Manual: 'Tools → Check for rule updates'. Runs in background thread."""
+        def _bg():
+            from tkinter import messagebox
+            try:
+                from core import tenant_manager as _tm
+                from core.rule_updater import force_check, get_status_summary
+
+                if not _tm.is_enrolled():
+                    self.root.after(0, lambda: messagebox.showinfo(
+                        "Rule Updates",
+                        "Manual checks are only available in Organisation-managed mode."))
+                    return
+
+                updated = force_check(
+                    tenant_key=_tm.get_key(),
+                    server_url=_tm.get_server(),
+                    gui_cb=lambda et, msg, sev: self.root.after(
+                        0, lambda: self._handle_realtime_event(et, msg, sev))
+                )
+                s = get_status_summary()
+                if updated:
+                    msg = (f"✅ Rule pack updated to v{s['version']}\n"
+                           f"{s['count']} detection rules active.")
+                else:
+                    msg = (f"✅ Already up-to-date.\n\n"
+                           f"Version: v{s['version'] or 'bundled-default'}\n"
+                           f"YARA rules: {s['yara_files']}\n"
+                           f"Sigma rules: {s['sigma_files']}\n"
+                           f"Last sync: {s['updated_at'] or 'never'}")
+                self.root.after(0, lambda: messagebox.showinfo("Rule Updates", msg))
+            except Exception as e:
+                self.root.after(0, lambda: messagebox.showerror(
+                    "Rule Updates", f"Update check failed:\n{e}"))
+
+        import threading
+        threading.Thread(target=_bg, daemon=True,
+                         name="FMSecure-ManualRuleCheck").start()
+
     # ─────────────────────────────────────────
     #  OTA UPDATE ENGINE
     # ─────────────────────────────────────────
@@ -7907,6 +8028,55 @@ class ProIntegrityGUI:
                 bd=0, cursor="hand2",
                 activebackground="#2a4a2a").pack(side=tk.LEFT)
 
+    def _refresh_tier_badge(self):
+        """
+        v2.5.1 helper — called by the heartbeat thread when the server
+        reports an org plan that differs from what we cached previously
+        (e.g. super-admin changed the tenant from PRO to Enterprise).
+        Safely rebuilds the header badge so the new plan name appears
+        without requiring an app restart.
+
+        Must run on the Tk main thread — the heartbeat loop schedules
+        it via `self.root.after(0, self._refresh_tier_badge)`.
+        """
+        try:
+            from core import tenant_manager as _tm
+            new_tier = _tm.get_org_tier(default="business")
+        except Exception:
+            return
+
+        try:
+            new_label = subscription_manager.get_label(new_tier).upper()
+        except Exception:
+            new_label = "PRO"
+        for _suffix in (' PLAN', ' MONTHLY', ' ANNUAL'):
+            if new_label.endswith(_suffix):
+                new_label = new_label[: -len(_suffix)]
+
+        # Tear down the old badge (and the upgrade button, if any) and
+        # let _apply_org_pro_status() rebuild a fresh one with the new
+        # label. This is the cheapest way to keep the layout consistent.
+        try:
+            if hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists():
+                self.pro_badge.destroy()
+        except Exception:
+            pass
+        try:
+            if hasattr(self, 'upgrade_btn') and self.upgrade_btn.winfo_exists():
+                self.upgrade_btn.destroy()
+        except Exception:
+            pass
+
+        try:
+            self._apply_org_pro_status()
+        except Exception as e:
+            print(f"[TIER-REFRESH] rebuild error: {e}")
+
+        try:
+            self._append_log(f"🏷  Org plan updated → {new_label}")
+        except Exception:
+            pass
+
     def _apply_org_pro_status(self):
         """Unlock PRO features for organisation-enrolled machines."""
         from core.integrity_core import CONFIG
@@ -7920,13 +8090,25 @@ class ProIntegrityGUI:
             except Exception:
                 pass
 
-        # Show ORG badge if not already showing PRO badge
+        # Show ORG badge if not already showing PRO badge.
+        # v2.5.1 — read the cached org plan so a PRO org shows
+        # "🏢 ORG PRO", an Enterprise org shows "🏢 ORG ENTERPRISE", etc.
+        try:
+            from core import tenant_manager as _tm
+            org_tier = _tm.get_org_tier(default="business")
+            org_label = subscription_manager.get_label(org_tier).upper()
+            for _suffix in (' PLAN', ' MONTHLY', ' ANNUAL'):
+                if org_label.endswith(_suffix):
+                    org_label = org_label[: -len(_suffix)]
+        except Exception:
+            org_label = "PRO"
+
         if not (hasattr(self, 'pro_badge') and self.pro_badge.winfo_exists()):
             try:
                 import customtkinter as ctk
                 self.pro_badge = ctk.CTkLabel(
                     self.top_btn_frame,
-                    text="🏢  ORG PRO",
+                    text=f"🏢  ORG {org_label}",
                     font=('Segoe UI', 10, 'bold'),
                     text_color="#2f81f7",
                     fg_color="transparent")
@@ -7942,6 +8124,42 @@ class ProIntegrityGUI:
             pass
 
         self._append_log("🏢 Organisation PRO plan applied — all PRO features active")
+
+    def _refresh_tier_badge(self):
+        """
+        v2.5.1 helper — called from the heartbeat thread (via root.after)
+        when the server reports an org-plan change (PRO → Enterprise, etc.).
+        Recreates the tier badge so the header reflects the new plan
+        without forcing the user to restart the app.
+
+        Safe to call repeatedly — it is a no-op when the badge already
+        matches the cached plan.
+        """
+        try:
+            from core import tenant_manager as _tm
+            if not _tm.is_enrolled():
+                return
+            new_tier = _tm.get_org_tier(default="business")
+            if not new_tier:
+                return
+            label = "★  " + new_tier.upper().replace("_", " ")
+            if hasattr(self, "pro_badge"):
+                try:
+                    if self.pro_badge.winfo_exists():
+                        # pro_badge is a Frame containing a Label — update text
+                        for child in self.pro_badge.winfo_children():
+                            try:
+                                child.config(text=label)
+                            except Exception:
+                                pass
+                        self._append_log(f"✨ Org plan updated → {label.strip()}")
+                        return
+                except Exception:
+                    pass
+            # No badge yet — use the existing PRO-apply path
+            self._apply_org_pro_status()
+        except Exception as e:
+            print(f"[GUI] _refresh_tier_badge error: {e}")
 
     def _show_seat_limit_banner(self):
         """Show a non-blocking warning when org seat limit is reached."""

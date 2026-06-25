@@ -1,14 +1,16 @@
 """
-sigma_engine.py — FMSecure v2.6
+sigma_engine.py — FMSecure v2.7
 Sigma rule evaluation engine.
 
-Tails telemetry.jsonl and evaluates every new event against
-.yml rule files in core/sigma_rules/.
+CHANGED IN v2.7
+───────────────
+SimpleSigmaEngine now loads rules from BOTH:
+  1. Bundled (read-only)   — core/sigma_rules/
+  2. Override (writable)   — %LOCALAPPDATA%\\SecureFIM\\rules\\sigma\\
 
-When a rule fires:
-  - calls append_log_line() so the GUI shows it
-  - emits a structured telemetry event tagged with the Sigma rule name
-  - triggers send_webhook_safe() for HIGH/CRITICAL matches
+Override files with the same filename SHADOW their bundled counterparts —
+enabling live rule updates without rebuilding the .exe.
+Hot-reload (`reload_rules()`) re-scans both directories.
 """
 
 import os
@@ -24,27 +26,43 @@ from datetime import datetime
 class SimpleSigmaEngine:
     """
     Lightweight Sigma evaluator that works directly on FMSecure's ECS JSON events.
-
-    Why not use pySigma's full backend system:
-      pySigma is designed to *convert* Sigma rules to SIEM query languages
-      (Splunk SPL, Elastic KQL, etc.). For *real-time evaluation* against a
-      JSON stream, a direct field-matching approach is faster and simpler.
-      pySigma is still used for rule parsing/validation.
     """
 
-    def __init__(self, rules_dir: str):
-        self.rules_dir   = rules_dir
+    def __init__(self, rules_dir: str, override_dir: Optional[str] = None):
+        self.rules_dir    = rules_dir
+        self.override_dir = override_dir
         self.rules: List[Dict] = []
-        self._lock       = threading.Lock()
+        self._lock        = threading.Lock()
         self._load_rules()
 
     # ── Rule loading ──────────────────────────────────────────────────────────
 
+    def _gather_paths(self) -> List[str]:
+        """
+        Build the final ordered list of .yml paths to load.
+        Override directory wins on basename collision.
+        """
+        by_name: Dict[str, str] = {}
+
+        # 1) Bundled first
+        for path in glob.glob(os.path.join(self.rules_dir, "*.yml")):
+            by_name[os.path.basename(path)] = path
+        for path in glob.glob(os.path.join(self.rules_dir, "*.yaml")):
+            by_name[os.path.basename(path)] = path
+
+        # 2) Override on top — same basename ⇒ overwrite path
+        if self.override_dir and os.path.isdir(self.override_dir):
+            for path in glob.glob(os.path.join(self.override_dir, "*.yml")):
+                by_name[os.path.basename(path)] = path
+            for path in glob.glob(os.path.join(self.override_dir, "*.yaml")):
+                by_name[os.path.basename(path)] = path
+
+        return list(by_name.values())
+
     def _load_rules(self):
-        """Load and parse all .yml files from the rules directory."""
+        """Load and parse all .yml files from bundled + override dirs."""
         loaded = []
-        pattern = os.path.join(self.rules_dir, "*.yml")
-        for path in glob.glob(pattern):
+        for path in self._gather_paths():
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     rule = yaml.safe_load(f)
@@ -56,14 +74,14 @@ class SimpleSigmaEngine:
 
         with self._lock:
             self.rules = loaded
-        print(f"[SIGMA] Loaded {len(loaded)} detection rules from {self.rules_dir}")
+        print(f"[SIGMA] Loaded {len(loaded)} detection rules "
+              f"(bundled={self.rules_dir}, override={self.override_dir})")
 
     def reload_rules(self):
-        """Hot-reload rules without restarting monitoring. Call from GUI."""
+        """Hot-reload rules without restarting monitoring. Called by rule_updater."""
         self._load_rules()
 
     def _validate_rule(self, rule: dict) -> bool:
-        """Minimal validation — must have title, detection, level."""
         return (
             isinstance(rule, dict)
             and "title" in rule
@@ -71,21 +89,9 @@ class SimpleSigmaEngine:
             and "level" in rule
         )
 
-    # ── Matching logic ────────────────────────────────────────────────────────
+    # ── Matching logic (unchanged) ────────────────────────────────────────────
 
     def evaluate(self, event: Dict[str, Any]) -> Optional[Dict]:
-        """
-        Evaluate a single ECS event dict against all loaded rules.
-        Returns the first matching rule dict, or None if no match.
-
-        Supports Sigma condition operators:
-          - Simple field equality:   field: value
-          - List OR:                 field: [v1, v2, v3]
-          - Contains modifier:       field|contains: substring
-          - startswith modifier:     field|startswith: prefix
-          - endswith modifier:       field|endswith: suffix
-          - condition: selection (only mode implemented — covers 95% of rules)
-        """
         with self._lock:
             rules_snapshot = list(self.rules)
 
@@ -100,9 +106,6 @@ class SimpleSigmaEngine:
     def _match_rule(self, rule: dict, event: dict) -> bool:
         detection = rule.get("detection", {})
         condition  = detection.get("condition", "selection")
-
-        # Only handle "condition: selection" for now
-        # This covers the vast majority of Sigma rules
         if condition.strip() != "selection":
             return False
 
@@ -110,38 +113,26 @@ class SimpleSigmaEngine:
         if not selection:
             return False
 
-        # All fields in selection must match (AND logic)
         for field_expr, expected in selection.items():
             if not self._match_field(event, field_expr, expected):
                 return False
         return True
 
     def _match_field(self, event: dict, field_expr: str, expected) -> bool:
-        """
-        Resolve a dotted field path with optional modifier (contains/startswith/endswith).
-        field_expr examples:
-            "fmsecure.event_type"
-            "message|contains"
-            "file.path|contains"
-        """
-        # Parse modifier
         modifier = None
         field_path = field_expr
         if "|" in field_expr:
             field_path, modifier = field_expr.split("|", 1)
 
-        # Resolve dotted path in nested dict
         actual = self._get_nested(event, field_path)
         if actual is None:
             return False
 
         actual_str = str(actual).lower()
 
-        # Normalize expected to list
         if not isinstance(expected, list):
             expected = [expected]
 
-        # Any value in the list can match (OR logic within a field)
         for exp_val in expected:
             exp_str = str(exp_val).lower()
             if modifier == "contains":
@@ -154,14 +145,11 @@ class SimpleSigmaEngine:
                 if actual_str.endswith(exp_str):
                     return True
             else:
-                # Exact match
                 if actual_str == exp_str:
                     return True
-
         return False
 
     def _get_nested(self, d: dict, dotted_path: str):
-        """Resolve 'a.b.c' into d['a']['b']['c'], returns None if missing."""
         parts = dotted_path.split(".")
         cur = d
         for part in parts:
@@ -171,14 +159,9 @@ class SimpleSigmaEngine:
         return cur
 
 
-# ── Tail + evaluate loop ───────────────────────────────────────────────────────
+# ── Tail + evaluate loop (unchanged) ──────────────────────────────────────────
 
 class SigmaMonitor:
-    """
-    Background thread that tails telemetry.jsonl and runs rule evaluation
-    on every new line.
-    """
-
     def __init__(self, telemetry_path: str, engine: SimpleSigmaEngine, gui_callback=None):
         self.telemetry_path = telemetry_path
         self.engine         = engine
@@ -191,10 +174,7 @@ class SigmaMonitor:
             return
         self._running = True
         self._thread  = threading.Thread(
-            target=self._tail_loop,
-            daemon=True,
-            name="FMSecure-SigmaMonitor"
-        )
+            target=self._tail_loop, daemon=True, name="FMSecure-SigmaMonitor")
         self._thread.start()
         print("[SIGMA] Monitor thread started.")
 
@@ -202,30 +182,22 @@ class SigmaMonitor:
         self._running = False
 
     def _tail_loop(self):
-        """
-        Efficient tail implementation:
-          - seek to end of file on startup (don't re-evaluate old events)
-          - poll for new lines every 0.5 seconds
-          - handle file rotation (file disappears → reopen)
-        """
         fh = None
         while self._running:
             try:
                 if fh is None:
                     if os.path.exists(self.telemetry_path):
                         fh = open(self.telemetry_path, "r", encoding="utf-8")
-                        fh.seek(0, 2)   # seek to end — ignore historical events
+                        fh.seek(0, 2)
                     else:
                         time.sleep(1.0)
                         continue
 
                 line = fh.readline()
                 if not line:
-                    # No new data — check if file was rotated
                     try:
                         if not os.path.exists(self.telemetry_path):
-                            fh.close()
-                            fh = None
+                            fh.close(); fh = None
                     except Exception:
                         pass
                     time.sleep(0.5)
@@ -235,7 +207,6 @@ class SigmaMonitor:
                 if not line:
                     continue
 
-                # Parse and evaluate
                 try:
                     event = json.loads(line)
                     self._handle_event(event)
@@ -259,7 +230,6 @@ class SigmaMonitor:
                 pass
 
     def _handle_event(self, event: dict):
-        """Called for every new telemetry event. Evaluates rules and fires alerts."""
         matched_rule = self.engine.evaluate(event)
         if not matched_rule:
             return
@@ -269,17 +239,12 @@ class SigmaMonitor:
         rule_id      = matched_rule.get("id", "")
         tags         = matched_rule.get("tags", [])
 
-        # Map Sigma level to FMSecure severity
         severity_map = {
-            "CRITICAL": "CRITICAL",
-            "HIGH":     "HIGH",
-            "MEDIUM":   "MEDIUM",
-            "LOW":      "INFO",
-            "INFO":     "INFO",
+            "CRITICAL": "CRITICAL", "HIGH": "HIGH", "MEDIUM": "MEDIUM",
+            "LOW":      "INFO",     "INFO": "INFO",
         }
         severity = severity_map.get(rule_level, "HIGH")
 
-        # Extract MITRE technique from tags e.g. "attack.t1486"
         mitre_id = ""
         for tag in tags:
             tag_lower = tag.lower()
@@ -296,16 +261,11 @@ class SigmaMonitor:
             + f" — {original_msg}"
         )
 
-        # Fire into the standard FMSecure alert pipeline
         try:
             from core.integrity_core import append_log_line, send_webhook_safe
             append_log_line(
-                alert_msg,
-                event_type=f"SIGMA_{rule_level}",
-                severity=severity,
-                file_path=file_path or None,
-            )
-            # Notify GUI in real-time (fires the alert panel popup)
+                alert_msg, event_type=f"SIGMA_{rule_level}",
+                severity=severity, file_path=file_path or None)
             if self._gui_callback:
                 try:
                     self._gui_callback(f"SIGMA_{rule_level}", alert_msg, severity)
@@ -313,11 +273,8 @@ class SigmaMonitor:
                     pass
             if severity in ("HIGH", "CRITICAL"):
                 send_webhook_safe(
-                    f"SIGMA_RULE_{rule_level}",
-                    alert_msg,
-                    filepath=file_path or None,
-                    severity=severity,
-                )
+                    f"SIGMA_RULE_{rule_level}", alert_msg,
+                    filepath=file_path or None, severity=severity)
         except Exception as e:
             print(f"[SIGMA] Alert dispatch error: {e}")
 
@@ -331,8 +288,7 @@ _engine:  Optional[SimpleSigmaEngine] = None
 def start_sigma_monitoring(telemetry_path: str, rules_dir: str, gui_callback=None) -> bool:
     """
     Start the Sigma rule monitor.
-    Called from FileIntegrityMonitor.start_monitoring().
-    Safe to call multiple times — only one thread runs.
+    Now also discovers the writable override directory from rule_updater.
     """
     global _monitor, _engine
 
@@ -340,25 +296,33 @@ def start_sigma_monitoring(telemetry_path: str, rules_dir: str, gui_callback=Non
         print(f"[SIGMA] Rules directory not found: {rules_dir}")
         return False
 
-    _engine  = SimpleSigmaEngine(rules_dir=rules_dir)
+    # NEW: writable override directory for live-updated rules
+    override_dir: Optional[str] = None
+    try:
+        from core.rule_updater import get_rules_override_dir
+        override_dir = get_rules_override_dir("sigma")
+    except Exception as e:
+        print(f"[SIGMA] No override dir available: {e}")
+
+    _engine  = SimpleSigmaEngine(rules_dir=rules_dir, override_dir=override_dir)
     if not _engine.rules:
         print("[SIGMA] No rules loaded — monitor not started.")
         return False
 
-    _monitor = SigmaMonitor(telemetry_path=telemetry_path, engine=_engine, gui_callback=gui_callback)
+    _monitor = SigmaMonitor(telemetry_path=telemetry_path,
+                            engine=_engine, gui_callback=gui_callback)
     _monitor.start()
     return True
 
 
 def stop_sigma_monitoring():
-    """Called from FileIntegrityMonitor.stop_monitoring()."""
     global _monitor
     if _monitor:
         _monitor.stop()
 
 
 def reload_rules():
-    """Hot-reload rules. Can be wired to a GUI button later."""
+    """Hot-reload rules. Called by rule_updater."""
     if _engine:
         _engine.reload_rules()
 

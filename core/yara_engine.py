@@ -1,17 +1,26 @@
 """
-yara_engine.py — FMSecure v2.6
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+yara_engine.py — FMSecure v2.7
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 YARA malware signature scanning engine.
 
-Scans file content against compiled YARA rules on every
-file creation and modification event.
+CHANGED IN v2.7
+───────────────
+The engine now compiles rules from TWO directories at the same time:
 
-Rules are compiled once at startup into a single
-yara.Rules object — subsequent scans are microseconds.
+  1. Bundled (read-only)   — sys._MEIPASS / project's core/yara_rules/
+                             Shipped inside the .exe. Cannot be changed
+                             without rebuilding the binary.
+  2. Override (writable)   — %LOCALAPPDATA%\\SecureFIM\\rules\\yara\\
+                             Populated by core.rule_updater after a
+                             successful pull from the C2 server.
 
-All scanning is async (daemon thread) — never blocks
-the watchdog event hot path.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+If both directories contain a file with the same name, the OVERRIDE wins —
+this is how live updates supersede shipped defaults without ever touching
+the read-only bundle.
+
+Hot-reload (`reload_yara_rules()`) still works exactly as before — it
+re-scans both dirs in lock-step.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 
 import os
@@ -33,39 +42,54 @@ except ImportError:
 
 class YaraEngine:
     """
-    Loads all .yar / .yara files from rules_dir, compiles them into
-    a single yara.Rules object, and exposes scan_file().
+    Loads all .yar / .yara files from BOTH rules_dir (bundled) and the
+    optional override_dir (writable, populated by rule_updater).
 
     Thread-safe — multiple watchdog threads can call scan_file() concurrently.
     """
 
     MAX_FILE_SIZE_MB = 20   # skip files larger than this (performance guard)
 
-    def __init__(self, rules_dir: str):
+    def __init__(self, rules_dir: str, override_dir: Optional[str] = None):
         self.rules_dir    = rules_dir
+        self.override_dir = override_dir
         self._compiled:   Optional[Any] = None   # yara.Rules object
         self._lock        = threading.RLock()
         self._load_and_compile()
 
     # ── Loading ───────────────────────────────────────────────────────────────
 
-    def _load_and_compile(self):
+    def _collect_rule_files(self) -> Dict[str, str]:
         """
-        Compile all rule files into one yara.Rules object.
-        yara.compile() with filepaths dict is the correct way to
-        combine multiple rule files without namespace collisions.
+        Return {namespace: absolute_path}, with override files SHADOWING
+        bundled files of the same basename.
         """
-        if not _yara_available:
-            return
+        files: Dict[str, str] = {}
 
-        rule_files = {}
+        # 1) Bundled first
         for ext in ("*.yar", "*.yara"):
             for path in glob.glob(os.path.join(self.rules_dir, ext)):
                 namespace = os.path.splitext(os.path.basename(path))[0]
-                rule_files[namespace] = path
+                files[namespace] = path
 
+        # 2) Override on top — same basename ⇒ overwrite
+        if self.override_dir and os.path.isdir(self.override_dir):
+            for ext in ("*.yar", "*.yara"):
+                for path in glob.glob(os.path.join(self.override_dir, ext)):
+                    namespace = os.path.splitext(os.path.basename(path))[0]
+                    files[namespace] = path   # override wins
+
+        return files
+
+    def _load_and_compile(self):
+        """Compile all rule files into one yara.Rules object."""
+        if not _yara_available:
+            return
+
+        rule_files = self._collect_rule_files()
         if not rule_files:
-            print(f"[YARA] No rule files found in {self.rules_dir}")
+            print(f"[YARA] No rule files found in {self.rules_dir} "
+                  f"(override={self.override_dir})")
             return
 
         try:
@@ -74,14 +98,15 @@ class YaraEngine:
                 self._compiled = compiled
             total_rules = sum(1 for _ in compiled)
             print(f"[YARA] Compiled {len(rule_files)} rule files "
-                  f"({total_rules} rules) from {self.rules_dir}")
+                  f"({total_rules} rules) — "
+                  f"bundled={self.rules_dir}, override={self.override_dir}")
         except yara.SyntaxError as e:
             print(f"[YARA] Rule syntax error: {e}")
         except Exception as e:
             print(f"[YARA] Compile error: {e}")
 
     def reload(self):
-        """Hot-reload rules. Call after adding new rule files."""
+        """Hot-reload rules. Called by rule_updater after a successful pull."""
         self._load_and_compile()
 
     @property
@@ -93,20 +118,7 @@ class YaraEngine:
     def scan_file(self, filepath: str) -> Optional[Dict]:
         """
         Scan a single file against all compiled YARA rules.
-
-        Returns a result dict on match:
-        {
-            "matched":      True,
-            "rule_name":    "WannaCry_Ransomware",
-            "family":       "WannaCry",
-            "description":  "Detects WannaCry ransomware",
-            "severity":     "CRITICAL",
-            "mitre":        "T1486",
-            "strings_hit":  ["$a", "$b"],
-            "filepath":     "/path/to/file",
-        }
-
-        Returns None if no match or file cannot be scanned.
+        Returns a result dict on match (see original docstring), or None.
         Never raises.
         """
         if not self.is_ready:
@@ -115,7 +127,6 @@ class YaraEngine:
         if not os.path.isfile(filepath):
             return None
 
-        # Size guard — skip large files for performance
         try:
             size_mb = os.path.getsize(filepath) / (1024 * 1024)
             if size_mb > self.MAX_FILE_SIZE_MB:
@@ -130,11 +141,9 @@ class YaraEngine:
                 return None
 
             matches = compiled.match(filepath, timeout=10)
-
             if not matches:
                 return None
 
-            # Take the first (highest priority) match
             match        = matches[0]
             meta         = match.meta if hasattr(match, 'meta') else {}
             strings_hit  = [s.identifier for s in match.strings] \
@@ -156,21 +165,13 @@ class YaraEngine:
         except yara.TimeoutError:
             print(f"[YARA] Scan timeout: {filepath}")
             return None
-        except Exception as e:
-            # File locked, permission denied, etc. — non-critical
+        except Exception:
             return None
 
 
 # ── Async scanner queue ────────────────────────────────────────────────────────
 
 class AsyncYaraScanner:
-    """
-    Receives scan jobs via a queue and runs them in a dedicated
-    worker thread — completely off the watchdog event thread.
-
-    on_match(filepath, result) is called when a rule matches.
-    """
-
     def __init__(self, engine: YaraEngine, on_match=None):
         self._engine    = engine
         self._on_match  = on_match
@@ -181,21 +182,17 @@ class AsyncYaraScanner:
     def start(self):
         self._running = True
         self._thread  = threading.Thread(
-            target=self._worker,
-            daemon=True,
-            name="FMSecure-YaraScanner"
-        )
+            target=self._worker, daemon=True, name="FMSecure-YaraScanner")
         self._thread.start()
 
     def stop(self):
         self._running = False
 
     def submit(self, filepath: str):
-        """Non-blocking — drop the job if queue is full."""
         try:
             self._queue.put_nowait(filepath)
         except queue.Full:
-            pass   # Under heavy load, drop scan — never block watchdog thread
+            pass
 
     def _worker(self):
         while self._running:
@@ -223,7 +220,7 @@ _scanner: Optional[AsyncYaraScanner] = None
 def start_yara_scanning(rules_dir: str, on_match=None) -> bool:
     """
     Initialize and start the YARA scanner.
-    Called from FileIntegrityMonitor.start_monitoring().
+    Now also discovers the writable override directory from rule_updater.
     """
     global _engine, _scanner
 
@@ -235,7 +232,15 @@ def start_yara_scanning(rules_dir: str, on_match=None) -> bool:
         print(f"[YARA] Rules directory not found: {rules_dir}")
         return False
 
-    _engine  = YaraEngine(rules_dir=rules_dir)
+    # NEW: writable override directory for live-updated rules
+    override_dir: Optional[str] = None
+    try:
+        from core.rule_updater import get_rules_override_dir
+        override_dir = get_rules_override_dir("yara")
+    except Exception as e:
+        print(f"[YARA] No override dir available: {e}")
+
+    _engine  = YaraEngine(rules_dir=rules_dir, override_dir=override_dir)
     if not _engine.is_ready:
         return False
 
@@ -245,23 +250,18 @@ def start_yara_scanning(rules_dir: str, on_match=None) -> bool:
 
 
 def stop_yara_scanning():
-    """Called from FileIntegrityMonitor.stop_monitoring()."""
     global _scanner
     if _scanner:
         _scanner.stop()
 
 
 def submit_file_for_scan(filepath: str):
-    """
-    Called from on_created() and on_modified() in integrity_core.py.
-    Non-blocking — returns immediately.
-    """
     if _scanner:
         _scanner.submit(filepath)
 
 
 def reload_yara_rules():
-    """Hot-reload rules without restarting monitoring."""
+    """Hot-reload rules without restarting monitoring. Called by rule_updater."""
     if _engine:
         _engine.reload()
 
@@ -269,7 +269,8 @@ def reload_yara_rules():
 def get_yara_status() -> Dict:
     """For GUI / dashboard display."""
     return {
-        "available":   _yara_available,
+        "available":    _yara_available,
         "engine_ready": _engine.is_ready if _engine else False,
-        "rules_dir":   _engine.rules_dir if _engine else "",
+        "rules_dir":    _engine.rules_dir    if _engine else "",
+        "override_dir": _engine.override_dir if _engine else "",
     }
